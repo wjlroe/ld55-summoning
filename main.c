@@ -123,16 +123,43 @@ typedef struct Type_Challenge {
 	bool typed_correctly[MAX_CHALLENGE_LENGTH];
 	int position;
 	SDL_Rect bounding_box;
-	SDL_Texture* texture; // TODO: per-char textures!
+	SDL_Rect positions[MAX_CHALLENGE_LENGTH];
+	SDL_Texture* textures[MAX_CHALLENGE_LENGTH];
+	float alpha;
 } Type_Challenge;
 
 static void setup_challenge(SDL_Renderer* renderer, TTF_Font* font, Type_Challenge* challenge, String text) {
 	challenge->text = text;
 	challenge->font = font;
 	TTF_SizeText(challenge->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
-	// TODO: split into per-character textures...
-	SDL_Surface* surface = TTF_RenderText_Solid(challenge->font, text.str, white);
-	challenge->texture = SDL_CreateTextureFromSurface(renderer, surface);
+	int minx, maxx, miny, maxy, advance = 0;
+	int left_edge_x = 0;
+	for (int i = 0; i < text.length; i++) {
+		TTF_GlyphMetrics32(challenge->font, text.str[i],
+						   &minx, &maxx,
+						   &miny, &maxy, &advance);
+		SDL_Surface* surface = TTF_RenderGlyph32_Solid(challenge->font, text.str[i], white);
+		challenge->positions[i].w = surface->w;
+		challenge->positions[i].h = surface->h;
+		challenge->positions[i].x = left_edge_x;
+		challenge->textures[i] = SDL_CreateTextureFromSurface(renderer, surface);
+		SDL_FreeSurface(surface);
+		left_edge_x += advance;
+	}
+}
+
+static void render_challenge(SDL_Renderer* renderer, Type_Challenge* challenge) {
+	for (int i = 0; i < challenge->text.length; i++) {
+		int alpha = challenge->alpha * 255;
+		SDL_SetTextureAlphaMod(challenge->textures[i], alpha);
+		if ((challenge->position > i) && (!challenge->typed_correctly[i])) {
+			SDL_SetTextureColorMod(challenge->textures[i], 255, 10, 10);
+		}
+		SDL_Rect pos = challenge->positions[i];
+		pos.x += challenge->bounding_box.x;
+		pos.y += challenge->bounding_box.y;
+		SDL_RenderCopy(renderer, challenge->textures[i], NULL, &pos);
+	}
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
@@ -157,6 +184,18 @@ static bool challenge_has_mistakes(Type_Challenge* challenge) {
 		}
 	}
 	return false;
+}
+
+static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
+	if (challenge->alpha < 1.0f) {
+		if (has_typing_started(challenge)) {
+			// speed up fading in if the typing has started
+			challenge->alpha += dt;
+		} else {
+			challenge->alpha += dt / 10.f;
+		}
+		challenge->alpha = (challenge->alpha > 1.0) ? 1.0 : challenge->alpha;
+	}
 }
 
 typedef struct Game_Window {
@@ -349,18 +388,8 @@ static void handle_inputs(void) {
 	}
 }
 
-float title_alpha = 0.0;
-
 static void do_animation(void) {
-	if (title_alpha < 1.0f) {
-		if (has_typing_started(&game_window.challenge)) {
-			// speed up fading in if the typing has started
-			title_alpha += game_window.dt;
-		} else {
-			title_alpha += game_window.dt / 10.f;
-		}
-		title_alpha = title_alpha > 1.0 ? 1.0 : title_alpha;
-	}
+	update_challenge_alpha(&game_window.challenge, game_window.dt);
 	update_sprite_animation(&game_window.runner1, game_window.dt);
 	update_sprite_animation(&game_window.runner2, game_window.dt);
 }
@@ -376,12 +405,7 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 static void render_menu(void) {
 	center_rect_horizontally(&game_window.challenge.bounding_box);
 	center_rect_veritcally(&game_window.challenge.bounding_box);
-	int alpha = title_alpha * 255;
-	SDL_SetTextureAlphaMod(game_window.challenge.texture, alpha);
-	if (challenge_has_mistakes(&game_window.challenge)) {
-		SDL_SetTextureColorMod(game_window.challenge.texture, 255, 10, 10);
-	}
-	SDL_RenderCopy(game_window.renderer, game_window.challenge.texture, NULL, &game_window.challenge.bounding_box);
+	render_challenge(game_window.renderer, &game_window.challenge);
 }
 
 static void render_game(void) {
