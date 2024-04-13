@@ -140,12 +140,10 @@ static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
 	return glyph;
 }
 	
-#define MAX_CHALLENGE_LENGTH 1024
-
 typedef struct Type_Challenge {
 	TTF_Font* font;
 	String text;
-	bool typed_correctly[MAX_CHALLENGE_LENGTH];
+	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
 	int position;
 	SDL_Rect bounding_box;
 	float alpha;
@@ -154,7 +152,12 @@ typedef struct Type_Challenge {
 static void setup_challenge(Type_Challenge* challenge, TTF_Font* font, String text) {
 	challenge->text = text;
 	challenge->font = font;
+	challenge->typed_correctly = calloc(sizeof(bool), text.length);
 	TTF_SizeText(challenge->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
+}
+
+static void free_challenge(Type_Challenge* challenge) {
+	free(challenge->typed_correctly);
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
