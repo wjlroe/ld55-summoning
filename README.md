@@ -1,14 +1,16 @@
-Ludum Dare 55: Summoning
+# Ludum Dare 55: Summoning
 
 Started with base code from: https://git.sr.ht/~willroe/base-code-c-webasm
+* IM Fell fonts from https://www.dafont.com/im-fell-types.font
 
 Tech: C + SDL2 + WebASM
+
+## WebASM docs
 
 * https://blog.logrocket.com/first-game-in-webassembly/
 * https://emscripten.org/docs/getting_started/downloads.html
 * https://emscripten.org/docs/compiling/Building-Projects.html?highlight=sdl2#emscripten-ports <- wasm ports of C libraries (e.g. SDL2)
 * https://github.com/emscripten-ports <- find ports for emscripten/wasm
-* IM Fell fonts from https://www.dafont.com/im-fell-types.font
 
 ## SDL2 docs
 
