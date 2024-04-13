@@ -418,10 +418,14 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		SDL_Texture* texture = glyph->texture;
 		int alpha = challenge->alpha * 255;
 		SDL_SetTextureAlphaMod(texture, alpha);
-		if ((challenge->position > i) && (!challenge->typed_correctly[i])) {
-			SDL_SetTextureColorMod(texture, 255, 10, 10);
+		if (challenge->position > i) {
+			if (challenge->typed_correctly[i]) { // correct
+				SDL_SetTextureColorMod(texture, 10, 255, 10);
+			} else { // incorrect
+				SDL_SetTextureColorMod(texture, 255, 10, 10);
+			}
 		} else {
-			// We need to unmask here because characters share textures via the glyph cache
+			// untyped character - so keep original color
 			SDL_SetTextureColorMod(texture, 255, 255, 255);
 		}
 		SDL_Rect pos = glyph->bounding_box;
