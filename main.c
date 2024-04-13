@@ -115,6 +115,31 @@ typedef struct Input {
 	char character;
 } Input;
 
+typedef struct Glyph {
+	char character;
+	SDL_Rect bounding_box;
+	int minx;
+	int maxx;
+	int miny;
+	int maxy;
+	int advance;
+	SDL_Texture* texture;
+} Glyph;
+
+static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
+	Glyph glyph = {0};
+	glyph.character = character;
+	TTF_GlyphMetrics(font, character,
+					 &glyph.minx, &glyph.maxx,
+					 &glyph.miny, &glyph.maxy, &glyph.advance);
+	SDL_Surface* surface = TTF_RenderGlyph_Solid(font, character, white);
+	glyph.bounding_box.w = surface->w;
+	glyph.bounding_box.h = surface->h;
+	glyph.texture = SDL_CreateTextureFromSurface(renderer, surface);
+	SDL_FreeSurface(surface);
+	return glyph;
+}
+	
 #define MAX_CHALLENGE_LENGTH 1024
 
 typedef struct Type_Challenge {
@@ -123,43 +148,13 @@ typedef struct Type_Challenge {
 	bool typed_correctly[MAX_CHALLENGE_LENGTH];
 	int position;
 	SDL_Rect bounding_box;
-	SDL_Rect positions[MAX_CHALLENGE_LENGTH];
-	SDL_Texture* textures[MAX_CHALLENGE_LENGTH];
 	float alpha;
 } Type_Challenge;
 
-static void setup_challenge(SDL_Renderer* renderer, TTF_Font* font, Type_Challenge* challenge, String text) {
+static void setup_challenge(Type_Challenge* challenge, TTF_Font* font, String text) {
 	challenge->text = text;
 	challenge->font = font;
 	TTF_SizeText(challenge->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
-	int minx, maxx, miny, maxy, advance = 0;
-	int left_edge_x = 0;
-	for (int i = 0; i < text.length; i++) {
-		TTF_GlyphMetrics32(challenge->font, text.str[i],
-						   &minx, &maxx,
-						   &miny, &maxy, &advance);
-		SDL_Surface* surface = TTF_RenderGlyph32_Solid(challenge->font, text.str[i], white);
-		challenge->positions[i].w = surface->w;
-		challenge->positions[i].h = surface->h;
-		challenge->positions[i].x = left_edge_x;
-		challenge->textures[i] = SDL_CreateTextureFromSurface(renderer, surface);
-		SDL_FreeSurface(surface);
-		left_edge_x += advance;
-	}
-}
-
-static void render_challenge(SDL_Renderer* renderer, Type_Challenge* challenge) {
-	for (int i = 0; i < challenge->text.length; i++) {
-		int alpha = challenge->alpha * 255;
-		SDL_SetTextureAlphaMod(challenge->textures[i], alpha);
-		if ((challenge->position > i) && (!challenge->typed_correctly[i])) {
-			SDL_SetTextureColorMod(challenge->textures[i], 255, 10, 10);
-		}
-		SDL_Rect pos = challenge->positions[i];
-		pos.x += challenge->bounding_box.x;
-		pos.y += challenge->bounding_box.y;
-		SDL_RenderCopy(renderer, challenge->textures[i], NULL, &pos);
-	}
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
@@ -198,12 +193,16 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 	}
 }
 
+#define NUM_GLYPHS 94 //126-32
+#define GLYPH_INDEX(c) c-32
+
 typedef struct Game_Window {
 	bool quit; // zero-init means quit=false by default
 	int window_width, window_height;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	TTF_Font* im_fell_font;
+	Glyph glyphs[NUM_GLYPHS];
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -272,6 +271,11 @@ static void init_the_game(void) {
 		#endif
 	}
 	game_window.im_fell_font = font;
+	{
+		for (int i = 0; i < NUM_GLYPHS; i++) {
+			game_window.glyphs[i] = new_glyph(game_window.renderer, font, i+32);
+		}
+	}
 
 	{
 		game_window.runner1 = new_spritesheet(game_window.runner_texture, 500, 500, 4, 4);
@@ -296,7 +300,7 @@ static void init_the_game(void) {
 	game_window.rect2.h = 300;
 	
 	String challenge_text = new_string("Summoning");
-	setup_challenge(game_window.renderer, game_window.im_fell_font, &game_window.challenge, challenge_text);
+	setup_challenge(&game_window.challenge, game_window.im_fell_font, challenge_text);
 	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
@@ -402,10 +406,33 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 	rect->y = (game_window.window_height / 2) - (rect->h / 2);
 }
 
+static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
+	int x = 0;
+	for (int i = 0; i < challenge->text.length; i++) {
+		char character = challenge->text.str[i];
+		assert((character >= 32) && (character <= 126));
+		Glyph* glyph = &game_window->glyphs[GLYPH_INDEX(character)];
+		SDL_Texture* texture = glyph->texture;
+		int alpha = challenge->alpha * 255;
+		SDL_SetTextureAlphaMod(texture, alpha);
+		if ((challenge->position > i) && (!challenge->typed_correctly[i])) {
+			SDL_SetTextureColorMod(texture, 255, 10, 10);
+		} else {
+			// We need to unmask here because characters share textures via the glyph cache
+			SDL_SetTextureColorMod(texture, 255, 255, 255);
+		}
+		SDL_Rect pos = glyph->bounding_box;
+		pos.x += challenge->bounding_box.x + x;
+		pos.y += challenge->bounding_box.y;
+		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
+		x += glyph->advance;
+	}
+}
+
 static void render_menu(void) {
 	center_rect_horizontally(&game_window.challenge.bounding_box);
 	center_rect_veritcally(&game_window.challenge.bounding_box);
-	render_challenge(game_window.renderer, &game_window.challenge);
+	render_challenge(&game_window, &game_window.challenge);
 }
 
 static void render_game(void) {
