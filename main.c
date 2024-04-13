@@ -124,7 +124,7 @@ typedef struct Game_Window {
 	SDL_Renderer* renderer;
 	TTF_Font* im_fell_font;
 	SDL_Rect game_name_rect;
-	SDL_Texture* game_name_surface;
+	SDL_Texture* game_name_texture;
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -160,6 +160,7 @@ static float fps_cap_in_ms;
 static void init_the_game(void) {
 	game_window.window_width = DEFAULT_WINDOW_WIDTH;
 	game_window.window_height = DEFAULT_WINDOW_HEIGHT;
+	game_window.last_frame_perf_counter = SDL_GetPerformanceCounter();
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
 	game_window.window = SDL_CreateWindow(
@@ -178,7 +179,7 @@ static void init_the_game(void) {
 	game_window.runner_texture = SDL_CreateTextureFromSurface(game_window.renderer, spritesheet_surface);
 	SDL_FreeSurface(spritesheet_surface);
 	
-	TTF_Font* font = TTF_OpenFont("./assets/fonts/IM Fell English/FeENrm2.ttf", 48);
+	TTF_Font* font = TTF_OpenFont("./assets/fonts/IM Fell English/FeENrm2.ttf", 120);
 	if (font == NULL) {
 		const char* error = SDL_GetError();
 		#ifndef __EMSCRIPTEN__
@@ -193,8 +194,8 @@ static void init_the_game(void) {
 	game_window.im_fell_font = font;
 	SDL_Color OffWhite = {250, 250, 250};
 	TTF_SizeText(game_window.im_fell_font, "Summoning", &game_window.game_name_rect.w, &game_window.game_name_rect.h);
-	SDL_Surface* surfaceMessage = TTF_RenderText_Solid(game_window.im_fell_font, "Summoning", OffWhite);
-	game_window.game_name_surface = SDL_CreateTextureFromSurface(game_window.renderer, surfaceMessage);
+	SDL_Surface* surface = TTF_RenderText_Solid(game_window.im_fell_font, "Summoning", OffWhite);
+	game_window.game_name_texture = SDL_CreateTextureFromSurface(game_window.renderer, surface);
 
 	{
 		game_window.runner1 = new_spritesheet(game_window.runner_texture, 500, 500, 4, 4);
@@ -272,22 +273,18 @@ static void handle_inputs(void) {
 					case SDL_SCANCODE_W:
 					case SDL_SCANCODE_UP: {
 						game_window.input.kbd_input.key = KEY_UP;
-						// game_window.rect2.y -= KEYBOARD_VELOCITY;
 					} break;
 					case SDL_SCANCODE_A:
 					case SDL_SCANCODE_LEFT: {
 						game_window.input.kbd_input.key = KEY_LEFT;
-						// game_window.rect2.x -= KEYBOARD_VELOCITY;
 					} break;
 					case SDL_SCANCODE_S:
 					case SDL_SCANCODE_DOWN: {
 						game_window.input.kbd_input.key = KEY_DOWN;
-						// game_window.rect2.y += KEYBOARD_VELOCITY;
 					} break;
 					case SDL_SCANCODE_D:
 					case SDL_SCANCODE_RIGHT: {
 						game_window.input.kbd_input.key = KEY_RIGHT;
-						// game_window.rect2.x += KEYBOARD_VELOCITY;
 					} break;
 					case SDL_SCANCODE_ESCAPE: {
 						game_window.input.kbd_input.key = KEY_ESCAPE;
@@ -307,7 +304,13 @@ static void handle_inputs(void) {
 	}
 }
 
+float title_alpha = 0.0;
+
 static void do_animation(void) {
+	if (title_alpha < 1.0f) {
+		title_alpha += game_window.dt / 10.f;
+		title_alpha = title_alpha > 1.0 ? 1.0 : title_alpha;
+	}
 	update_sprite_animation(&game_window.runner1, game_window.dt);
 	update_sprite_animation(&game_window.runner2, game_window.dt);
 }
@@ -323,7 +326,9 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 static void render_menu(void) {
 	center_rect_horizontally(&game_window.game_name_rect);
 	center_rect_veritcally(&game_window.game_name_rect);
-	SDL_RenderCopy(game_window.renderer, game_window.game_name_surface, NULL, &game_window.game_name_rect);
+	int alpha = title_alpha * 255;
+	SDL_SetTextureAlphaMod(game_window.game_name_texture, alpha);
+	SDL_RenderCopy(game_window.renderer, game_window.game_name_texture, NULL, &game_window.game_name_rect);
 }
 
 static void render_game(void) {
@@ -369,6 +374,9 @@ static void main_loop(void) {
 
 	uint64_t this_frame_perf_counter = SDL_GetPerformanceCounter();
 	game_window.dt = (float)(this_frame_perf_counter - game_window.last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
+	char buffer[1024] = {0};
+	sprintf(&buffer[0], "Summoning. dt = %.5f", game_window.dt);
+	SDL_SetWindowTitle(game_window.window, &buffer[0]);
 	game_window.frame_number++;
 
 	handle_inputs();
