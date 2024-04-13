@@ -220,14 +220,14 @@ typedef struct Game_Window {
 	Input input;
 } Game_Window;
 
-static Game_Window game_window = {0};
+static Game_Window* game_window = NULL;
 
 static bool key_first_down() {
-	return (game_window.input.kbd_input.is_down) && !(game_window.input.kbd_input.was_down);
+	return (game_window->input.kbd_input.is_down) && !(game_window->input.kbd_input.was_down);
 }
 
 static bool key_is_down(Key key) {
-	return (game_window.input.kbd_input.key == key) && (game_window.input.kbd_input.is_down);
+	return (game_window->input.kbd_input.key == key) && (game_window->input.kbd_input.is_down);
 }
 
 #define DEFAULT_WINDOW_WIDTH  1280
@@ -240,25 +240,25 @@ static float fps_cap_in_ms;
 #endif
 
 static void init_the_game(void) {
-	game_window.window_width = DEFAULT_WINDOW_WIDTH;
-	game_window.window_height = DEFAULT_WINDOW_HEIGHT;
-	game_window.last_frame_perf_counter = SDL_GetPerformanceCounter();
+	game_window = (Game_Window*)malloc(sizeof(Game_Window));
+	memset(game_window, 0, sizeof(Game_Window));
+	game_window->window_width = DEFAULT_WINDOW_WIDTH;
+	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
+	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
-	game_window.window = SDL_CreateWindow(
-										  "Ludum Dare 55: Summoning",
-										  SDL_WINDOWPOS_UNDEFINED,
-										  SDL_WINDOWPOS_UNDEFINED,
-										  game_window.window_width, 
-										  game_window.window_height, 
-										  SDL_WINDOW_OPENGL);
-	game_window.renderer = SDL_CreateRenderer(
-											  game_window.window,
-											  -1,
-											  SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	game_window->window = SDL_CreateWindow("Ludum Dare 55: Summoning",
+										   SDL_WINDOWPOS_UNDEFINED,
+										   SDL_WINDOWPOS_UNDEFINED,
+										   game_window->window_width, 
+										   game_window->window_height, 
+										   SDL_WINDOW_OPENGL);
+	game_window->renderer = SDL_CreateRenderer(game_window->window,
+											   -1, // initialize the first one supporting the requested flags
+											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	
 	SDL_Surface *spritesheet_surface = IMG_Load("./assets/spritesheet.png");
-	game_window.runner_texture = SDL_CreateTextureFromSurface(game_window.renderer, spritesheet_surface);
+	game_window->runner_texture = SDL_CreateTextureFromSurface(game_window->renderer, spritesheet_surface);
 	SDL_FreeSurface(spritesheet_surface);
 	
 	TTF_Font* font = TTF_OpenFont("./assets/fonts/IM Fell English/FeENrm2.ttf", 120);
@@ -270,60 +270,60 @@ static void init_the_game(void) {
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
 								 "Error",
 								 &buffer[0],
-								 game_window.window);
+								 game_window->window);
 		#endif
 	}
-	game_window.im_fell_font = font;
+	game_window->im_fell_font = font;
 	{
 		for (int i = 0; i < NUM_GLYPHS; i++) {
-			game_window.glyphs[i] = new_glyph(game_window.renderer, font, i+32);
+			game_window->glyphs[i] = new_glyph(game_window->renderer, font, i+32);
 		}
 	}
 
 	{
-		game_window.runner1 = new_spritesheet(game_window.runner_texture, 500, 500, 4, 4);
-		game_window.runner1.dtPerFrame = 0.05;
-		game_window.runner1.dest_rect.w = 100;
-		game_window.runner1.dest_rect.h = 100;
-		game_window.runner1.dest_rect.x = game_window.window_width - game_window.runner1.dest_rect.w;
-		game_window.runner1.dest_rect.y = game_window.window_height - game_window.runner1.dest_rect.h;
+		game_window->runner1 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
+		game_window->runner1.dtPerFrame = 0.05;
+		game_window->runner1.dest_rect.w = 100;
+		game_window->runner1.dest_rect.h = 100;
+		game_window->runner1.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w;
+		game_window->runner1.dest_rect.y = game_window->window_height - game_window->runner1.dest_rect.h;
 	}
 	{
-		game_window.runner2 = new_spritesheet(game_window.runner_texture, 500, 500, 4, 4);
-		game_window.runner2.dtPerFrame = 0.03;
-		game_window.runner2.dest_rect.w = 150;
-		game_window.runner2.dest_rect.h = 150;
-		game_window.runner2.dest_rect.x = game_window.window_width - game_window.runner1.dest_rect.w - game_window.runner2.dest_rect.w;
-		game_window.runner2.dest_rect.y = game_window.window_height - game_window.runner2.dest_rect.h;
+		game_window->runner2 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
+		game_window->runner2.dtPerFrame = 0.03;
+		game_window->runner2.dest_rect.w = 150;
+		game_window->runner2.dest_rect.h = 150;
+		game_window->runner2.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w - game_window->runner2.dest_rect.w;
+		game_window->runner2.dest_rect.y = game_window->window_height - game_window->runner2.dest_rect.h;
 	}
 
-	game_window.rect2.x = 100;
-	game_window.rect2.y = 20;
-	game_window.rect2.w = 300;
-	game_window.rect2.h = 300;
+	game_window->rect2.x = 100;
+	game_window->rect2.y = 20;
+	game_window->rect2.w = 300;
+	game_window->rect2.h = 300;
 	
 	String challenge_text = new_string("Summoning");
-	setup_challenge(&game_window.challenge, game_window.im_fell_font, challenge_text);
+	setup_challenge(&game_window->challenge, game_window->im_fell_font, challenge_text);
 	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
 static void game_handle_input(void) {
-	switch(game_window.state) {
+	switch(game_window->state) {
 		case STATE_PLAY: {
 			if (key_is_down(KEY_ESCAPE) && key_first_down()) {
-				game_window.state = STATE_PAUSE;
+				game_window->state = STATE_PAUSE;
 			} else if (key_is_down(KEY_UP)) {
-				game_window.rect2.y -= KEYBOARD_VELOCITY;
+				game_window->rect2.y -= KEYBOARD_VELOCITY;
 			}
 		} break;
 		case STATE_PAUSE: {
 			if (key_is_down(KEY_ESCAPE) && key_first_down()) {
-				game_window.state = STATE_PLAY;
+				game_window->state = STATE_PLAY;
 			}
 		} break;
 		case STATE_MENU: {
-			if (game_window.input.character != 0) {
-				enter_challenge_character(&game_window.challenge, game_window.input.character);
+			if (game_window->input.character != 0) {
+				enter_challenge_character(&game_window->challenge, game_window->input.character);
 			}
 			
 			if (key_is_down(KEY_RETURN) && key_first_down()) {
@@ -336,56 +336,56 @@ static void game_handle_input(void) {
 
 // This translates from SDL events into our Input structure
 static void handle_inputs(void) {
-	game_window.input.character = 0;
+	game_window->input.character = 0;
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
 			case SDL_QUIT: {
-				game_window.quit = true;
+				game_window->quit = true;
 			} break;
 			case SDL_MOUSEMOTION: {
-				game_window.input.mouse_input.posX = event.motion.x;
-				game_window.input.mouse_input.posY = event.motion.y;
+				game_window->input.mouse_input.posX = event.motion.x;
+				game_window->input.mouse_input.posY = event.motion.y;
 			} break;
 			case SDL_MOUSEBUTTONDOWN:
 			case SDL_MOUSEBUTTONUP: {
 				if (event.button.button == SDL_BUTTON_LEFT) {
-					game_window.input.mouse_input.left_was_down = (event.type == SDL_MOUSEBUTTONUP);
-					game_window.input.mouse_input.left_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
+					game_window->input.mouse_input.left_was_down = (event.type == SDL_MOUSEBUTTONUP);
+					game_window->input.mouse_input.left_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
 				} else if (event.button.button == SDL_BUTTON_RIGHT) {
-			        game_window.input.mouse_input.right_was_down = (event.type == SDL_MOUSEBUTTONUP);
-					game_window.input.mouse_input.right_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
+			        game_window->input.mouse_input.right_was_down = (event.type == SDL_MOUSEBUTTONUP);
+					game_window->input.mouse_input.right_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
 				}
 			} break;
 			case SDL_KEYDOWN: 
 			case SDL_KEYUP: {
-				game_window.input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
-				game_window.input.kbd_input.was_down = (event.type == SDL_KEYUP);
+				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
+				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
 				switch (event.key.keysym.scancode) {
 					case SDL_SCANCODE_UP: {
-						game_window.input.kbd_input.key = KEY_UP;
+						game_window->input.kbd_input.key = KEY_UP;
 					} break;
 					case SDL_SCANCODE_LEFT: {
-						game_window.input.kbd_input.key = KEY_LEFT;
+						game_window->input.kbd_input.key = KEY_LEFT;
 					} break;
 					case SDL_SCANCODE_DOWN: {
-						game_window.input.kbd_input.key = KEY_DOWN;
+						game_window->input.kbd_input.key = KEY_DOWN;
 					} break;
 					case SDL_SCANCODE_RIGHT: {
-						game_window.input.kbd_input.key = KEY_RIGHT;
+						game_window->input.kbd_input.key = KEY_RIGHT;
 					} break;
 					case SDL_SCANCODE_ESCAPE: {
-						game_window.input.kbd_input.key = KEY_ESCAPE;
+						game_window->input.kbd_input.key = KEY_ESCAPE;
 					} break;
 					case SDL_SCANCODE_RETURN: {
-						game_window.input.kbd_input.key = KEY_RETURN;
+						game_window->input.kbd_input.key = KEY_RETURN;
 					} break;
 					default:
 						break;
 				}
 			} break;
 			case SDL_TEXTINPUT: {
-				game_window.input.character = event.text.text[0];
+				game_window->input.character = event.text.text[0];
 			} break;
 			default:
 				break;
@@ -396,17 +396,17 @@ static void handle_inputs(void) {
 }
 
 static void do_animation(void) {
-	update_challenge_alpha(&game_window.challenge, game_window.dt);
-	update_sprite_animation(&game_window.runner1, game_window.dt);
-	update_sprite_animation(&game_window.runner2, game_window.dt);
+	update_challenge_alpha(&game_window->challenge, game_window->dt);
+	update_sprite_animation(&game_window->runner1, game_window->dt);
+	update_sprite_animation(&game_window->runner2, game_window->dt);
 }
 
 static void center_rect_horizontally(SDL_Rect* rect) {
-	rect->x = (game_window.window_width / 2) - (rect->w / 2);
+	rect->x = (game_window->window_width / 2) - (rect->w / 2);
 }
 
 static void center_rect_veritcally(SDL_Rect* rect) {
-	rect->y = (game_window.window_height / 2) - (rect->h / 2);
+	rect->y = (game_window->window_height / 2) - (rect->h / 2);
 }
 
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
@@ -437,29 +437,29 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 }
 
 static void render_menu(void) {
-	center_rect_horizontally(&game_window.challenge.bounding_box);
-	center_rect_veritcally(&game_window.challenge.bounding_box);
-	render_challenge(&game_window, &game_window.challenge);
+	center_rect_horizontally(&game_window->challenge.bounding_box);
+	center_rect_veritcally(&game_window->challenge.bounding_box);
+	render_challenge(game_window, &game_window->challenge);
 }
 
 static void render_game(void) {
-	SDL_SetRenderDrawColor(game_window.renderer, 255, 255, 255, 255);
-	SDL_RenderFillRect(game_window.renderer, &game_window.rect2);
-	SDL_RenderCopy(game_window.renderer,
-				   game_window.runner1.texture,
-				   &game_window.runner1.source_rect,
-				   &game_window.runner1.dest_rect);
-	SDL_RenderCopy(game_window.renderer,
-				   game_window.runner2.texture,
-				   &game_window.runner2.source_rect,
-				   &game_window.runner2.dest_rect);
+	SDL_SetRenderDrawColor(game_window->renderer, 255, 255, 255, 255);
+	SDL_RenderFillRect(game_window->renderer, &game_window->rect2);
+	SDL_RenderCopy(game_window->renderer,
+				   game_window->runner1.texture,
+				   &game_window->runner1.source_rect,
+				   &game_window->runner1.dest_rect);
+	SDL_RenderCopy(game_window->renderer,
+				   game_window->runner2.texture,
+				   &game_window->runner2.source_rect,
+				   &game_window->runner2.dest_rect);
 }
 
 static void update_and_render(void) {
-	SDL_SetRenderDrawColor(game_window.renderer, 9, 20, 33, 255);
-	SDL_RenderClear(game_window.renderer);
+	SDL_SetRenderDrawColor(game_window->renderer, 9, 20, 33, 255);
+	SDL_RenderClear(game_window->renderer);
 	
-	switch (game_window.state) {
+	switch (game_window->state) {
 		case STATE_MENU: {
 			render_menu();
 		} break;
@@ -469,39 +469,39 @@ static void update_and_render(void) {
 		default: {}
 	}
 	
-	SDL_RenderPresent(game_window.renderer);
+	SDL_RenderPresent(game_window->renderer);
 }
 
 static void main_loop(void) {
-	if (game_window.quit) {
+	if (game_window->quit) {
 		#ifdef __EMSCRIPTEN__
 		emscripten_cancel_main_loop();
 		#else
-		SDL_DestroyRenderer(game_window.renderer);
-		SDL_DestroyWindow(game_window.window);
+		SDL_DestroyRenderer(game_window->renderer);
+		SDL_DestroyWindow(game_window->window);
 		exit(0);
 		#endif
 	}
 
 	uint64_t this_frame_perf_counter = SDL_GetPerformanceCounter();
-	game_window.dt = (float)(this_frame_perf_counter - game_window.last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
+	game_window->dt = (float)(this_frame_perf_counter - game_window->last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
 	char buffer[1024] = {0};
-	sprintf(&buffer[0], "Summoning. dt = %.5f", game_window.dt);
-	SDL_SetWindowTitle(game_window.window, &buffer[0]);
-	game_window.frame_number++;
+	sprintf(&buffer[0], "Summoning. dt = %.5f", game_window->dt);
+	SDL_SetWindowTitle(game_window->window, &buffer[0]);
+	game_window->frame_number++;
 
 	handle_inputs();
 	do_animation();
 	update_and_render();
 
 	#ifndef __EMSCRIPTEN__
-	uint64_t delta = game_window.dt * 1000.0f;
+	uint64_t delta = game_window->dt * 1000.0f;
 	if (delta < fps_cap_in_ms) {
 		SDL_Delay(fps_cap_in_ms - delta);
 	}
 	#endif
 
-	game_window.last_frame_perf_counter = this_frame_perf_counter;
+	game_window->last_frame_perf_counter = this_frame_perf_counter;
 }
 
 int main(int argc, char** argv) {
