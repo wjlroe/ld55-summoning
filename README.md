@@ -1,9 +1,9 @@
 # Ludum Dare 55: Summoning
 
 Started with base code from: https://git.sr.ht/~willroe/base-code-c-webasm
-* IM Fell fonts from https://www.dafont.com/im-fell-types.font
 
-Tech: C + SDL2 + WebASM
+* Tech: C + SDL2 + WebASM
+* IM Fell fonts from https://www.dafont.com/im-fell-types.font
 
 ## WebASM docs
 
