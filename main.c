@@ -35,12 +35,9 @@ static bool strings_equal(String one, String two) {
 
 #define STRING(s) String{s, sizeof(s)}
 
-typedef struct Color {
-	int r, g, b, a;
-} Color;
-
-Color blue = {0, 0, 255, 255};
-Color red = {255, 0, 0, 255};
+SDL_Color white = {255, 255, 255, 255};
+SDL_Color blue = {0, 0, 255, 255};
+SDL_Color red = {255, 0, 0, 255};
 
 typedef struct Spritesheet {
 	int rows, cols;
@@ -121,13 +118,25 @@ typedef struct Input {
 #define MAX_CHALLENGE_LENGTH 1024
 
 typedef struct Type_Challenge {
-	String challenge_text;
+	TTF_Font* font;
+	String text;
 	bool typed_correctly[MAX_CHALLENGE_LENGTH];
 	int position;
+	SDL_Rect bounding_box;
+	SDL_Texture* texture; // TODO: per-char textures!
 } Type_Challenge;
 
+static void setup_challenge(SDL_Renderer* renderer, TTF_Font* font, Type_Challenge* challenge, String text) {
+	challenge->text = text;
+	challenge->font = font;
+	TTF_SizeText(challenge->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
+	// TODO: split into per-character textures...
+	SDL_Surface* surface = TTF_RenderText_Solid(challenge->font, text.str, white);
+	challenge->texture = SDL_CreateTextureFromSurface(renderer, surface);
+}
+
 static bool is_challenge_done(Type_Challenge* challenge) {
-	return (challenge->position >= challenge->challenge_text.length);
+	return (challenge->position >= challenge->text.length);
 }
 
 static bool has_typing_started(Type_Challenge* challenge) {
@@ -136,7 +145,7 @@ static bool has_typing_started(Type_Challenge* challenge) {
 
 static void enter_challenge_character(Type_Challenge* challenge, char character) {
 	if (!is_challenge_done(challenge)) {
-		challenge->typed_correctly[challenge->position] = (character == challenge->challenge_text.str[challenge->position]);
+		challenge->typed_correctly[challenge->position] = (character == challenge->text.str[challenge->position]);
 		challenge->position++;
 	}
 }
@@ -156,8 +165,6 @@ typedef struct Game_Window {
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	TTF_Font* im_fell_font;
-	SDL_Rect game_name_rect;
-	SDL_Texture* game_name_texture;
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -226,10 +233,6 @@ static void init_the_game(void) {
 		#endif
 	}
 	game_window.im_fell_font = font;
-	SDL_Color White = {255, 255, 255};
-	TTF_SizeText(game_window.im_fell_font, "Summoning", &game_window.game_name_rect.w, &game_window.game_name_rect.h);
-	SDL_Surface* surface = TTF_RenderText_Solid(game_window.im_fell_font, "Summoning", White);
-	game_window.game_name_texture = SDL_CreateTextureFromSurface(game_window.renderer, surface);
 
 	{
 		game_window.runner1 = new_spritesheet(game_window.runner_texture, 500, 500, 4, 4);
@@ -254,7 +257,7 @@ static void init_the_game(void) {
 	game_window.rect2.h = 300;
 	
 	String challenge_text = new_string("Summoning");
-	game_window.challenge.challenge_text = challenge_text;
+	setup_challenge(game_window.renderer, game_window.im_fell_font, &game_window.challenge, challenge_text);
 	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
@@ -351,6 +354,7 @@ float title_alpha = 0.0;
 static void do_animation(void) {
 	if (title_alpha < 1.0f) {
 		if (has_typing_started(&game_window.challenge)) {
+			// speed up fading in if the typing has started
 			title_alpha += game_window.dt;
 		} else {
 			title_alpha += game_window.dt / 10.f;
@@ -370,14 +374,14 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 }
 
 static void render_menu(void) {
-	center_rect_horizontally(&game_window.game_name_rect);
-	center_rect_veritcally(&game_window.game_name_rect);
+	center_rect_horizontally(&game_window.challenge.bounding_box);
+	center_rect_veritcally(&game_window.challenge.bounding_box);
 	int alpha = title_alpha * 255;
-	SDL_SetTextureAlphaMod(game_window.game_name_texture, alpha);
+	SDL_SetTextureAlphaMod(game_window.challenge.texture, alpha);
 	if (challenge_has_mistakes(&game_window.challenge)) {
-		SDL_SetTextureColorMod(game_window.game_name_texture, 255, 10, 10);
+		SDL_SetTextureColorMod(game_window.challenge.texture, 255, 10, 10);
 	}
-	SDL_RenderCopy(game_window.renderer, game_window.game_name_texture, NULL, &game_window.game_name_rect);
+	SDL_RenderCopy(game_window.renderer, game_window.challenge.texture, NULL, &game_window.challenge.bounding_box);
 }
 
 static void render_game(void) {
