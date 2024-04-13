@@ -4,9 +4,6 @@ setlocal
 set start=%time%
 set BUILD_PATH=%~dp0
 
-IF NOT DEFINED build32 (SET build32=false)
-echo build32 is %build32%
-
 SET /A errno=0
 
 set vclocations="C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build"
@@ -28,26 +25,16 @@ if not exist "%vc_location%" (
 echo VS Location: %vc_location%
 
 pushd "%vc_location%"
-IF %build32% == true (
-  echo Building 32bit
-  call vcvarsall x86
-) ELSE (
-  echo Building 64bit
-  call vcvarsall x64
-)
+
+echo Building 64bit
+call vcvarsall x64
 popd
 
 set build_message=BUILD_PATH is %BUILD_PATH%
 echo %build_message%
 cd %BUILD_PATH%
 
-IF %build32% == true (
-  set build_dir="build32"
-  set build_flags="/MT"
-) ELSE (
-  set build_dir="build"
-  set build_flags=""
-)
+set build_dir="build"
 IF NOT EXIST %build_dir% mkdir %build_dir%
 pushd %build_dir%
 
@@ -55,7 +42,7 @@ cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 cp ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.dll .
 cp ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.dll .
 
-cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column %build_flags:"=% ^
+cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column ^
  -Fe:summoning.exe ..\main.c ^
  -I ..\vendor\SDL2-2.30.2\include ^
  -I ..\vendor\SDL2-2.30.2\include\SDL2 ^
