@@ -7,7 +7,7 @@ host_os="$(uname -s)"
 echo "Building natively"
 pushd build
 
-compile_flags="$(pkg-config --cflags --libs sdl2,sdl2_image,sdl2_ttf)"
+compile_flags="$(pkg-config --cflags --libs sdl2,SDL2_image,SDL2_ttf)"
 
 if [[ "${host_os}" == "Darwin" ]]; then
 	rosetta_pids="$(fuser /usr/libexec/rosetta/runtime 2>/dev/null | xargs -n1)"
@@ -22,7 +22,7 @@ if [[ "${host_os}" == "Darwin" ]]; then
 fi
 
 set -x
-cc ${compile_flags} -g -O0 -o summoning ../main.c
+cc -std=c11 -g -O0 -o summoning ../main.c ${compile_flags} -lm
 set +x
 
 if [[ "${host_os}" == "Darwin" ]]; then
