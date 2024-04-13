@@ -26,7 +26,9 @@ cc -std=c11 -g -O0 -o summoning ../main.c ${compile_flags} -lm
 set +x
 
 if [[ "${host_os}" == "Darwin" ]]; then
-	otool -L ./ludum-dare
+	otool -L ./summoning
+else
+    ldd ./summoning
 fi
 
 popd
