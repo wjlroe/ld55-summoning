@@ -1,0 +1,39 @@
+version(1);
+project_name = "ld55-summoning";
+
+patterns = {
+"*.c",
+"*.cpp",
+"*.h",
+"*.m",
+"*.mm",
+"*.bat",
+"*.sh",
+"*.4coder",
+"*.txt",
+};
+blacklist_patterns = {
+".*",
+};
+load_paths_only = {
+ {"."},
+};
+load_paths = {
+ { load_paths_only, .os = "win"  },
+ { load_paths_only, .os = "mac"  },
+};
+
+build_cmd = "build.bat";
+build_run_cmd = "build/summoning.exe";
+
+command_list = {
+ { .name = "build",
+   .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
+   .cmd = { {build_cmd, .os ="win" }, }, },
+ { .name = "build and run",
+   .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
+   .cmd = { {build_run_cmd, .os ="win"  }, }, },
+};
+
+fkey_command[4] = "build";
+fkey_command[5] = "build and run";
