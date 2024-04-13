@@ -115,7 +115,40 @@ typedef struct Mouse_Input {
 typedef struct Input {
 	Keyboard_Input kbd_input;
 	Mouse_Input mouse_input;
+	char character;
 } Input;
+
+#define MAX_CHALLENGE_LENGTH 1024
+
+typedef struct Type_Challenge {
+	String challenge_text;
+	bool typed_correctly[MAX_CHALLENGE_LENGTH];
+	int position;
+} Type_Challenge;
+
+static bool is_challenge_done(Type_Challenge* challenge) {
+	return (challenge->position >= challenge->challenge_text.length);
+}
+
+static bool has_typing_started(Type_Challenge* challenge) {
+	return (challenge->position > 0);
+}
+
+static void enter_challenge_character(Type_Challenge* challenge, char character) {
+	if (!is_challenge_done(challenge)) {
+		challenge->typed_correctly[challenge->position] = (character == challenge->challenge_text.str[challenge->position]);
+		challenge->position++;
+	}
+}
+
+static bool challenge_has_mistakes(Type_Challenge* challenge) {
+	for (int i = 0; i < challenge->position; i++) {
+		if (!challenge->typed_correctly[i]) {
+			return true;
+		}
+	}
+	return false;
+}
 
 typedef struct Game_Window {
 	bool quit; // zero-init means quit=false by default
@@ -134,6 +167,7 @@ typedef struct Game_Window {
 	Spritesheet runner1, runner2;
 	
 	Game_State state;
+	Type_Challenge challenge;
 	
 	Input input;
 } Game_Window;
@@ -192,9 +226,9 @@ static void init_the_game(void) {
 		#endif
 	}
 	game_window.im_fell_font = font;
-	SDL_Color OffWhite = {250, 250, 250};
+	SDL_Color White = {255, 255, 255};
 	TTF_SizeText(game_window.im_fell_font, "Summoning", &game_window.game_name_rect.w, &game_window.game_name_rect.h);
-	SDL_Surface* surface = TTF_RenderText_Solid(game_window.im_fell_font, "Summoning", OffWhite);
+	SDL_Surface* surface = TTF_RenderText_Solid(game_window.im_fell_font, "Summoning", White);
 	game_window.game_name_texture = SDL_CreateTextureFromSurface(game_window.renderer, surface);
 
 	{
@@ -218,6 +252,10 @@ static void init_the_game(void) {
 	game_window.rect2.y = 20;
 	game_window.rect2.w = 300;
 	game_window.rect2.h = 300;
+	
+	String challenge_text = new_string("Summoning");
+	game_window.challenge.challenge_text = challenge_text;
+	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
 static void game_handle_input(void) {
@@ -235,8 +273,12 @@ static void game_handle_input(void) {
 			}
 		} break;
 		case STATE_MENU: {
+			if (game_window.input.character != 0) {
+				enter_challenge_character(&game_window.challenge, game_window.input.character);
+			}
+			
 			if (key_is_down(KEY_RETURN) && key_first_down()) {
-				game_window.state = STATE_PLAY;
+				// game_window.state = STATE_PLAY;
 			}
 		} break;
 		default: {}
@@ -245,6 +287,7 @@ static void game_handle_input(void) {
 
 // This translates from SDL events into our Input structure
 static void handle_inputs(void) {
+	game_window.input.character = 0;
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -270,19 +313,15 @@ static void handle_inputs(void) {
 				game_window.input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
 				game_window.input.kbd_input.was_down = (event.type == SDL_KEYUP);
 				switch (event.key.keysym.scancode) {
-					case SDL_SCANCODE_W:
 					case SDL_SCANCODE_UP: {
 						game_window.input.kbd_input.key = KEY_UP;
 					} break;
-					case SDL_SCANCODE_A:
 					case SDL_SCANCODE_LEFT: {
 						game_window.input.kbd_input.key = KEY_LEFT;
 					} break;
-					case SDL_SCANCODE_S:
 					case SDL_SCANCODE_DOWN: {
 						game_window.input.kbd_input.key = KEY_DOWN;
 					} break;
-					case SDL_SCANCODE_D:
 					case SDL_SCANCODE_RIGHT: {
 						game_window.input.kbd_input.key = KEY_RIGHT;
 					} break;
@@ -295,7 +334,10 @@ static void handle_inputs(void) {
 					default:
 						break;
 				}
-			}
+			} break;
+			case SDL_TEXTINPUT: {
+				game_window.input.character = event.text.text[0];
+			} break;
 			default:
 				break;
 		}
@@ -308,7 +350,11 @@ float title_alpha = 0.0;
 
 static void do_animation(void) {
 	if (title_alpha < 1.0f) {
-		title_alpha += game_window.dt / 10.f;
+		if (has_typing_started(&game_window.challenge)) {
+			title_alpha += game_window.dt;
+		} else {
+			title_alpha += game_window.dt / 10.f;
+		}
 		title_alpha = title_alpha > 1.0 ? 1.0 : title_alpha;
 	}
 	update_sprite_animation(&game_window.runner1, game_window.dt);
@@ -328,6 +374,9 @@ static void render_menu(void) {
 	center_rect_veritcally(&game_window.game_name_rect);
 	int alpha = title_alpha * 255;
 	SDL_SetTextureAlphaMod(game_window.game_name_texture, alpha);
+	if (challenge_has_mistakes(&game_window.challenge)) {
+		SDL_SetTextureColorMod(game_window.game_name_texture, 255, 10, 10);
+	}
 	SDL_RenderCopy(game_window.renderer, game_window.game_name_texture, NULL, &game_window.game_name_rect);
 }
 
