@@ -676,14 +676,8 @@ static void render_demonic_sign(void) {
 	SDL_Surface* surface = SDL_CreateRGBSurface(0, 256, 256, 32, 0xff000000, 0x00ff0000, 0x000000ff00, 0x000000ff);
 	assert(surface->format->BitsPerPixel == 32);
 	u32 my_green = 0x00ff00ff;
-	if (SDL_MUSTLOCK(surface)) {
-        SDL_LockSurface(surface);
-    }
 	draw_circle(surface->pixels, 127, my_green);
 	draw_circle(surface->pixels, 63, my_green);
-	if (SDL_MUSTLOCK(surface)) {
-		SDL_UnlockSurface(surface);
-	}
 	
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(game_window->renderer, surface);
 	assert(texture != NULL);
