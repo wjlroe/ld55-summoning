@@ -233,6 +233,7 @@ static bool has_typing_started(Type_Challenge* challenge) {
 	return (challenge->position > 0);
 }
 
+#ifdef DEBUG
 static void debug_enter_character(char character) {
 	printf("%c", character);
 }
@@ -243,16 +244,21 @@ static void debug_end_challenge() {
 static void debug_reset_challenge() {
 	printf(" !! reset!\n");
 }
+#endif
 
 static void enter_challenge_character(Type_Challenge* challenge, char character) {
 	if (!is_challenge_done(challenge)) {
+		#ifdef DEBUG
 		debug_enter_character(character);
+		#endif
 		challenge->typed_correctly[challenge->position] = (character == challenge->text.str[challenge->position]);
 		challenge->position++;
 	}
+	#ifdef DEBUG
 	if (is_challenge_done(challenge)) {
 		debug_end_challenge();
 	}
+	#endif
 }
 
 static bool challenge_has_mistakes(Type_Challenge* challenge) {
@@ -278,7 +284,9 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 }
 
 static void reset_challenge(Type_Challenge* challenge) {
+	#ifdef DEBUG
 	debug_reset_challenge();
+	#endif
 	challenge->position = 0;
 	challenge->alpha = 0.0;
 }

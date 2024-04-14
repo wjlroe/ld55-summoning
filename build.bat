@@ -42,7 +42,7 @@ cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 cp ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.dll .
 cp ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.dll .
 
-cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column ^
+cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column /DDEBUG ^
  -Fe:summoning.exe ..\main.c ^
  -I ..\vendor\SDL2-2.30.2\include ^
  -I ..\vendor\SDL2-2.30.2\include\SDL2 ^
@@ -54,6 +54,7 @@ cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column ^
  ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib ^
  opengl32.lib glu32.lib user32.lib gdi32.lib /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
+
 popd
 
 set end=%time%
