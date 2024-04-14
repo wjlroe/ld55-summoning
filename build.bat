@@ -11,6 +11,8 @@ set build_message=BUILD_PATH is %BUILD_PATH%
 echo %build_message%
 cd %BUILD_PATH%
 
+rc /r icon.rc
+
 set build_dir="build"
 IF NOT EXIST %build_dir% mkdir %build_dir%
 pushd %build_dir%
@@ -19,6 +21,8 @@ cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 cp ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.dll .
 cp ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.dll .
 cp -r ..\assets .
+mv ..\icon.res .
+cvtres -machine:x64 -out:icon.obj icon.res
 
 set includes=-I ..\vendor\SDL2-2.30.2\include ^
  -I ..\vendor\SDL2-2.30.2\include\SDL2 ^
@@ -35,13 +39,13 @@ echo Debug build
 cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\main.c ^
  %includes% ^
- /link /DEBUG:FULL %links% ^
+ /link /DEBUG:FULL %links% icon.obj ^
  /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 echo Release build
 cl /std:c11 -FC -Zc:strictStrings -diagnostics:caret /nologo ^
- -Fe:summoning.exe ..\main.c ^
+ -Fe:summoning.exe ..\main.c icon.obj ^
  %includes% ^
  /link %links% ^
  /subsystem:windows
