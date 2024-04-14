@@ -7,6 +7,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#include <SDL2_gfxPrimitives.c>
+#include <SDL2_rotozoom.c>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -36,8 +38,23 @@ static bool strings_equal(String one, String two) {
 #define STRING(s) String{s, sizeof(s)}
 
 SDL_Color white = {255, 255, 255, 255};
-SDL_Color blue = {0, 0, 255, 255};
-SDL_Color red = {255, 0, 0, 255};
+SDL_Color blue = {10, 10, 255, 255};
+SDL_Color red = {255, 10, 10, 255};
+SDL_Color very_dark_blue = {4, 8, 13, 255};
+SDL_Color green = {10, 255, 10};
+SDL_Color amber = {255, 191, 0, 255};
+
+static void render_draw_color(SDL_Renderer* renderer, SDL_Color color) {
+	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+}
+
+static void texture_color_mod(SDL_Texture* texture, SDL_Color color) {
+	SDL_SetTextureColorMod(texture, color.r, color.g, color.b);
+}
+
+static void fill_rounded_rect(SDL_Renderer *renderer, SDL_Rect rect, SDL_Color color, int radius) {
+	roundedBoxRGBA(renderer, rect.x, rect.y, rect.x+rect.w, rect.y+rect.h, radius, color.r, color.g, color.b, color.a);
+}
 
 typedef struct Spritesheet {
 	int rows, cols;
@@ -139,25 +156,55 @@ static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
 	SDL_FreeSurface(surface);
 	return glyph;
 }
+
+#define NUM_GLYPHS 94 //126-32
+#define GLYPH_INDEX(c) c-32
+
+typedef struct Glyph_Cache {
+	Glyph glyphs[NUM_GLYPHS];
+	int first_glyph;
+	int last_glyph;
+} Glyph_Cache;
 	
 typedef struct Type_Challenge {
 	TTF_Font* font;
 	String text;
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
+	SDL_Rect* cursor_rects;
 	int position;
 	SDL_Rect bounding_box;
 	float alpha;
 } Type_Challenge;
 
-static void setup_challenge(Type_Challenge* challenge, TTF_Font* font, String text) {
+static void setup_challenge(Type_Challenge* challenge, Glyph_Cache* glyph_cache, TTF_Font* font, String text) {
 	challenge->text = text;
 	challenge->font = font;
-	challenge->typed_correctly = calloc(sizeof(bool), text.length);
+	challenge->typed_correctly = calloc(text.length, sizeof(bool));
+	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
+	
 	TTF_SizeText(challenge->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
+	
+	int font_ascent = TTF_FontAscent(font);
+	int font_descent = TTF_FontDescent(font);
+	int cursor_height = font_ascent + font_descent;
+	int x = 0;
+	for (int i = 0; i < challenge->text.length; i++) {
+		char character = challenge->text.str[i];
+		assert((character >= 32) && (character <= 126));
+		Glyph* glyph = &glyph_cache->glyphs[GLYPH_INDEX(character)];
+		SDL_Rect* rect = &challenge->cursor_rects[i];
+		rect->w = glyph->bounding_box.w;
+		rect->h = cursor_height;
+		rect->x = glyph->bounding_box.x + x;
+		rect->y = glyph->bounding_box.y;
+		
+		x += glyph->advance;
+	}
 }
 
 static void free_challenge(Type_Challenge* challenge) {
-	free(challenge->typed_correctly);
+	free(challenge->typed_correctly); // 
+	free(challenge->cursor_rects);
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
@@ -196,16 +243,13 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 	}
 }
 
-#define NUM_GLYPHS 94 //126-32
-#define GLYPH_INDEX(c) c-32
-
 typedef struct Game_Window {
 	bool quit; // zero-init means quit=false by default
 	int window_width, window_height;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	TTF_Font* im_fell_font;
-	Glyph glyphs[NUM_GLYPHS];
+	Glyph_Cache glyph_cache;
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -275,8 +319,10 @@ static void init_the_game(void) {
 	}
 	game_window->im_fell_font = font;
 	{
+		game_window->glyph_cache.first_glyph = 32;
+		game_window->glyph_cache.last_glyph = 126;
 		for (int i = 0; i < NUM_GLYPHS; i++) {
-			game_window->glyphs[i] = new_glyph(game_window->renderer, font, i+32);
+			game_window->glyph_cache.glyphs[i] = new_glyph(game_window->renderer, font, i+32);
 		}
 	}
 
@@ -303,7 +349,7 @@ static void init_the_game(void) {
 	game_window->rect2.h = 300;
 	
 	String challenge_text = new_string("Summoning");
-	setup_challenge(&game_window->challenge, game_window->im_fell_font, challenge_text);
+	setup_challenge(&game_window->challenge, &game_window->glyph_cache, game_window->im_fell_font, challenge_text);
 	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
@@ -411,26 +457,35 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
 	int x = 0;
+	int font_ascent = TTF_FontAscent(challenge->font);
+	int font_descent = TTF_FontDescent(challenge->font);
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
 		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &game_window->glyphs[GLYPH_INDEX(character)];
+		Glyph* glyph = &game_window->glyph_cache.glyphs[GLYPH_INDEX(character)];
 		SDL_Texture* texture = glyph->texture;
 		int alpha = challenge->alpha * 255;
 		SDL_SetTextureAlphaMod(texture, alpha);
 		if (challenge->position > i) {
 			if (challenge->typed_correctly[i]) { // correct
-				SDL_SetTextureColorMod(texture, 10, 255, 10);
+				texture_color_mod(texture, green);
 			} else { // incorrect
-				SDL_SetTextureColorMod(texture, 255, 10, 10);
+				texture_color_mod(texture, red);
 			}
+		} else if (challenge->position == i) {
+			SDL_Rect cursor_rect = challenge->cursor_rects[i];
+			cursor_rect.x += challenge->bounding_box.x;
+			cursor_rect.y += challenge->bounding_box.y;
+			fill_rounded_rect(game_window->renderer, cursor_rect, amber, 15);
+			texture_color_mod(texture, very_dark_blue);
 		} else {
 			// untyped character - so keep original color
-			SDL_SetTextureColorMod(texture, 255, 255, 255);
+			texture_color_mod(texture, white);
 		}
 		SDL_Rect pos = glyph->bounding_box;
 		pos.x += challenge->bounding_box.x + x;
 		pos.y += challenge->bounding_box.y;
+		
 		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
 		x += glyph->advance;
 	}
@@ -443,7 +498,7 @@ static void render_menu(void) {
 }
 
 static void render_game(void) {
-	SDL_SetRenderDrawColor(game_window->renderer, 255, 255, 255, 255);
+	render_draw_color(game_window->renderer, white);
 	SDL_RenderFillRect(game_window->renderer, &game_window->rect2);
 	SDL_RenderCopy(game_window->renderer,
 				   game_window->runner1.texture,
@@ -456,7 +511,7 @@ static void render_game(void) {
 }
 
 static void update_and_render(void) {
-	SDL_SetRenderDrawColor(game_window->renderer, 9, 20, 33, 255);
+	render_draw_color(game_window->renderer, very_dark_blue);
 	SDL_RenderClear(game_window->renderer);
 	
 	switch (game_window->state) {

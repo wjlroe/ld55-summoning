@@ -48,6 +48,7 @@ cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column ^
  -I ..\vendor\SDL2-2.30.2\include\SDL2 ^
  -I ..\vendor\SDL2_image-2.8.2\include ^
  -I ..\vendor\SDL2_ttf-2.22.0\include ^
+ -I ..\vendor\SDL2_gfx ^
  /link /DEBUG:FULL ..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.lib ^
  ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib ^
