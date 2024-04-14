@@ -681,35 +681,6 @@ static void render_demonic_sign(void) {
     }
 	draw_circle(surface->pixels, 127, my_green);
 	draw_circle(surface->pixels, 63, my_green);
-	if (false) {
-		SDL_PixelFormat* format = surface->format;
-		bool has_alpha = SDL_ISPIXELFORMAT_ALPHA(format->format);
-		u32 (*pixels)[256] = surface->pixels;
-		u32 pixel = pixels[128][1];
-		u32 temp;
-		u8 red, green, blue, alpha;
-		temp = pixel & format->Rmask;
-		temp = temp >> format->Rshift;
-		temp = temp << format->Rloss;
-		red = (u8)temp;
-		
-		temp = pixel & format->Gmask;
-		temp = temp >> format->Gshift;
-		temp = temp << format->Gloss;
-		green = (u8)temp;
-		
-		temp = pixel & format->Bmask;
-		temp = temp >> format->Bshift;
-		temp = temp << format->Bloss;
-		blue = (u8)temp;
-		
-		temp = pixel & format->Amask;
-		temp = temp >> format->Ashift;
-		temp = temp << format->Aloss;
-		alpha = (u8)temp;
-		
-		printf("r: %d, g: %d, b: %d, a: %d, has_alpha: %d\n", red, green, blue, alpha, has_alpha);
-	}
 	if (SDL_MUSTLOCK(surface)) {
 		SDL_UnlockSurface(surface);
 	}
