@@ -182,7 +182,7 @@ typedef struct Font {
 	TTF_Font* font;
 	Glyph_Cache glyph_cache;
 } Font;
-	
+
 typedef struct Type_Challenge {
 	Font* font;
 	String text;
