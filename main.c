@@ -18,6 +18,8 @@
 
 typedef uint64_t u64;
 typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t  u8;
 
 typedef struct String {
 	char* str;
@@ -126,8 +128,9 @@ typedef enum Key {
 
 // TODO: This can only handle one key pressed at a time!
 typedef struct Keyboard_Input {
-	bool is_down, was_down;
+	bool is_down, was_down, repeat;
 	Key key;
+	char character;
 } Keyboard_Input;
 
 typedef struct Mouse_Input {
@@ -139,7 +142,7 @@ typedef struct Mouse_Input {
 typedef struct Input {
 	Keyboard_Input kbd_input;
 	Mouse_Input mouse_input;
-	char character;
+	char character; // FIXME: go away!
 } Input;
 
 typedef struct Glyph {
@@ -300,9 +303,9 @@ static void setup_level(Level_Data* level, Font* font) {
 		level->num_challenges++;
 	}
 	level->current_challenge = 0; // bit redundant!
-	if (!SDL_IsTextInputActive()) {
-		SDL_StartTextInput(); // so we can type 'into' the initial challenge text
-	}
+	// if (!SDL_IsTextInputActive()) {
+	//	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
+	//}
 }
 
 static void reset_level(Level_Data* level) {
@@ -311,9 +314,9 @@ static void reset_level(Level_Data* level) {
 	}
 	level->current_challenge = 0;
 	level->points = 0;
-	if (!SDL_IsTextInputActive()) {
-		SDL_StartTextInput();
-	}
+	// if (!SDL_IsTextInputActive()) {
+	//	SDL_StartTextInput();
+	//}
 }
 
 static bool is_level_done(Level_Data* level) {
@@ -331,9 +334,9 @@ static void level_type_character(Level_Data* level, char character) {
 		// TODO: score points!!!
 		level->current_challenge++;
 	}
-	if (is_level_done(level)) {
-		SDL_StopTextInput();
-	}
+	//if (is_level_done(level)) {
+	//	SDL_StopTextInput();
+	//}
 }
 
 typedef struct Game_Window {
@@ -367,6 +370,10 @@ static bool key_first_down() {
 
 static bool key_is_down(Key key) {
 	return (game_window->input.kbd_input.key == key) && (game_window->input.kbd_input.is_down);
+}
+
+static bool key_repeat() {
+	return (game_window->input.kbd_input.repeat);
 }
 
 #define DEFAULT_WINDOW_WIDTH  1280
@@ -458,14 +465,16 @@ static void init_the_game(void) {
 	String challenge_text = new_string("Summoning");
 	setup_challenge(&game_window->title_challenge, &game_window->title_font, challenge_text);
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
-	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
+	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
 static void game_handle_input(void) {
 	switch(game_window->state) {
 		case STATE_PLAY: {
-			if (game_window->input.character != 0) {
-				level_type_character(&game_window->level_data, game_window->input.character);
+			if ((game_window->input.kbd_input.character != 0) &&
+				key_first_down() &&
+				!key_repeat()) {
+				level_type_character(&game_window->level_data, game_window->input.kbd_input.character);
 				// TODO: if level is done!
 			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
 				reset_level(&game_window->level_data);
@@ -477,14 +486,16 @@ static void game_handle_input(void) {
 			}
 		} break;
 		case STATE_MENU: {
-			if (game_window->input.character != 0) {
-				enter_challenge_character(&game_window->title_challenge, game_window->input.character);
+			if ((game_window->input.kbd_input.character != 0) &&
+				key_first_down() &&
+				!key_repeat()) {
+				enter_challenge_character(&game_window->title_challenge, game_window->input.kbd_input.character);
 				if (is_challenge_done(&game_window->title_challenge)) {
 					if (challenge_has_mistakes(&game_window->title_challenge)) {
 						// TODO: show a message to indicate why this resets
 						reset_challenge(&game_window->title_challenge);
 					} else {
-						SDL_StopTextInput();
+						//SDL_StopTextInput();
 						game_window->state = STATE_PLAY;
 						setup_level(&game_window->level_data, &game_window->challenge_font);
 					}
@@ -498,6 +509,10 @@ static void game_handle_input(void) {
 // This translates from SDL events into our Input structure
 static void handle_inputs(void) {
 	game_window->input.character = 0;
+	game_window->input.kbd_input.character = 0;
+	game_window->input.kbd_input.key = KEY_NONE;
+	int num_key_states = 0;
+	const u8* keystates = SDL_GetKeyboardState(&num_key_states);
 	SDL_Event event;
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -520,7 +535,8 @@ static void handle_inputs(void) {
 			} break;
 			case SDL_KEYDOWN: 
 			case SDL_KEYUP: {
-				switch (event.key.keysym.scancode) {
+				int scancode = event.key.keysym.scancode;
+				switch (scancode) {
 					case SDL_SCANCODE_UP: {
 						game_window->input.kbd_input.key = KEY_UP;
 					} break;
@@ -540,23 +556,34 @@ static void handle_inputs(void) {
 						game_window->input.kbd_input.key = KEY_RETURN;
 					} break;
 					default: {
-						game_window->input.kbd_input.key = KEY_NONE;
+						if ((scancode >= SDL_SCANCODE_A) && (scancode <= SDL_SCANCODE_Z)) { //alpha!
+							char character = 93 + scancode;
+							if (keystates[SDL_SCANCODE_LSHIFT] || keystates[SDL_SCANCODE_RSHIFT]) {
+								character -= 32;
+							}
+							game_window->input.kbd_input.character = character;
+						} else {
+							game_window->input.kbd_input.key = KEY_NONE;
+						}
 					} break;
 				}
 				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
 				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
+				game_window->input.kbd_input.repeat = event.key.repeat;
 			} break;
 			case SDL_TEXTINPUT: {
-				if (strlen(event.text.text) > 1) {
-					abort();
-				}
-				static u32 last_char_time = 0;
-				if (event.text.timestamp > last_char_time) {
-					game_window->input.character = event.text.text[0];
-				} else {
-					abort();
-				}
-				last_char_time = event.text.timestamp;
+				return;
+				//abort();
+				//if (strlen(event.text.text) > 1) {
+					//abort();
+				//}
+				//static u32 last_char_time = 0;
+				//if (event.text.timestamp > last_char_time) {
+					//game_window->input.character = event.text.text[0];
+				//} else {
+					//abort();
+				//}
+				//last_char_time = event.text.timestamp;
 			} break;
 			default:
 				break;
