@@ -203,7 +203,7 @@ static void setup_challenge(Type_Challenge* challenge, Glyph_Cache* glyph_cache,
 }
 
 static void free_challenge(Type_Challenge* challenge) {
-	free(challenge->typed_correctly); // 
+	free(challenge->typed_correctly);
 	free(challenge->cursor_rects);
 }
 
