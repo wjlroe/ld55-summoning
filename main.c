@@ -632,6 +632,94 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 	}
 }
 
+static void draw_circle(void* pixel_data, int radius, u32 color) {
+	u32 (*pixels)[256] = pixel_data;
+	int Cx = 256 / 2;
+	int Cy = 256 / 2;
+	int R = radius;
+	{
+		int R2 = R+R;
+		
+		int X = R;
+		int Y = 0;
+		int dY = -2;
+		int dX = R2+R2 - 4;
+		int D = R2 - 1;
+		
+		while (Y <= X) {
+			pixels[Cy - Y][Cx - X] = color;
+			pixels[Cy - Y][Cx + X] = color;
+			pixels[Cy + Y][Cx - X] = color;
+			pixels[Cy + Y][Cx + X] = color;
+			pixels[Cy - X][Cx - Y] = color;
+			pixels[Cy - X][Cx + Y] = color;
+			pixels[Cy + X][Cx - Y] = color;
+			pixels[Cy + X][Cx + Y] = color;
+			
+			D += dY;
+			dY -= 4;
+			++Y;
+			
+			int Mask = (D >> 31);
+			D += dX & Mask;
+			dX -= 4 & Mask;
+			X += Mask;
+		}
+	}
+}
+
+static void render_demonic_sign(void) {
+	SDL_Rect area;
+	area.w = area.h = 256;
+	center_rect_horizontally(&area);
+	center_rect_veritcally(&area);
+	SDL_Surface* surface = SDL_CreateRGBSurface(0, 256, 256, 32, 0xff000000, 0x00ff0000, 0x000000ff00, 0x000000ff);
+	assert(surface->format->BitsPerPixel == 32);
+	u32 my_green = 0x00ff00ff;
+	if (SDL_MUSTLOCK(surface)) {
+        SDL_LockSurface(surface);
+    }
+	draw_circle(surface->pixels, 127, my_green);
+	draw_circle(surface->pixels, 63, my_green);
+	if (false) {
+		SDL_PixelFormat* format = surface->format;
+		bool has_alpha = SDL_ISPIXELFORMAT_ALPHA(format->format);
+		u32 (*pixels)[256] = surface->pixels;
+		u32 pixel = pixels[128][1];
+		u32 temp;
+		u8 red, green, blue, alpha;
+		temp = pixel & format->Rmask;
+		temp = temp >> format->Rshift;
+		temp = temp << format->Rloss;
+		red = (u8)temp;
+		
+		temp = pixel & format->Gmask;
+		temp = temp >> format->Gshift;
+		temp = temp << format->Gloss;
+		green = (u8)temp;
+		
+		temp = pixel & format->Bmask;
+		temp = temp >> format->Bshift;
+		temp = temp << format->Bloss;
+		blue = (u8)temp;
+		
+		temp = pixel & format->Amask;
+		temp = temp >> format->Ashift;
+		temp = temp << format->Aloss;
+		alpha = (u8)temp;
+		
+		printf("r: %d, g: %d, b: %d, a: %d, has_alpha: %d\n", red, green, blue, alpha, has_alpha);
+	}
+	if (SDL_MUSTLOCK(surface)) {
+		SDL_UnlockSurface(surface);
+	}
+	
+	SDL_Texture* texture = SDL_CreateTextureFromSurface(game_window->renderer, surface);
+	assert(texture != NULL);
+	SDL_FreeSurface(surface);
+	SDL_RenderCopy(game_window->renderer, texture, NULL, &area);
+}
+
 static void render_menu(void) {
 	center_rect_horizontally(&game_window->title_challenge.bounding_box);
 	center_rect_veritcally(&game_window->title_challenge.bounding_box);
@@ -652,8 +740,9 @@ static void update_and_render(void) {
 	
 	switch (game_window->state) {
 		case STATE_MENU: {
-			title_screen_do_animation();
-			render_menu();
+			render_demonic_sign();
+			//title_screen_do_animation();
+			//render_menu();
 		} break;
 		case STATE_PLAY: {
 			play_screen_do_animation();
