@@ -32,7 +32,7 @@ set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  opengl32.lib glu32.lib user32.lib gdi32.lib
 
 echo Debug build
-cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /DDEBUG ^
+cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\main.c ^
  %includes% ^
  /link /DEBUG:FULL %links% ^
@@ -40,7 +40,7 @@ cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /DDEBUG ^
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 echo Release build
-cl /std:c11 -FC -Zc:strictStrings -diagnostics:column ^
+cl /std:c11 -FC -Zc:strictStrings -diagnostics:caret /nologo ^
  -Fe:summoning.exe ..\main.c ^
  %includes% ^
  /link %links% ^
