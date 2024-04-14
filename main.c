@@ -17,6 +17,7 @@
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 
 typedef uint64_t u64;
+typedef uint32_t u32;
 
 typedef struct String {
 	char* str;
@@ -230,10 +231,25 @@ static bool has_typing_started(Type_Challenge* challenge) {
 	return (challenge->position > 0);
 }
 
+static void debug_enter_character(char character) {
+	printf("%c", character);
+}
+
+static void debug_end_challenge() {
+	printf("\n");
+}
+static void debug_reset_challenge() {
+	printf(" !! reset!\n");
+}
+
 static void enter_challenge_character(Type_Challenge* challenge, char character) {
 	if (!is_challenge_done(challenge)) {
+		debug_enter_character(character);
 		challenge->typed_correctly[challenge->position] = (character == challenge->text.str[challenge->position]);
 		challenge->position++;
+	}
+	if (is_challenge_done(challenge)) {
+		debug_end_challenge();
 	}
 }
 
@@ -260,6 +276,7 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 }
 
 static void reset_challenge(Type_Challenge* challenge) {
+	debug_reset_challenge();
 	challenge->position = 0;
 	challenge->alpha = 0.0;
 }
@@ -530,7 +547,16 @@ static void handle_inputs(void) {
 				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
 			} break;
 			case SDL_TEXTINPUT: {
-				game_window->input.character = event.text.text[0];
+				if (strlen(event.text.text) > 1) {
+					abort();
+				}
+				static u32 last_char_time = 0;
+				if (event.text.timestamp > last_char_time) {
+					game_window->input.character = event.text.text[0];
+				} else {
+					abort();
+				}
+				last_char_time = event.text.timestamp;
 			} break;
 			default:
 				break;
@@ -674,6 +700,11 @@ WinMain(HINSTANCE Instance,
 		HINSTANCE PrevInstance,
 		LPSTR CommandLine,
 		int ShowCode)  {
-	main(0, NULL);
+	return main(0, NULL);
+}
+
+int CALLBACK
+wmain(int argc, wchar_t** argv) {
+	return main(0, NULL);
 }
 #endif

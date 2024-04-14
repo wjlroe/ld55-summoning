@@ -52,7 +52,7 @@ cl /std:c11 -FC -Zc:strictStrings -Zi -EHsc -diagnostics:column ^
  /link /DEBUG:FULL ..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.lib ^
  ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib ^
- opengl32.lib glu32.lib user32.lib gdi32.lib /SUBSYSTEM:WINDOWS
+ opengl32.lib glu32.lib user32.lib gdi32.lib /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 popd
 
