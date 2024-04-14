@@ -753,7 +753,9 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 	}
 }
 
+#if 0
 static bool rendered_sign = false;
+#endif
 
 static void render_demonic_sign(void) {
 	SDL_Rect area;
@@ -844,10 +846,12 @@ static void render_demonic_sign(void) {
 	SDL_QueryTexture(texture,
 					 &tex_format, &tex_access,
 					 &tex_w, &tex_h);
+	#if 0
 	if (!rendered_sign) {
 		SDL_SaveBMP(surface, "output.bmp");
 		rendered_sign = true;
 	}
+	#endif
 	SDL_FreeSurface(surface);
 	SDL_RenderCopy(game_window->renderer, texture, NULL, &area);
 }
