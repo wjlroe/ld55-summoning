@@ -697,6 +697,11 @@ static void main_loop(void) {
 }
 
 int main(int argc, char** argv) {
+#ifdef UNIX
+    // raw unbuffered output mode so we can debug without printing newlines
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+#endif
 	init_the_game();
 
 	#ifdef __EMSCRIPTEN__
@@ -704,7 +709,11 @@ int main(int argc, char** argv) {
 	#else
 	fps_cap_in_ms = 1000.0f / fps_cap;
 	while (true) { main_loop(); }
-	#endif
+    #endif
+
+#ifdef UNIX
+    printf("\n");
+#endif
 	return 0;
 }
 

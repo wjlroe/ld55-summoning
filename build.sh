@@ -22,7 +22,7 @@ if [[ "${host_os}" == "Darwin" ]]; then
 fi
 
 set -x
-cc -std=c11 -g -O0 -o summoning ../main.c ${compile_flags} -lm -DDEBUG
+cc -std=c11 -g -O0 -o summoning ../main.c ${compile_flags} -lm -DDEBUG -DUNIX
 set +x
 
 if [[ "${host_os}" == "Darwin" ]]; then
