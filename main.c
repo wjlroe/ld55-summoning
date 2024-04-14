@@ -14,6 +14,8 @@
 #include <emscripten.h>
 #endif
 
+#define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
+
 typedef uint64_t u64;
 
 typedef struct String {
@@ -35,7 +37,14 @@ static bool strings_equal(String one, String two) {
 	return true;
 }
 
-#define STRING(s) String{s, sizeof(s)}
+#define STRING(s) {s, sizeof(s)-1}
+
+static String words[] = {
+	STRING("incantation"),
+	STRING("spell"),
+	STRING("awaken"),
+	STRING("cauldron"),
+};
 
 SDL_Color white = {255, 255, 255, 255};
 SDL_Color blue = {10, 10, 255, 255};
@@ -165,33 +174,39 @@ typedef struct Glyph_Cache {
 	int first_glyph;
 	int last_glyph;
 } Glyph_Cache;
+
+typedef struct Font {
+	TTF_Font* font;
+	Glyph_Cache glyph_cache;
+} Font;
 	
 typedef struct Type_Challenge {
-	TTF_Font* font;
+	Font* font;
 	String text;
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
 	SDL_Rect* cursor_rects;
 	int position;
 	SDL_Rect bounding_box;
 	float alpha;
+	float alpha_fade_speed;
 } Type_Challenge;
 
-static void setup_challenge(Type_Challenge* challenge, Glyph_Cache* glyph_cache, TTF_Font* font, String text) {
+static void setup_challenge(Type_Challenge* challenge, Font* font, String text) {
 	challenge->text = text;
 	challenge->font = font;
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
 	
-	TTF_SizeText(challenge->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
+	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
 	
-	int font_ascent = TTF_FontAscent(font);
-	int font_descent = TTF_FontDescent(font);
+	int font_ascent = TTF_FontAscent(font->font);
+	int font_descent = TTF_FontDescent(font->font);
 	int cursor_height = font_ascent + font_descent;
 	int x = 0;
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
 		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &glyph_cache->glyphs[GLYPH_INDEX(character)];
+		Glyph* glyph = &font->glyph_cache.glyphs[GLYPH_INDEX(character)];
 		SDL_Rect* rect = &challenge->cursor_rects[i];
 		rect->w = glyph->bounding_box.w;
 		rect->h = cursor_height;
@@ -232,12 +247,13 @@ static bool challenge_has_mistakes(Type_Challenge* challenge) {
 }
 
 static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
+	// TODO: LERP?
 	if (challenge->alpha < 1.0f) {
-		if (has_typing_started(challenge)) {
+		if (has_typing_started(challenge) || (challenge->alpha_fade_speed == 0.0f)) {
 			// speed up fading in if the typing has started
 			challenge->alpha += dt;
 		} else {
-			challenge->alpha += dt / 10.f;
+			challenge->alpha += dt / challenge->alpha_fade_speed;
 		}
 		challenge->alpha = (challenge->alpha > 1.0) ? 1.0 : challenge->alpha;
 	}
@@ -245,6 +261,62 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 
 static void reset_challenge(Type_Challenge* challenge) {
 	challenge->position = 0;
+	challenge->alpha = 0.0;
+}
+
+#define MAX_NUM_CHALLENGES 8
+
+typedef struct Level_Data {
+	Type_Challenge challenges[MAX_NUM_CHALLENGES];
+	SDL_Rect positions[MAX_NUM_CHALLENGES];
+	int num_challenges;
+	int current_challenge;
+	int level_number;
+	int points;
+} Level_Data;
+
+static void setup_level(Level_Data* level, Font* font) {
+	for (int i = 0; i < ARRAY_LEN(words); i++) {
+		if (i >= MAX_NUM_CHALLENGES) { break; }
+		setup_challenge(&level->challenges[i], font, words[i]);
+		level->challenges[i].alpha_fade_speed = 1.5f;
+		level->num_challenges++;
+	}
+	level->current_challenge = 0; // bit redundant!
+	if (!SDL_IsTextInputActive()) {
+		SDL_StartTextInput(); // so we can type 'into' the initial challenge text
+	}
+}
+
+static void reset_level(Level_Data* level) {
+	for (int i = 0; i < level->current_challenge+1; i++) {
+		reset_challenge(&level->challenges[i]);
+	}
+	level->current_challenge = 0;
+	level->points = 0;
+	if (!SDL_IsTextInputActive()) {
+		SDL_StartTextInput();
+	}
+}
+
+static bool is_level_done(Level_Data* level) {
+	if (level->current_challenge < level->num_challenges) {
+		return false;
+	}
+	return true;
+}
+
+static void level_type_character(Level_Data* level, char character) {
+	if (is_level_done(level)) { return; }
+	Type_Challenge* challenge = &level->challenges[level->current_challenge];
+	enter_challenge_character(challenge, character);
+	if (is_challenge_done(challenge)) {
+		// TODO: score points!!!
+		level->current_challenge++;
+	}
+	if (is_level_done(level)) {
+		SDL_StopTextInput();
+	}
 }
 
 typedef struct Game_Window {
@@ -252,8 +324,8 @@ typedef struct Game_Window {
 	int window_width, window_height;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
-	TTF_Font* im_fell_font;
-	Glyph_Cache glyph_cache;
+	Font title_font;
+	Font challenge_font;
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -263,9 +335,11 @@ typedef struct Game_Window {
 	Spritesheet runner1, runner2;
 	
 	Game_State state;
-	Type_Challenge challenge;
+	Type_Challenge title_challenge; // initial title page challenge
 	
 	Input input;
+	
+	Level_Data level_data;
 } Game_Window;
 
 static Game_Window* game_window = NULL;
@@ -286,6 +360,29 @@ static bool key_is_down(Key key) {
 static float fps_cap = 60.0f;
 static float fps_cap_in_ms;
 #endif
+
+static bool setup_font(Game_Window* game_window, Font* font, char* filename, int size) {
+	TTF_Font* sdl_font = TTF_OpenFont(filename, size);
+	if (sdl_font == NULL) {
+		const char* error = SDL_GetError();
+#ifndef __EMSCRIPTEN__
+		char buffer[1024] = {0};
+		sprintf(&buffer[0], "Error loading a font: %s\n", error);
+		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
+								 "Error",
+								 &buffer[0],
+								 game_window->window);
+#endif
+		return false;
+	}
+	font->font = sdl_font;
+	font->glyph_cache.first_glyph = 32;
+	font->glyph_cache.last_glyph = 126;
+	for (int i = 0; i < NUM_GLYPHS; i++) {
+		font->glyph_cache.glyphs[i] = new_glyph(game_window->renderer, sdl_font, i+32);
+	}
+	return true;
+}
 
 static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
@@ -309,25 +406,14 @@ static void init_the_game(void) {
 	game_window->runner_texture = SDL_CreateTextureFromSurface(game_window->renderer, spritesheet_surface);
 	SDL_FreeSurface(spritesheet_surface);
 	
-	TTF_Font* font = TTF_OpenFont("./assets/fonts/IM Fell English/FeENrm2.ttf", 120);
-	if (font == NULL) {
-		const char* error = SDL_GetError();
-		#ifndef __EMSCRIPTEN__
-		char buffer[1024] = {0};
-		sprintf(&buffer[0], "Error loading a font: %s\n", error);
-		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
-								 "Error",
-								 &buffer[0],
-								 game_window->window);
-		#endif
+	char* font_filename = "./assets/fonts/im_fell_roman.ttf";
+	if (!setup_font(game_window, &game_window->title_font, font_filename, 120)) {
+		abort();
+		return;
 	}
-	game_window->im_fell_font = font;
-	{
-		game_window->glyph_cache.first_glyph = 32;
-		game_window->glyph_cache.last_glyph = 126;
-		for (int i = 0; i < NUM_GLYPHS; i++) {
-			game_window->glyph_cache.glyphs[i] = new_glyph(game_window->renderer, font, i+32);
-		}
+	if (!setup_font(game_window, &game_window->challenge_font, font_filename, 48)) {
+		abort();
+		return;
 	}
 
 	{
@@ -353,17 +439,19 @@ static void init_the_game(void) {
 	game_window->rect2.h = 300;
 	
 	String challenge_text = new_string("Summoning");
-	setup_challenge(&game_window->challenge, &game_window->glyph_cache, game_window->im_fell_font, challenge_text);
+	setup_challenge(&game_window->title_challenge, &game_window->title_font, challenge_text);
+	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
 
 static void game_handle_input(void) {
 	switch(game_window->state) {
 		case STATE_PLAY: {
-			if (key_is_down(KEY_ESCAPE) && key_first_down()) {
-				game_window->state = STATE_PAUSE;
-			} else if (key_is_down(KEY_UP)) {
-				game_window->rect2.y -= KEYBOARD_VELOCITY;
+			if (game_window->input.character != 0) {
+				level_type_character(&game_window->level_data, game_window->input.character);
+				// TODO: if level is done!
+			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
+				reset_level(&game_window->level_data);
 			}
 		} break;
 		case STATE_PAUSE: {
@@ -373,20 +461,17 @@ static void game_handle_input(void) {
 		} break;
 		case STATE_MENU: {
 			if (game_window->input.character != 0) {
-				enter_challenge_character(&game_window->challenge, game_window->input.character);
-				if (is_challenge_done(&game_window->challenge)) {
-					if (challenge_has_mistakes(&game_window->challenge)) {
+				enter_challenge_character(&game_window->title_challenge, game_window->input.character);
+				if (is_challenge_done(&game_window->title_challenge)) {
+					if (challenge_has_mistakes(&game_window->title_challenge)) {
 						// TODO: show a message to indicate why this resets
-						reset_challenge(&game_window->challenge);
+						reset_challenge(&game_window->title_challenge);
 					} else {
 						SDL_StopTextInput();
 						game_window->state = STATE_PLAY;
+						setup_level(&game_window->level_data, &game_window->challenge_font);
 					}
 				}
-			}
-			
-			if (key_is_down(KEY_RETURN) && key_first_down()) {
-				// game_window.state = STATE_PLAY;
 			}
 		} break;
 		default: {}
@@ -418,8 +503,6 @@ static void handle_inputs(void) {
 			} break;
 			case SDL_KEYDOWN: 
 			case SDL_KEYUP: {
-				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
-				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
 				switch (event.key.keysym.scancode) {
 					case SDL_SCANCODE_UP: {
 						game_window->input.kbd_input.key = KEY_UP;
@@ -439,9 +522,12 @@ static void handle_inputs(void) {
 					case SDL_SCANCODE_RETURN: {
 						game_window->input.kbd_input.key = KEY_RETURN;
 					} break;
-					default:
-						break;
+					default: {
+						game_window->input.kbd_input.key = KEY_NONE;
+					} break;
 				}
+				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
+				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
 			} break;
 			case SDL_TEXTINPUT: {
 				game_window->input.character = event.text.text[0];
@@ -454,10 +540,13 @@ static void handle_inputs(void) {
 	}
 }
 
-static void do_animation(void) {
-	update_challenge_alpha(&game_window->challenge, game_window->dt);
-	update_sprite_animation(&game_window->runner1, game_window->dt);
-	update_sprite_animation(&game_window->runner2, game_window->dt);
+static void play_screen_do_animation(void) {
+	// update_sprite_animation(&game_window->runner1, game_window->dt);
+	// update_sprite_animation(&game_window->runner2, game_window->dt);
+}
+
+static void title_screen_do_animation(void) {
+	update_challenge_alpha(&game_window->title_challenge, game_window->dt);
 }
 
 static void center_rect_horizontally(SDL_Rect* rect) {
@@ -470,12 +559,10 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
 	int x = 0;
-	int font_ascent = TTF_FontAscent(challenge->font);
-	int font_descent = TTF_FontDescent(challenge->font);
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
 		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &game_window->glyph_cache.glyphs[GLYPH_INDEX(character)];
+		Glyph* glyph = &challenge->font->glyph_cache.glyphs[GLYPH_INDEX(character)];
 		SDL_Texture* texture = glyph->texture;
 		int alpha = challenge->alpha * 255;
 		SDL_SetTextureAlphaMod(texture, alpha);
@@ -489,7 +576,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			SDL_Rect cursor_rect = challenge->cursor_rects[i];
 			cursor_rect.x += challenge->bounding_box.x;
 			cursor_rect.y += challenge->bounding_box.y;
-			fill_rounded_rect(game_window->renderer, cursor_rect, amber, 15);
+			fill_rounded_rect(game_window->renderer, cursor_rect, amber, cursor_rect.w/4);
 			texture_color_mod(texture, very_dark_blue);
 		} else {
 			// untyped character - so keep original color
@@ -505,22 +592,17 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 }
 
 static void render_menu(void) {
-	center_rect_horizontally(&game_window->challenge.bounding_box);
-	center_rect_veritcally(&game_window->challenge.bounding_box);
-	render_challenge(game_window, &game_window->challenge);
+	center_rect_horizontally(&game_window->title_challenge.bounding_box);
+	center_rect_veritcally(&game_window->title_challenge.bounding_box);
+	render_challenge(game_window, &game_window->title_challenge);
 }
 
 static void render_game(void) {
-	render_draw_color(game_window->renderer, white);
-	SDL_RenderFillRect(game_window->renderer, &game_window->rect2);
-	SDL_RenderCopy(game_window->renderer,
-				   game_window->runner1.texture,
-				   &game_window->runner1.source_rect,
-				   &game_window->runner1.dest_rect);
-	SDL_RenderCopy(game_window->renderer,
-				   game_window->runner2.texture,
-				   &game_window->runner2.source_rect,
-				   &game_window->runner2.dest_rect);
+	Type_Challenge* challenge = &game_window->level_data.challenges[game_window->level_data.current_challenge];
+	update_challenge_alpha(challenge, game_window->dt);
+	center_rect_horizontally(&challenge->bounding_box);
+	center_rect_veritcally(&challenge->bounding_box);
+	render_challenge(game_window, challenge);
 }
 
 static void update_and_render(void) {
@@ -529,9 +611,11 @@ static void update_and_render(void) {
 	
 	switch (game_window->state) {
 		case STATE_MENU: {
+			title_screen_do_animation();
 			render_menu();
 		} break;
 		case STATE_PLAY: {
+			play_screen_do_animation();
 			render_game();
 		} break;
 		default: {}
@@ -559,7 +643,6 @@ static void main_loop(void) {
 	game_window->frame_number++;
 
 	handle_inputs();
-	do_animation();
 	update_and_render();
 
 	#ifndef __EMSCRIPTEN__
