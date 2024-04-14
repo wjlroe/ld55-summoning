@@ -244,9 +244,6 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 }
 
 static void reset_challenge(Type_Challenge* challenge) {
-	for (int i = 0; i < challenge->position; i++) {
-		challenge->typed_correctly[i] = false;
-	}
 	challenge->position = 0;
 }
 
