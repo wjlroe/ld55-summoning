@@ -42,6 +42,8 @@ static bool strings_equal(String one, String two) {
 
 #define STRING(s) {s, sizeof(s)-1}
 
+static String title = STRING("Summoning");
+
 static String words[] = {
 	STRING("incantation"),
 	STRING("spell"),
@@ -353,6 +355,7 @@ typedef struct Game_Window {
 	SDL_Renderer* renderer;
 	Font title_font;
 	Font challenge_font;
+	Font demonic_font;
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -446,6 +449,10 @@ static void init_the_game(void) {
 		abort();
 		return;
 	}
+	if (!setup_font(game_window, &game_window->demonic_font, font_filename, 24)) {
+		abort();
+		return;
+	}
 
 	{
 		game_window->runner1 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
@@ -469,8 +476,7 @@ static void init_the_game(void) {
 	game_window->rect2.w = 300;
 	game_window->rect2.h = 300;
 	
-	String challenge_text = new_string("Summoning");
-	setup_challenge(&game_window->title_challenge, &game_window->title_font, challenge_text);
+	setup_challenge(&game_window->title_challenge, &game_window->title_font, title);
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 }
@@ -668,6 +674,39 @@ static void draw_circle(void* pixel_data, int radius, u32 color) {
 	}
 }
 
+static void draw_line(void* pixel_data, int x0, int y0, int x1, int y1, u32 color) {
+	u32 (*pixels)[256] = pixel_data;
+	int dx, dy, p, x, y;
+	
+	dx=x1-x0;
+	dy=y1-y0;
+	
+	x=x0;
+	y=y0;
+	
+	p=2*dy-dx;
+	
+	while(x<x1)
+	{
+		if(p>=0)
+		{
+			//putpixel(x,y,7);
+			pixels[y][x] = color;
+			y=y+1;
+			p=p+2*dy-2*dx;
+		}
+		else
+		{
+			pixels[y][x] = color;
+			//putpixel(x,y,7);
+			p=p+2*dy;
+		}
+		x=x+1;
+	}
+}
+
+static bool rendered_sign = false;
+
 static void render_demonic_sign(void) {
 	SDL_Rect area;
 	area.w = area.h = 256;
@@ -677,10 +716,99 @@ static void render_demonic_sign(void) {
 	assert(surface->format->BitsPerPixel == 32);
 	u32 my_green = 0x00ff00ff;
 	draw_circle(surface->pixels, 127, my_green);
-	draw_circle(surface->pixels, 63, my_green);
+	int inner_radius = 95;
+	draw_circle(surface->pixels, inner_radius, my_green);
+	SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, 'S', green);
+	SDL_Rect char_rect = {0};
+	char_rect.w = char_surface->w;
+	char_rect.h = char_surface->h;
+	SDL_Rect dst_rect = char_rect;
+	dst_rect.x = (area.w / 2) - (char_rect.w / 2);
+	SDL_BlitSurface(char_surface, &char_rect,
+					surface, &dst_rect);
+	// Center of first char dest rect:
+	int char_cx = (dst_rect.w / 2) + dst_rect.x;
+	int char_cy = (dst_rect.h / 2) + dst_rect.y;
+	// Center of area:
+	int area_cx = area.w / 2;
+	int area_cy = area.h / 2;
+	assert(area_cx == char_cx);
+	float angle_deg = 360.0 / (float)title.length;
+	float theta = angle_deg * (M_PI / 180.0f);
+	int new_cx, new_cy;
+	//SDL_Point top = {char_cx, area_cy - inner_radius};
+	SDL_Point* input_points = calloc(title.length+1, sizeof(SDL_Point));
+	SDL_Point* restore_points = input_points;
+	*input_points = (SDL_Point){char_cx, area_cy - inner_radius};
+	input_points++;
+	
+	for (int i = 1; i < title.length; i++) {
+		SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, title.str[i], green);
+		SDL_Rect char_rect = {0};
+		char_rect.w = char_surface->w;
+		char_rect.h = char_surface->h;
+		SDL_Rect dst_rect = char_rect;
+		new_cx = cos(theta) * (char_cx - area_cx) - sin(theta) * (char_cy - area_cy) + area_cx;
+		new_cy = sin(theta) * (char_cx - area_cx) + cos(theta) * (char_cy - area_cy) + area_cy;
+		dst_rect.x = new_cx - (dst_rect.w / 2);
+		dst_rect.y = new_cy - (dst_rect.h / 2);
+		char_cx = new_cx;
+		char_cy = new_cy;
+		SDL_BlitSurface(char_surface, &char_rect,
+						surface, &dst_rect);
+		
+		float vx = (float)char_cx - (float)area_cx;
+		float vy = (float)char_cy - (float)area_cy;
+		float magnitude = sqrt(vx*vx + vy*vy);
+		vx /= magnitude;
+		vy /= magnitude;
+		int edge_x = (int)((float)area_cx + vx * (float)inner_radius);
+		int edge_y = (int)((float)area_cy + vy * (float)inner_radius);
+		*input_points = (SDL_Point){edge_x, edge_y};
+		input_points++;
+	}
+	*input_points = *restore_points; // last point is the same as first
+	input_points = restore_points;
+	// Re-order points from input->output by doing spans...
+	SDL_Point* points = calloc(title.length+1, sizeof(SDL_Point));
+	SDL_Point* output_points = points;
+	int input_i = 0;
+	for (int i = 0; i < title.length; i++) {
+		output_points[i] = input_points[input_i];
+		input_i = (input_i + 4) % title.length;
+	}
+	output_points[title.length] = input_points[0];
+	
+	render_draw_color(game_window->renderer, green); // TEMP: trying RenderDrawLine
+	for (int i = 0; i < title.length; i++) {
+		SDL_Point p0 = output_points[i];
+		SDL_Point p1 = output_points[i+1];
+		SDL_RenderDrawLine(game_window->renderer, p0.x, p0.y, p1.x, p1.y); // TEMP: trying RenderDrawLine
+		if (p0.x < p1.x) {
+			draw_line(surface->pixels, p0.x, p0.y, p1.x, p1.y, my_green);
+		} else {
+			draw_line(surface->pixels, p1.x, p1.y, p0.x, p0.y, my_green);
+		}
+	}
 	
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(game_window->renderer, surface);
 	assert(texture != NULL);
+	u32 tex_format;
+	int tex_access, tex_w, tex_h;
+	SDL_QueryTexture(texture,
+					 &tex_format, &tex_access,
+					 &tex_w, &tex_h);
+	//printf("tex_format: %d, tex_access: %d, w: %d, h: %d\n", tex_format, tex_access, tex_w, tex_h);
+	//if (!SDL_SetRenderTarget(game_window->renderer, texture)) {
+		//printf("error: %s\n", SDL_GetError());
+		//abort();
+	//}
+	//SDL_RenderDrawLines(game_window->renderer, output_points, title.length+1);
+	//SDL_SetRenderTarget(game_window->renderer, NULL);
+	if (!rendered_sign) {
+		SDL_SaveBMP(surface, "output.bmp");
+		rendered_sign = true;
+	}
 	SDL_FreeSurface(surface);
 	SDL_RenderCopy(game_window->renderer, texture, NULL, &area);
 }
