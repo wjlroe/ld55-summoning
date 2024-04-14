@@ -674,34 +674,82 @@ static void draw_circle(void* pixel_data, int radius, u32 color) {
 	}
 }
 
-static void draw_line(void* pixel_data, int x0, int y0, int x1, int y1, u32 color) {
+#define SWAP(x, y, T) do { T SWAP = x; x = y; y = SWAP; } while (0)
+
+static int ipart(float in) {
+	return (int)floor(in);
+}
+
+static float fpart(float x) {
+	return (x - (float)ipart(x));
+}
+
+static float rfpart(float x) {
+	return (1.0 - fpart(x));
+}
+
+static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, u32 color) {
 	u32 (*pixels)[256] = pixel_data;
-	int dx, dy, p, x, y;
+	bool steep = abs(y1 - y0) > abs(x1 - x0);
 	
-	dx=x1-x0;
-	dy=y1-y0;
+	if (steep) {
+		SWAP(x0, y0, float);
+		SWAP(x1, y1, float);
+	}
+	if (x0 > x1) {
+		SWAP(x0, x1, float);
+		SWAP(y0, y1, float);
+	}
 	
-	x=x0;
-	y=y0;
+	float dx = x1 - x0;
+	float dy = y1 - y0;
 	
-	p=2*dy-dx;
+	float gradient;
+	if (dx == 0.0) {
+		gradient = 1.0f;
+	} else {
+		gradient = dy / dx;
+	}
 	
-	while(x<x1)
-	{
-		if(p>=0)
-		{
-			//putpixel(x,y,7);
-			pixels[y][x] = color;
-			y=y+1;
-			p=p+2*dy-2*dx;
+	float xend = round(x0);
+	float yend = y0 + gradient * (xend - x0);
+	float xgap = rfpart(x0 + 0.5f);
+	int xpxl1 = xend;
+	int ypxl1 = ipart(yend);
+	if (steep) {
+		pixels[xpxl1][ypxl1] = color;
+		pixels[xpxl1][ypxl1+1] = color;
+	} else {
+		pixels[ypxl1][xpxl1] = color;
+		pixels[ypxl1+1][xpxl1] = color;
+	}
+	float intery = yend + gradient;
+	
+	xend = round(x1);
+	yend = y1 + gradient * (xend - x1);
+	xgap = fpart(x1 + 0.5);
+	int xpxl2 = xend;
+	int ypxl2 = ipart(yend);
+	if (steep) {
+		pixels[xpxl2][ypxl2] = color;
+		pixels[xpxl2][ypxl2+1] = color;
+	} else {
+		pixels[ypxl2][xpxl2] = color;
+		pixels[ypxl2+1][xpxl2] = color;
+	}
+	
+	if (steep) {
+		for (int x = (xpxl1 + 1); x < (xpxl2 - 1); x++) {
+			pixels[x][ipart(intery)] = color;
+			pixels[x][ipart(intery)+1] = color;
+			intery += gradient;
 		}
-		else
-		{
-			pixels[y][x] = color;
-			//putpixel(x,y,7);
-			p=p+2*dy;
+	} else {
+		for (int x = (xpxl1 + 1); x < (xpxl2 - 1); x++) {
+			pixels[ipart(intery)][x] = color;
+			pixels[ipart(intery)+1][x] = color;
+			intery += gradient;
 		}
-		x=x+1;
 	}
 }
 
@@ -779,11 +827,9 @@ static void render_demonic_sign(void) {
 	}
 	output_points[title.length] = input_points[0];
 	
-	render_draw_color(game_window->renderer, green); // TEMP: trying RenderDrawLine
 	for (int i = 0; i < title.length; i++) {
 		SDL_Point p0 = output_points[i];
 		SDL_Point p1 = output_points[i+1];
-		SDL_RenderDrawLine(game_window->renderer, p0.x, p0.y, p1.x, p1.y); // TEMP: trying RenderDrawLine
 		if (p0.x < p1.x) {
 			draw_line(surface->pixels, p0.x, p0.y, p1.x, p1.y, my_green);
 		} else {
@@ -798,13 +844,6 @@ static void render_demonic_sign(void) {
 	SDL_QueryTexture(texture,
 					 &tex_format, &tex_access,
 					 &tex_w, &tex_h);
-	//printf("tex_format: %d, tex_access: %d, w: %d, h: %d\n", tex_format, tex_access, tex_w, tex_h);
-	//if (!SDL_SetRenderTarget(game_window->renderer, texture)) {
-		//printf("error: %s\n", SDL_GetError());
-		//abort();
-	//}
-	//SDL_RenderDrawLines(game_window->renderer, output_points, title.length+1);
-	//SDL_SetRenderTarget(game_window->renderer, NULL);
 	if (!rendered_sign) {
 		SDL_SaveBMP(surface, "output.bmp");
 		rendered_sign = true;
