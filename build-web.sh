@@ -19,5 +19,8 @@ echo "Building for the web"
 cd build/web
 cp -r ../../assets .
 set -x
-emcc --use-port=sdl2 --use-port=sdl2_image:formats=png,jpg --use-port=sdl2_ttf --preload-file ./assets/spritesheet.png --bind -o index.html ../../main.c
+compile_flags="-I../../vendor/SDL2_gfx $(pkg-config --cflags sdl2,SDL2_image,SDL2_ttf)"
+# emcc -c ../../main.c ../../vendor/SDL2_gfx/SDL2_gfxPrimitives.c ../../vendor/SDL2_gfx/SDL2_rotozoom.c ${compile_flags}
+tree assets
+emcc --use-port=sdl2 --use-port=sdl2_image:formats=png,jpg --use-port=sdl2_ttf --preload-file ./assets/fonts/im_fell_roman.ttf --bind -o index.html ../../main.c ${compile_flags}
 set +x
