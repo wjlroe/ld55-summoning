@@ -20,7 +20,6 @@ pushd %build_dir%
 cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 cp ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.dll .
 cp ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.dll .
-cp -r ..\assets .
 mv ..\icon.res .
 cvtres -machine:x64 -out:icon.obj icon.res
 
@@ -37,9 +36,9 @@ set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
 
 echo Debug build
 cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
- -Fe:summoning_debug.exe ..\main.c ^
+ -Fe:summoning_debug.exe ..\main.c icon.obj ^
  %includes% ^
- /link /DEBUG:FULL %links% icon.obj ^
+ /link /DEBUG:FULL %links% ^
  /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 

@@ -10,6 +10,11 @@
 #include <SDL2_gfxPrimitives.c>
 #include <SDL2_rotozoom.c>
 
+#ifdef _WIN32
+#include <windows.h>
+#include "resources.h"
+#endif
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -411,21 +416,45 @@ static float fps_cap = 60.0f;
 static float fps_cap_in_ms;
 #endif
 
-static bool setup_font(Game_Window* game_window, Font* font, char* filename, int size) {
-	TTF_Font* sdl_font = TTF_OpenFont(filename, size);
-	if (sdl_font == NULL) {
-		const char* error = SDL_GetError();
-#ifndef __EMSCRIPTEN__
-		char buffer[1024] = {0};
-		sprintf(&buffer[0], "Error loading a font: %s\n", error);
-		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
-								 "Error",
-								 &buffer[0],
-								 game_window->window);
-#endif
-		return false;
+static void ShowSDLError(char* message) {
+	const char* sdl_error = SDL_GetError();
+	char buffer[1024] = {0};
+	sprintf("%s : %s", message, sdl_error);
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR,
+							 "Error",
+							 &buffer[0],
+							 game_window->window);
+}
+
+typedef enum Font_Data_Type {
+	FONT_DATA_MEMORY,
+	FONT_DATA_FILE,
+} Font_Data_Type;
+
+static TTF_Font* init_font(int point_size, const void* font_memory, int font_memory_size, char* filename, Font_Data_Type type) {
+	TTF_Font* font = NULL;
+	switch (type) {
+		case FONT_DATA_MEMORY: {
+			SDL_RWops* font_data = SDL_RWFromConstMem(font_memory, font_memory_size);
+			font = TTF_OpenFontRW(font_data, 0, point_size);
+			if (font == NULL) {
+				ShowSDLError("Loading font from memory");
+			}
+		} break;
+		case FONT_DATA_FILE: {
+			font = TTF_OpenFont(filename, point_size);
+			if (font == NULL) {
+					char err_buf[1024] = {0};
+				sprintf(&err_buf[0], "Loading font from filename: %s", filename);
+				ShowSDLError(&err_buf[0]);
+			}
+		} break;
 	}
-	font->font = sdl_font;
+	return font;
+}
+
+static bool setup_font(Game_Window* game_window, Font* font, char* filename, int size) {
+	TTF_Font* sdl_font = font->font;
 	font->glyph_cache.first_glyph = 32;
 	font->glyph_cache.last_glyph = 126;
 	for (int i = 0; i < NUM_GLYPHS; i++) {
@@ -684,15 +713,38 @@ static void init_the_game(void) {
 											   -1, // initialize the first one supporting the requested flags
 											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	
+	TTF_Font* font;
+	//SDL_RWops* font_data; // only used if font is embedded in binary
+	const void* font_memory = NULL; // only used when font is embedded in binary
+	int font_memory_size = 0;
+	Font_Data_Type font_data_type = FONT_DATA_FILE;
+	
+	#ifdef _WIN32
+	{
+		HMODULE handle = GetModuleHandle(NULL);
+		HRSRC rc = FindResource(handle, MAKEINTRESOURCE(IM_FELL_FONT_ID), MAKEINTRESOURCE(ID_FONT));
+		HGLOBAL rc_data = LoadResource(handle, rc);
+		DWORD size = SizeofResource(handle, rc);
+		font_memory = rc_data;
+		font_memory_size = size;
+		assert(font_memory_size > 0);
+		assert(font_memory != NULL);
+		font_data_type = FONT_DATA_MEMORY;
+	}
+	#endif
+		
 	char* font_filename = "./assets/fonts/im_fell_roman.ttf";
+	game_window->title_font.font = init_font(120, font_memory, font_memory_size, font_filename, font_data_type);
 	if (!setup_font(game_window, &game_window->title_font, font_filename, 120)) {
 		abort();
 		return;
 	}
+	game_window->challenge_font.font = init_font(48, font_memory, font_memory_size, font_filename, font_data_type);
 	if (!setup_font(game_window, &game_window->challenge_font, font_filename, 48)) {
 		abort();
 		return;
 	}
+	game_window->demonic_font.font = init_font(24, font_memory, font_memory_size, font_filename, font_data_type);
 	if (!setup_font(game_window, &game_window->demonic_font, font_filename, 24)) {
 		abort();
 		return;
