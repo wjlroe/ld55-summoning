@@ -45,6 +45,7 @@ static bool strings_equal(String one, String two) {
 static String title = STRING("Summoning");
 
 static String words[] = {
+	STRING("summon"),
 	STRING("incantation"),
 	STRING("spell"),
 	STRING("awaken"),
@@ -126,6 +127,7 @@ typedef enum Key {
 	KEY_DOWN,
 	KEY_ESCAPE,
 	KEY_RETURN,
+	KEY_SPACE
 } Key;
 
 // TODO: This can only handle one key pressed at a time!
@@ -348,6 +350,11 @@ static void level_type_character(Level_Data* level, char character) {
 	}
 }
 
+typedef struct Sized_Texture {
+	SDL_Texture* texture;
+	SDL_Rect rect;
+} Sized_Texture;
+
 typedef struct Game_Window {
 	bool quit; // zero-init means quit=false by default
 	int window_width, window_height;
@@ -370,6 +377,9 @@ typedef struct Game_Window {
 	Input input;
 	
 	Level_Data level_data;
+	
+	Sized_Texture* demonic_word_textures;
+	int demonic_word_i;
 } Game_Window;
 
 static Game_Window* game_window = NULL;
@@ -416,226 +426,6 @@ static bool setup_font(Game_Window* game_window, Font* font, char* filename, int
 		font->glyph_cache.glyphs[i] = new_glyph(game_window->renderer, sdl_font, i+32);
 	}
 	return true;
-}
-
-static void init_the_game(void) {
-	game_window = (Game_Window*)malloc(sizeof(Game_Window));
-	memset(game_window, 0, sizeof(Game_Window));
-	game_window->window_width = DEFAULT_WINDOW_WIDTH;
-	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
-	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
-	SDL_Init(SDL_INIT_EVERYTHING);
-	TTF_Init();
-	game_window->window = SDL_CreateWindow("Ludum Dare 55: Summoning",
-										   SDL_WINDOWPOS_UNDEFINED,
-										   SDL_WINDOWPOS_UNDEFINED,
-										   game_window->window_width, 
-										   game_window->window_height, 
-										   SDL_WINDOW_OPENGL);
-	game_window->renderer = SDL_CreateRenderer(game_window->window,
-											   -1, // initialize the first one supporting the requested flags
-											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-	
-	SDL_Surface *spritesheet_surface = IMG_Load("./assets/spritesheet.png");
-	game_window->runner_texture = SDL_CreateTextureFromSurface(game_window->renderer, spritesheet_surface);
-	SDL_FreeSurface(spritesheet_surface);
-	
-	char* font_filename = "./assets/fonts/im_fell_roman.ttf";
-	if (!setup_font(game_window, &game_window->title_font, font_filename, 120)) {
-		abort();
-		return;
-	}
-	if (!setup_font(game_window, &game_window->challenge_font, font_filename, 48)) {
-		abort();
-		return;
-	}
-	if (!setup_font(game_window, &game_window->demonic_font, font_filename, 24)) {
-		abort();
-		return;
-	}
-
-	{
-		game_window->runner1 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
-		game_window->runner1.dtPerFrame = 0.05;
-		game_window->runner1.dest_rect.w = 100;
-		game_window->runner1.dest_rect.h = 100;
-		game_window->runner1.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w;
-		game_window->runner1.dest_rect.y = game_window->window_height - game_window->runner1.dest_rect.h;
-	}
-	{
-		game_window->runner2 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
-		game_window->runner2.dtPerFrame = 0.03;
-		game_window->runner2.dest_rect.w = 150;
-		game_window->runner2.dest_rect.h = 150;
-		game_window->runner2.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w - game_window->runner2.dest_rect.w;
-		game_window->runner2.dest_rect.y = game_window->window_height - game_window->runner2.dest_rect.h;
-	}
-
-	game_window->rect2.x = 100;
-	game_window->rect2.y = 20;
-	game_window->rect2.w = 300;
-	game_window->rect2.h = 300;
-	
-	setup_challenge(&game_window->title_challenge, &game_window->title_font, title);
-	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
-	SDL_StartTextInput(); // so we can type 'into' the initial challenge text
-}
-
-static void game_handle_input(void) {
-	switch(game_window->state) {
-		case STATE_PLAY: {
-			if (game_window->input.character != 0) {
-				level_type_character(&game_window->level_data, game_window->input.character);
-				// TODO: if level is done!
-			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
-				reset_level(&game_window->level_data);
-			}
-		} break;
-		case STATE_PAUSE: {
-			if (key_is_down(KEY_ESCAPE) && key_first_down()) {
-				game_window->state = STATE_PLAY;
-			}
-		} break;
-		case STATE_MENU: {
-			if (game_window->input.character != 0) {
-				enter_challenge_character(&game_window->title_challenge, game_window->input.character);
-				if (is_challenge_done(&game_window->title_challenge)) {
-					if (challenge_has_mistakes(&game_window->title_challenge)) {
-						// TODO: show a message to indicate why this resets
-						reset_challenge(&game_window->title_challenge);
-					} else {
-						SDL_StopTextInput();
-						game_window->state = STATE_PLAY;
-						setup_level(&game_window->level_data, &game_window->challenge_font);
-					}
-				}
-			}
-		} break;
-		default: {}
-	}
-}
-
-// This translates from SDL events into our Input structure
-static void handle_inputs(void) {
-	game_window->input.character = 0;
-	game_window->input.kbd_input.key = KEY_NONE;
-	int num_key_states = 0;
-	const u8* keystates = SDL_GetKeyboardState(&num_key_states);
-	SDL_Event event;
-	while (SDL_PollEvent(&event)) {
-		switch (event.type) {
-			case SDL_QUIT: {
-				game_window->quit = true;
-				return;
-			} break;
-			case SDL_MOUSEMOTION: {
-				game_window->input.mouse_input.posX = event.motion.x;
-				game_window->input.mouse_input.posY = event.motion.y;
-				return;
-			} break;
-			case SDL_MOUSEBUTTONDOWN:
-			case SDL_MOUSEBUTTONUP: {
-				if (event.button.button == SDL_BUTTON_LEFT) {
-					game_window->input.mouse_input.left_was_down = (event.type == SDL_MOUSEBUTTONUP);
-					game_window->input.mouse_input.left_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
-				} else if (event.button.button == SDL_BUTTON_RIGHT) {
-			        game_window->input.mouse_input.right_was_down = (event.type == SDL_MOUSEBUTTONUP);
-					game_window->input.mouse_input.right_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
-				}
-				return;
-			} break;
-			case SDL_KEYDOWN: 
-			case SDL_KEYUP: {
-				int scancode = event.key.keysym.scancode;
-				switch (scancode) {
-					case SDL_SCANCODE_UP: {
-						game_window->input.kbd_input.key = KEY_UP;
-					} break;
-					case SDL_SCANCODE_LEFT: {
-						game_window->input.kbd_input.key = KEY_LEFT;
-					} break;
-					case SDL_SCANCODE_DOWN: {
-						game_window->input.kbd_input.key = KEY_DOWN;
-					} break;
-					case SDL_SCANCODE_RIGHT: {
-						game_window->input.kbd_input.key = KEY_RIGHT;
-					} break;
-					case SDL_SCANCODE_ESCAPE: {
-						game_window->input.kbd_input.key = KEY_ESCAPE;
-					} break;
-					case SDL_SCANCODE_RETURN: {
-						game_window->input.kbd_input.key = KEY_RETURN;
-					} break;
-					default: {
-						return;
-					} break;
-				}
-				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
-				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
-				game_window->input.kbd_input.repeat = event.key.repeat;
-			} break;
-			case SDL_TEXTINPUT: {
-				assert(strlen(event.text.text) == 1);
-				game_window->input.character = event.text.text[0];
-			} break;
-			default: {
-				return;
-			} break;
-		}
-		
-		game_handle_input();
-	}
-}
-
-static void play_screen_do_animation(void) {
-	// update_sprite_animation(&game_window->runner1, game_window->dt);
-	// update_sprite_animation(&game_window->runner2, game_window->dt);
-}
-
-static void title_screen_do_animation(void) {
-	update_challenge_alpha(&game_window->title_challenge, game_window->dt);
-}
-
-static void center_rect_horizontally(SDL_Rect* rect) {
-	rect->x = (game_window->window_width / 2) - (rect->w / 2);
-}
-
-static void center_rect_veritcally(SDL_Rect* rect) {
-	rect->y = (game_window->window_height / 2) - (rect->h / 2);
-}
-
-static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
-	int x = 0;
-	for (int i = 0; i < challenge->text.length; i++) {
-		char character = challenge->text.str[i];
-		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &challenge->font->glyph_cache.glyphs[GLYPH_INDEX(character)];
-		SDL_Texture* texture = glyph->texture;
-		int alpha = challenge->alpha * 255;
-		SDL_SetTextureAlphaMod(texture, alpha);
-		if (challenge->position > i) {
-			if (challenge->typed_correctly[i]) { // correct
-				texture_color_mod(texture, green);
-			} else { // incorrect
-				texture_color_mod(texture, red);
-			}
-		} else if (challenge->position == i) {
-			SDL_Rect cursor_rect = challenge->cursor_rects[i];
-			cursor_rect.x += challenge->bounding_box.x;
-			cursor_rect.y += challenge->bounding_box.y;
-			fill_rounded_rect(game_window->renderer, cursor_rect, amber, cursor_rect.w/4);
-			texture_color_mod(texture, very_dark_blue);
-		} else {
-			// untyped character - so keep original color
-			texture_color_mod(texture, white);
-		}
-		SDL_Rect pos = glyph->bounding_box;
-		pos.x += challenge->bounding_box.x + x;
-		pos.y += challenge->bounding_box.y;
-		
-		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
-		x += glyph->advance;
-	}
 }
 
 static void draw_circle(void* pixel_data, int radius, u32 color) {
@@ -757,43 +547,42 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 static bool rendered_sign = false;
 #endif
 
-static void render_demonic_sign(void) {
-	SDL_Rect area;
-	area.w = area.h = 256;
-	center_rect_horizontally(&area);
-	center_rect_veritcally(&area);
+static SDL_Texture* render_demonic_sign_to_texture(String word, SDL_Rect* area) {
+	area->w = area->h = 256;
 	SDL_Surface* surface = SDL_CreateRGBSurface(0, 256, 256, 32, 0xff000000, 0x00ff0000, 0x000000ff00, 0x000000ff);
 	assert(surface->format->BitsPerPixel == 32);
 	u32 my_green = 0x00ff00ff;
 	draw_circle(surface->pixels, 127, my_green);
 	int inner_radius = 95;
 	draw_circle(surface->pixels, inner_radius, my_green);
-	SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, 'S', green);
+	char first_char = toupper(word.str[0]);
+	SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, first_char, green);
 	SDL_Rect char_rect = {0};
 	char_rect.w = char_surface->w;
 	char_rect.h = char_surface->h;
 	SDL_Rect dst_rect = char_rect;
-	dst_rect.x = (area.w / 2) - (char_rect.w / 2);
+	dst_rect.x = (area->w / 2) - (char_rect.w / 2);
 	SDL_BlitSurface(char_surface, &char_rect,
 					surface, &dst_rect);
+	SDL_FreeSurface(char_surface);
 	// Center of first char dest rect:
 	int char_cx = (dst_rect.w / 2) + dst_rect.x;
 	int char_cy = (dst_rect.h / 2) + dst_rect.y;
 	// Center of area:
-	int area_cx = area.w / 2;
-	int area_cy = area.h / 2;
+	int area_cx = area->w / 2;
+	int area_cy = area->h / 2;
 	assert(area_cx == char_cx);
-	float angle_deg = 360.0 / (float)title.length;
+	float angle_deg = 360.0 / (float)word.length;
 	float theta = angle_deg * (M_PI / 180.0f);
 	int new_cx, new_cy;
 	//SDL_Point top = {char_cx, area_cy - inner_radius};
-	SDL_Point* input_points = calloc(title.length+1, sizeof(SDL_Point));
+	SDL_Point* input_points = calloc(word.length+1, sizeof(SDL_Point));
 	SDL_Point* restore_points = input_points;
 	*input_points = (SDL_Point){char_cx, area_cy - inner_radius};
 	input_points++;
 	
-	for (int i = 1; i < title.length; i++) {
-		SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, title.str[i], green);
+	for (int i = 1; i < word.length; i++) {
+		SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, word.str[i], green);
 		SDL_Rect char_rect = {0};
 		char_rect.w = char_surface->w;
 		char_rect.h = char_surface->h;
@@ -806,6 +595,7 @@ static void render_demonic_sign(void) {
 		char_cy = new_cy;
 		SDL_BlitSurface(char_surface, &char_rect,
 						surface, &dst_rect);
+		SDL_FreeSurface(char_surface);
 		
 		float vx = (float)char_cx - (float)area_cx;
 		float vy = (float)char_cy - (float)area_cy;
@@ -820,16 +610,24 @@ static void render_demonic_sign(void) {
 	*input_points = *restore_points; // last point is the same as first
 	input_points = restore_points;
 	// Re-order points from input->output by doing spans...
-	SDL_Point* points = calloc(title.length+1, sizeof(SDL_Point));
+	SDL_Point* points = calloc(word.length+1, sizeof(SDL_Point));
 	SDL_Point* output_points = points;
 	int input_i = 0;
-	for (int i = 0; i < title.length; i++) {
-		output_points[i] = input_points[input_i];
-		input_i = (input_i + 4) % title.length;
+	int half_word = word.length / 2;
+	bool even_word_length = false;
+	if ((word.length % 2) == 0) {
+		half_word--;
+		even_word_length = true;
 	}
-	output_points[title.length] = input_points[0];
+	// TODO: with even words, we need to +1 and go around again?
+	// currently this is repeating lines I think
+	for (int i = 0; i < word.length; i++) {
+		output_points[i] = input_points[input_i];
+		input_i = (input_i + half_word) % word.length;
+	}
+	output_points[word.length] = input_points[0];
 	
-	for (int i = 0; i < title.length; i++) {
+	for (int i = 0; i < word.length; i++) {
 		SDL_Point p0 = output_points[i];
 		SDL_Point p1 = output_points[i+1];
 		if (p0.x < p1.x) {
@@ -838,22 +636,262 @@ static void render_demonic_sign(void) {
 			draw_line(surface->pixels, p1.x, p1.y, p0.x, p0.y, my_green);
 		}
 	}
+	free(output_points);
+	free(input_points);
 	
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(game_window->renderer, surface);
 	assert(texture != NULL);
-	u32 tex_format;
-	int tex_access, tex_w, tex_h;
-	SDL_QueryTexture(texture,
-					 &tex_format, &tex_access,
-					 &tex_w, &tex_h);
-	#if 0
+#if 0
 	if (!rendered_sign) {
 		SDL_SaveBMP(surface, "output.bmp");
 		rendered_sign = true;
 	}
-	#endif
+#endif
 	SDL_FreeSurface(surface);
-	SDL_RenderCopy(game_window->renderer, texture, NULL, &area);
+	return texture;
+}
+
+static void init_the_game(void) {
+	game_window = (Game_Window*)malloc(sizeof(Game_Window));
+	memset(game_window, 0, sizeof(Game_Window));
+	game_window->window_width = DEFAULT_WINDOW_WIDTH;
+	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
+	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
+	SDL_Init(SDL_INIT_EVERYTHING);
+	TTF_Init();
+	game_window->window = SDL_CreateWindow("Ludum Dare 55: Summoning",
+										   SDL_WINDOWPOS_UNDEFINED,
+										   SDL_WINDOWPOS_UNDEFINED,
+										   game_window->window_width, 
+										   game_window->window_height, 
+										   SDL_WINDOW_OPENGL);
+	game_window->renderer = SDL_CreateRenderer(game_window->window,
+											   -1, // initialize the first one supporting the requested flags
+											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+	
+	SDL_Surface *spritesheet_surface = IMG_Load("./assets/spritesheet.png");
+	game_window->runner_texture = SDL_CreateTextureFromSurface(game_window->renderer, spritesheet_surface);
+	SDL_FreeSurface(spritesheet_surface);
+	
+	char* font_filename = "./assets/fonts/im_fell_roman.ttf";
+	if (!setup_font(game_window, &game_window->title_font, font_filename, 120)) {
+		abort();
+		return;
+	}
+	if (!setup_font(game_window, &game_window->challenge_font, font_filename, 48)) {
+		abort();
+		return;
+	}
+	if (!setup_font(game_window, &game_window->demonic_font, font_filename, 24)) {
+		abort();
+		return;
+	}
+
+	{
+		game_window->runner1 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
+		game_window->runner1.dtPerFrame = 0.05;
+		game_window->runner1.dest_rect.w = 100;
+		game_window->runner1.dest_rect.h = 100;
+		game_window->runner1.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w;
+		game_window->runner1.dest_rect.y = game_window->window_height - game_window->runner1.dest_rect.h;
+	}
+	{
+		game_window->runner2 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
+		game_window->runner2.dtPerFrame = 0.03;
+		game_window->runner2.dest_rect.w = 150;
+		game_window->runner2.dest_rect.h = 150;
+		game_window->runner2.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w - game_window->runner2.dest_rect.w;
+		game_window->runner2.dest_rect.y = game_window->window_height - game_window->runner2.dest_rect.h;
+	}
+
+	game_window->rect2.x = 100;
+	game_window->rect2.y = 20;
+	game_window->rect2.w = 300;
+	game_window->rect2.h = 300;
+	
+	setup_challenge(&game_window->title_challenge, &game_window->title_font, title);
+	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
+	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
+	
+	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
+	for (int i = 0; i < ARRAY_LEN(words); i++) {
+		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
+	}
+	
+	if (SDL_IsTextInputActive()) {
+		SDL_StopTextInput();
+	}
+}
+
+static void game_handle_input(void) {
+	switch(game_window->state) {
+		case STATE_PLAY: {
+			if (game_window->input.character != 0) {
+				level_type_character(&game_window->level_data, game_window->input.character);
+				// TODO: if level is done!
+			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
+				reset_level(&game_window->level_data);
+			}
+		} break;
+		case STATE_PAUSE: {
+			if (key_is_down(KEY_ESCAPE) && key_first_down()) {
+				game_window->state = STATE_PLAY;
+			}
+		} break;
+		case STATE_MENU: {
+			if (key_is_down(KEY_SPACE) && key_first_down()) {
+				game_window->demonic_word_i++;
+				game_window->demonic_word_i %= ARRAY_LEN(words);
+				return;
+			}
+			if (game_window->input.character != 0) {
+				enter_challenge_character(&game_window->title_challenge, game_window->input.character);
+				if (is_challenge_done(&game_window->title_challenge)) {
+					if (challenge_has_mistakes(&game_window->title_challenge)) {
+						// TODO: show a message to indicate why this resets
+						reset_challenge(&game_window->title_challenge);
+					} else {
+						if (SDL_IsTextInputActive()) {
+							SDL_StopTextInput();
+						}
+						game_window->state = STATE_PLAY;
+						setup_level(&game_window->level_data, &game_window->challenge_font);
+					}
+				}
+			}
+		} break;
+		default: {}
+	}
+}
+
+// This translates from SDL events into our Input structure
+static void handle_inputs(void) {
+	game_window->input.character = 0;
+	game_window->input.kbd_input.key = KEY_NONE;
+	int num_key_states = 0;
+	const u8* keystates = SDL_GetKeyboardState(&num_key_states);
+	SDL_Event event;
+	while (SDL_PollEvent(&event)) {
+		switch (event.type) {
+			case SDL_QUIT: {
+				game_window->quit = true;
+				return;
+			} break;
+			case SDL_MOUSEMOTION: {
+				game_window->input.mouse_input.posX = event.motion.x;
+				game_window->input.mouse_input.posY = event.motion.y;
+				return;
+			} break;
+			case SDL_MOUSEBUTTONDOWN:
+			case SDL_MOUSEBUTTONUP: {
+				if (event.button.button == SDL_BUTTON_LEFT) {
+					game_window->input.mouse_input.left_was_down = (event.type == SDL_MOUSEBUTTONUP);
+					game_window->input.mouse_input.left_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
+				} else if (event.button.button == SDL_BUTTON_RIGHT) {
+			        game_window->input.mouse_input.right_was_down = (event.type == SDL_MOUSEBUTTONUP);
+					game_window->input.mouse_input.right_is_down = (event.type == SDL_MOUSEBUTTONDOWN);
+				}
+				return;
+			} break;
+			case SDL_KEYDOWN: 
+			case SDL_KEYUP: {
+				int scancode = event.key.keysym.scancode;
+				switch (scancode) {
+					case SDL_SCANCODE_UP: {
+						game_window->input.kbd_input.key = KEY_UP;
+					} break;
+					case SDL_SCANCODE_LEFT: {
+						game_window->input.kbd_input.key = KEY_LEFT;
+					} break;
+					case SDL_SCANCODE_DOWN: {
+						game_window->input.kbd_input.key = KEY_DOWN;
+					} break;
+					case SDL_SCANCODE_RIGHT: {
+						game_window->input.kbd_input.key = KEY_RIGHT;
+					} break;
+					case SDL_SCANCODE_ESCAPE: {
+						game_window->input.kbd_input.key = KEY_ESCAPE;
+					} break;
+					case SDL_SCANCODE_RETURN: {
+						game_window->input.kbd_input.key = KEY_RETURN;
+					} break;
+					case SDL_SCANCODE_SPACE: {
+						game_window->input.kbd_input.key = KEY_SPACE;
+					} break;
+					default: {
+						return;
+					} break;
+				}
+				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
+				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
+				game_window->input.kbd_input.repeat = event.key.repeat;
+			} break;
+			case SDL_TEXTINPUT: {
+				if (SDL_IsTextInputActive()) {
+					assert(strlen(event.text.text) == 1);
+					game_window->input.character = event.text.text[0];
+				} else {
+					return;
+				}
+			} break;
+			default: {
+				return;
+			} break;
+		}
+		
+		game_handle_input();
+	}
+}
+
+static void play_screen_do_animation(void) {
+	// update_sprite_animation(&game_window->runner1, game_window->dt);
+	// update_sprite_animation(&game_window->runner2, game_window->dt);
+}
+
+static void title_screen_do_animation(void) {
+	update_challenge_alpha(&game_window->title_challenge, game_window->dt);
+}
+
+static void center_rect_horizontally(SDL_Rect* rect) {
+	rect->x = (game_window->window_width / 2) - (rect->w / 2);
+}
+
+static void center_rect_veritcally(SDL_Rect* rect) {
+	rect->y = (game_window->window_height / 2) - (rect->h / 2);
+}
+
+static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
+	int x = 0;
+	for (int i = 0; i < challenge->text.length; i++) {
+		char character = challenge->text.str[i];
+		assert((character >= 32) && (character <= 126));
+		Glyph* glyph = &challenge->font->glyph_cache.glyphs[GLYPH_INDEX(character)];
+		SDL_Texture* texture = glyph->texture;
+		int alpha = challenge->alpha * 255;
+		SDL_SetTextureAlphaMod(texture, alpha);
+		if (challenge->position > i) {
+			if (challenge->typed_correctly[i]) { // correct
+				texture_color_mod(texture, green);
+			} else { // incorrect
+				texture_color_mod(texture, red);
+			}
+		} else if (challenge->position == i) {
+			SDL_Rect cursor_rect = challenge->cursor_rects[i];
+			cursor_rect.x += challenge->bounding_box.x;
+			cursor_rect.y += challenge->bounding_box.y;
+			fill_rounded_rect(game_window->renderer, cursor_rect, amber, cursor_rect.w/4);
+			texture_color_mod(texture, very_dark_blue);
+		} else {
+			// untyped character - so keep original color
+			texture_color_mod(texture, white);
+		}
+		SDL_Rect pos = glyph->bounding_box;
+		pos.x += challenge->bounding_box.x + x;
+		pos.y += challenge->bounding_box.y;
+		
+		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
+		x += glyph->advance;
+	}
 }
 
 static void render_menu(void) {
@@ -876,7 +914,11 @@ static void update_and_render(void) {
 	
 	switch (game_window->state) {
 		case STATE_MENU: {
-			render_demonic_sign();
+			//SDL_Rect dest_rect;
+			//SDL_Texture* texture = render_demonic_sign_to_texture(words[1], &dest_rect);
+			//center_rect_veritcally(&dest_rect);
+			//center_rect_horizontally(&dest_rect);
+			SDL_RenderCopy(game_window->renderer, game_window->demonic_word_textures[game_window->demonic_word_i].texture, NULL, &(game_window->demonic_word_textures[game_window->demonic_word_i].rect));
 			//title_screen_do_animation();
 			//render_menu();
 		} break;
@@ -904,7 +946,7 @@ static void main_loop(void) {
 	uint64_t this_frame_perf_counter = SDL_GetPerformanceCounter();
 	game_window->dt = (float)(this_frame_perf_counter - game_window->last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
 	char buffer[1024] = {0};
-	sprintf(&buffer[0], "Summoning. dt = %.5f", game_window->dt);
+	sprintf(&buffer[0], "Summoning. dt = %.5f | demonic_i = %d", game_window->dt, game_window->demonic_word_i);
 	SDL_SetWindowTitle(game_window->window, &buffer[0]);
 	game_window->frame_number++;
 
