@@ -4,6 +4,8 @@ Started with base code from: https://git.sr.ht/~willroe/base-code-c-webasm
 
 * Tech: C + SDL2 + WebASM
 * IM Fell fonts from https://www.dafont.com/im-fell-types.font
+* Xiaolin Wu's line algorithm from https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
+* Circle drawing algorithm from: Efficient DDA Circle Outlines https://www.computerenhance.com/p/efficient-dda-circle-outlines
 
 ## WebASM docs
 

@@ -434,6 +434,7 @@ static bool setup_font(Game_Window* game_window, Font* font, char* filename, int
 	return true;
 }
 
+// This is from https://www.computerenhance.com/p/efficient-dda-circle-outlines
 static void draw_circle(void* pixel_data, int radius, u32 color) {
 	u32 (*pixels)[256] = pixel_data;
 	int Cx = 256 / 2;
@@ -484,6 +485,7 @@ static float rfpart(float x) {
 	return (1.0 - fpart(x));
 }
 
+// This is from https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
 static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, u32 color) {
 	u32 (*pixels)[256] = pixel_data;
 	bool steep = fabsf(y1 - y0) > fabsf(x1 - x0);
