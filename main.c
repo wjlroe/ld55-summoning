@@ -43,6 +43,8 @@ static bool strings_equal(String one, String two) {
 #define STRING(s) {s, sizeof(s)-1}
 
 static String title = STRING("Summoning");
+static String win = STRING("You've Won!");
+static String lost = STRING("You've Lost!");
 
 static String words[] = {
 	STRING("summon"),
@@ -117,6 +119,8 @@ typedef enum Game_State {
 	STATE_MENU,
 	STATE_PLAY,
 	STATE_PAUSE,
+	STATE_WIN,
+	STATE_LOSE,
 } Game_State;
 
 typedef enum Key {
@@ -342,8 +346,10 @@ static void level_type_character(Level_Data* level, char character) {
 	Type_Challenge* challenge = &level->challenges[level->current_challenge];
 	enter_challenge_character(challenge, character);
 	if (is_challenge_done(challenge)) {
-		// TODO: score points!!!
 		level->current_challenge++;
+		if (!challenge_has_mistakes(challenge)) {
+			level->points++;
+		}
 	}
 	if (is_level_done(level)) {
 		SDL_StopTextInput();
@@ -367,10 +373,6 @@ typedef struct Game_Window {
 	float dt;
 	int frame_number;
 
-	SDL_Rect rect2;
-	SDL_Texture* runner_texture;
-	Spritesheet runner1, runner2;
-	
 	Game_State state;
 	Type_Challenge title_challenge; // initial title page challenge
 	
@@ -380,6 +382,10 @@ typedef struct Game_Window {
 	
 	Sized_Texture* demonic_word_textures;
 	int demonic_word_i;
+	
+	Sized_Texture win_text;
+	Sized_Texture lose_text;
+	// TODO: points text
 } Game_Window;
 
 static Game_Window* game_window = NULL;
@@ -651,6 +657,13 @@ static SDL_Texture* render_demonic_sign_to_texture(String word, SDL_Rect* area) 
 	return texture;
 }
 
+static void render_text_into_texture(SDL_Renderer* renderer, Sized_Texture* sized_texture, TTF_Font *font, String text) {
+	TTF_SizeText(font, text.str, &sized_texture->rect.w, &sized_texture->rect.h);
+	SDL_Surface* surface = TTF_RenderText_Solid(font, text.str, white);
+	sized_texture->texture = SDL_CreateTextureFromSurface(renderer, surface);
+	SDL_FreeSurface(surface);
+}
+
 static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
 	memset(game_window, 0, sizeof(Game_Window));
@@ -669,10 +682,6 @@ static void init_the_game(void) {
 											   -1, // initialize the first one supporting the requested flags
 											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	
-	SDL_Surface *spritesheet_surface = IMG_Load("./assets/spritesheet.png");
-	game_window->runner_texture = SDL_CreateTextureFromSurface(game_window->renderer, spritesheet_surface);
-	SDL_FreeSurface(spritesheet_surface);
-	
 	char* font_filename = "./assets/fonts/im_fell_roman.ttf";
 	if (!setup_font(game_window, &game_window->title_font, font_filename, 120)) {
 		abort();
@@ -686,28 +695,9 @@ static void init_the_game(void) {
 		abort();
 		return;
 	}
-
-	{
-		game_window->runner1 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
-		game_window->runner1.dtPerFrame = 0.05;
-		game_window->runner1.dest_rect.w = 100;
-		game_window->runner1.dest_rect.h = 100;
-		game_window->runner1.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w;
-		game_window->runner1.dest_rect.y = game_window->window_height - game_window->runner1.dest_rect.h;
-	}
-	{
-		game_window->runner2 = new_spritesheet(game_window->runner_texture, 500, 500, 4, 4);
-		game_window->runner2.dtPerFrame = 0.03;
-		game_window->runner2.dest_rect.w = 150;
-		game_window->runner2.dest_rect.h = 150;
-		game_window->runner2.dest_rect.x = game_window->window_width - game_window->runner1.dest_rect.w - game_window->runner2.dest_rect.w;
-		game_window->runner2.dest_rect.y = game_window->window_height - game_window->runner2.dest_rect.h;
-	}
-
-	game_window->rect2.x = 100;
-	game_window->rect2.y = 20;
-	game_window->rect2.w = 300;
-	game_window->rect2.h = 300;
+	
+	render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
+	render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
 	setup_challenge(&game_window->title_challenge, &game_window->title_font, title);
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
@@ -718,9 +708,9 @@ static void init_the_game(void) {
 		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
 	}
 	
-	if (SDL_IsTextInputActive()) {
-		SDL_StopTextInput();
-	}
+	//if (SDL_IsTextInputActive()) {
+		//SDL_StopTextInput();
+	//}
 }
 
 static void game_handle_input(void) {
@@ -728,7 +718,13 @@ static void game_handle_input(void) {
 		case STATE_PLAY: {
 			if (game_window->input.character != 0) {
 				level_type_character(&game_window->level_data, game_window->input.character);
-				// TODO: if level is done!
+				if (is_level_done(&game_window->level_data)) {
+					if (game_window->level_data.points < game_window->level_data.num_challenges) {
+						game_window->state = STATE_LOSE;
+					} else {
+						game_window->state = STATE_WIN;
+					}
+				}
 			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
 				reset_level(&game_window->level_data);
 			}
@@ -739,11 +735,11 @@ static void game_handle_input(void) {
 			}
 		} break;
 		case STATE_MENU: {
-			if (key_is_down(KEY_SPACE) && key_first_down()) {
-				game_window->demonic_word_i++;
-				game_window->demonic_word_i %= ARRAY_LEN(words);
-				return;
-			}
+			//if (key_is_down(KEY_SPACE) && key_first_down()) {
+				//game_window->demonic_word_i++;
+				//game_window->demonic_word_i %= ARRAY_LEN(words);
+				//return;
+			//}
 			if (game_window->input.character != 0) {
 				enter_challenge_character(&game_window->title_challenge, game_window->input.character);
 				if (is_challenge_done(&game_window->title_challenge)) {
@@ -894,6 +890,18 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 	}
 }
 
+static void render_win() {
+	center_rect_horizontally(&game_window->win_text.rect);
+	center_rect_veritcally(&game_window->win_text.rect);
+	SDL_RenderCopy(game_window->renderer, game_window->win_text.texture, NULL, &game_window->win_text.rect);
+}
+
+static void render_lose() {
+	center_rect_horizontally(&game_window->lose_text.rect);
+	center_rect_veritcally(&game_window->lose_text.rect);
+	SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
+}
+
 static void render_menu(void) {
 	center_rect_horizontally(&game_window->title_challenge.bounding_box);
 	center_rect_veritcally(&game_window->title_challenge.bounding_box);
@@ -918,13 +926,19 @@ static void update_and_render(void) {
 			//SDL_Texture* texture = render_demonic_sign_to_texture(words[1], &dest_rect);
 			//center_rect_veritcally(&dest_rect);
 			//center_rect_horizontally(&dest_rect);
-			SDL_RenderCopy(game_window->renderer, game_window->demonic_word_textures[game_window->demonic_word_i].texture, NULL, &(game_window->demonic_word_textures[game_window->demonic_word_i].rect));
-			//title_screen_do_animation();
-			//render_menu();
+			//SDL_RenderCopy(game_window->renderer, game_window->demonic_word_textures[game_window->demonic_word_i].texture, NULL, &(game_window->demonic_word_textures[game_window->demonic_word_i].rect));
+			title_screen_do_animation();
+			render_menu();
 		} break;
 		case STATE_PLAY: {
 			play_screen_do_animation();
 			render_game();
+		} break;
+		case STATE_WIN: {
+			render_win();
+		} break;
+		case STATE_LOSE: {
+			render_lose();
 		} break;
 		default: {}
 	}
