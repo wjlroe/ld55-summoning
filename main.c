@@ -486,7 +486,7 @@ static float rfpart(float x) {
 
 static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, u32 color) {
 	u32 (*pixels)[256] = pixel_data;
-	bool steep = abs(y1 - y0) > abs(x1 - x0);
+	bool steep = fabsf(y1 - y0) > fabsf(x1 - x0);
 	
 	if (steep) {
 		SWAP(x0, y0, float);
