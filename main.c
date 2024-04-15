@@ -959,9 +959,9 @@ static void main_loop(void) {
 
 	uint64_t this_frame_perf_counter = SDL_GetPerformanceCounter();
 	game_window->dt = (float)(this_frame_perf_counter - game_window->last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
-	char buffer[1024] = {0};
-	sprintf(&buffer[0], "Summoning. dt = %.5f | demonic_i = %d", game_window->dt, game_window->demonic_word_i);
-	SDL_SetWindowTitle(game_window->window, &buffer[0]);
+	//char buffer[1024] = {0};
+	//sprintf(&buffer[0], "Summoning. dt = %.5f | demonic_i = %d", game_window->dt, game_window->demonic_word_i);
+	//SDL_SetWindowTitle(game_window->window, &buffer[0]);
 	game_window->frame_number++;
 
 	handle_inputs();
