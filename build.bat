@@ -29,25 +29,29 @@ set includes=-I ..\vendor\SDL2-2.30.2\include ^
  -I ..\vendor\SDL2_ttf-2.22.0\include ^
  -I ..\vendor\SDL2_gfx
 
-set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
+set sdl_libs=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.lib ^
- ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib ^
- opengl32.lib glu32.lib user32.lib gdi32.lib
+ ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib
+
+set links=opengl32.lib glu32.lib user32.lib gdi32.lib
 
 echo Debug build
 cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\main.c icon.obj ^
  %includes% ^
- /link /DEBUG:FULL %links% ^
+ /link /DEBUG:FULL %links% %sdl_libs% ^
  /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
+
+set sdl_libs=..\vendor\SDL2-2.30.2\lib\x64\SDL2-static.lib ^
+ ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image-static.lib ^
+ ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf-static.lib
 
 echo Release build
 cl /std:c11 -FC -Zc:strictStrings -diagnostics:caret /nologo ^
  -Fe:summoning.exe ..\main.c icon.obj ^
  %includes% ^
- /link %links% ^
- /subsystem:windows
+ /link %links% %sdl_libs% /subsystem:windows
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 popd
