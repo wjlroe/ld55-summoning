@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
@@ -429,34 +430,32 @@ static void ShowSDLError(char* message) {
 							 game_window->window);
 }
 
-typedef enum Font_Data_Type {
-	FONT_DATA_MEMORY,
-	FONT_DATA_FILE,
-} Font_Data_Type;
-
-static TTF_Font* init_font(int point_size, const void* font_memory, int font_memory_size, char* filename, Font_Data_Type type) {
+static TTF_Font* init_font_from_memory(int point_size, const void* font_memory, int font_memory_size) {
 	TTF_Font* font = NULL;
-	switch (type) {
-		case FONT_DATA_MEMORY: {
-			SDL_RWops* font_data = SDL_RWFromConstMem(font_memory, font_memory_size);
-			font = TTF_OpenFontRW(font_data, 0, point_size);
-			if (font == NULL) {
-				ShowSDLError("Loading font from memory");
-			}
-		} break;
-		case FONT_DATA_FILE: {
-			font = TTF_OpenFont(filename, point_size);
-			if (font == NULL) {
-					char err_buf[1024] = {0};
-				sprintf(&err_buf[0], "Loading font from filename: %s", filename);
-				ShowSDLError(&err_buf[0]);
-			}
-		} break;
+	SDL_RWops* font_data = SDL_RWFromConstMem(font_memory, font_memory_size);
+	font = TTF_OpenFontRW(font_data, 0, point_size);
+	if (font == NULL) {
+		ShowSDLError("Loading font from memory");
 	}
 	return font;
 }
 
-static bool setup_font(Game_Window* game_window, Font* font, char* filename, int size) {
+static TTF_Font* init_font_from_file(int point_size, char* filename) {
+#ifdef _WIN32
+	struct __stat64 file_stats;
+	_stat64(filename, &file_stats);
+#else
+	struct stat file_stats;
+	stat(filename, &file_stats);
+#endif
+	
+	int font_memory_size = file_stats.st_size;
+	char* font_memory = malloc(font_memory_size);
+	fread(font_memory, 1, font_memory_size, fopen(filename, "rb"));
+	return init_font_from_memory(point_size, font_memory, font_memory_size);
+}
+
+static bool setup_font(Game_Window* game_window, Font* font, int size) {
 	TTF_Font* sdl_font = font->font;
 	font->glyph_cache.first_glyph = 32;
 	font->glyph_cache.last_glyph = 126;
@@ -717,10 +716,9 @@ static void init_the_game(void) {
 											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	
 	TTF_Font* font;
-	//SDL_RWops* font_data; // only used if font is embedded in binary
 	const void* font_memory = NULL; // only used when font is embedded in binary
 	int font_memory_size = 0;
-	Font_Data_Type font_data_type = FONT_DATA_FILE;
+	bool read_fonts_from_memory = false;
 	
 	#ifdef _WIN32
 	{
@@ -732,23 +730,30 @@ static void init_the_game(void) {
 		font_memory_size = size;
 		assert(font_memory_size > 0);
 		assert(font_memory != NULL);
-		font_data_type = FONT_DATA_MEMORY;
+		read_fonts_from_memory = true;
 	}
 	#endif
-		
-	char* font_filename = "./assets/fonts/im_fell_roman.ttf";
-	game_window->title_font.font = init_font(120, font_memory, font_memory_size, font_filename, font_data_type);
-	if (!setup_font(game_window, &game_window->title_font, font_filename, 120)) {
+	
+	if (read_fonts_from_memory) {
+		game_window->title_font.font = init_font_from_memory(120, font_memory, font_memory_size);
+		game_window->challenge_font.font = init_font_from_memory(48, font_memory, font_memory_size);
+		game_window->demonic_font.font = init_font_from_memory(24, font_memory, font_memory_size);
+	} else {
+		char* font_filename = "./assets/fonts/im_fell_roman.ttf";
+		game_window->title_font.font = init_font_from_file(120, font_filename);
+		game_window->challenge_font.font = init_font_from_file(48, font_filename);
+		game_window->demonic_font.font = init_font_from_file(24, font_filename);
+	}
+	
+	if (!setup_font(game_window, &game_window->title_font, 120)) {
 		abort();
 		return;
 	}
-	game_window->challenge_font.font = init_font(48, font_memory, font_memory_size, font_filename, font_data_type);
-	if (!setup_font(game_window, &game_window->challenge_font, font_filename, 48)) {
+	if (!setup_font(game_window, &game_window->challenge_font, 48)) {
 		abort();
 		return;
 	}
-	game_window->demonic_font.font = init_font(24, font_memory, font_memory_size, font_filename, font_data_type);
-	if (!setup_font(game_window, &game_window->demonic_font, font_filename, 24)) {
+	if (!setup_font(game_window, &game_window->demonic_font, 24)) {
 		abort();
 		return;
 	}
