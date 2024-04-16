@@ -10,6 +10,9 @@
 #include <SDL2_gfxPrimitives.c>
 #include <SDL2_rotozoom.c>
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+
 #ifdef _WIN32
 #include <windows.h>
 #include "resources.h"
