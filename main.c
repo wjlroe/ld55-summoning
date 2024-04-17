@@ -61,28 +61,6 @@ static String title = STRING("Summoning");
 static String win = STRING("You've Won!");
 static String lost = STRING("You've Lost!");
 
-typedef struct File_Resource {
-	String filename;
-	String contents;
-	int resource_type;
-	int resource_id;
-} File_Resource;
-
-static File_Resource vertex_shader_source = {.filename=STRING("vertex_shader.glsl"), .resource_type=ID_SHADER, .resource_id=VERTEX_SHADER_SOURCE};
-
-static void load_file_resource(File_Resource* resource) {
-#ifdef _WIN32
-	HMODULE handle = GetModuleHandle(NULL);
-	HRSRC rc = FindResource(handle, MAKEINTRESOURCE(resource->resource_id), MAKEINTRESOURCE(resource->resource_type));
-	HGLOBAL rc_data = LoadResource(handle, rc);
-	assert(rc_data != NULL);
-	DWORD size = SizeofResource(handle, rc);
-	assert(size > 0);
-	resource->contents.length = size;
-	resource->contents.str = rc_data;
-#endif
-}
-
 static String words[] = {
 	STRING("summon"),
 	STRING("incantation"),
@@ -767,9 +745,35 @@ static void check_shader(File_Resource* resource, GLuint shader) {
 		int info_len = 0;
 		char buffer[1024] = {0};
 		glGetShaderInfoLog(shader, 1024, &info_len, &buffer[0]);
-		printf("Error in shader %s:\n%s\n", resource->filename.str, buffer);
+		printf("Error in shader %s:\n%s\n", resource->filename, buffer);
 	}
 	assert(status == GL_TRUE);
+}
+
+static void check_program_info(GLuint program, GLenum param) {
+	int status = 0;
+	glGetProgramiv(program, param, &status);
+	if (status != GL_TRUE) {
+		int info_len = 0;
+		char buffer[1024] = {0};
+		glGetProgramInfoLog(program, 111024, &info_len, &buffer[0]);
+		char* desc = "unknown";
+		switch (param) {
+			case GL_LINK_STATUS: { desc="GL_LINK_STATUS"; } break;
+			case GL_VALIDATE_STATUS: { desc="GL_VALIDATE_STATUS"; } break;
+		}
+		printf("Error in program (%s):\n%s\n", desc, buffer);
+	}
+	assert(status == GL_TRUE);
+}
+
+static void check_program_linking(GLuint program) {
+	check_program_info(program, GL_LINK_STATUS);
+}
+
+static void check_program_valid(GLuint program) {
+	glValidateProgram(program);
+	check_program_info(program, GL_VALIDATE_STATUS);
 }
 
 static void init_gl(void) {
@@ -777,11 +781,27 @@ static void init_gl(void) {
 	printf("gl shading language version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	GLuint program_id = glCreateProgram();
 	printf("program_id: %d\n", program_id);
-	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	
 	load_file_resource(&vertex_shader_source);
-	glShaderSource(vertex_shader, 1, &vertex_shader_source.contents.str, NULL);
+	load_file_resource(&fragment_shader_source);
+	
+	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vertex_shader, 1, (const char**)&vertex_shader_source.contents, NULL);
 	glCompileShader(vertex_shader);
 	check_shader(&vertex_shader_source, vertex_shader);
+	
+	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fragment_shader, 1, (const char**)&fragment_shader_source.contents, NULL);
+	glCompileShader(fragment_shader);
+	check_shader(&fragment_shader_source, fragment_shader);
+	
+	glAttachShader(program_id, vertex_shader);
+	glAttachShader(program_id, fragment_shader);
+	glLinkProgram(program_id);
+	
+	// TODO: macOS may break if we validate linking before binding a VAO
+	check_program_linking(program_id);
+	check_program_valid(program_id);
 }
 
 static void init_the_game(void) {
