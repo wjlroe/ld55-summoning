@@ -23,6 +23,43 @@
 #include <emscripten.h>
 #endif
 
+#ifdef _WIN32
+#define GLDECL APIENTRY
+#else
+#define GLDECL
+#endif
+
+typedef unsigned int GLenum;
+typedef unsigned int GLuint;
+typedef int GLsizei;
+typedef int GLint;
+typedef char GLchar;
+
+#define GL_FALSE 0
+#define GL_TRUE 1
+#define GL_VERTEX_SHADER 0x8B31
+#define GL_COMPILE_STATUS 0x8B81
+#define GL_LINK_STATUS 0x8B82
+
+#define GL_FUNCS \
+GLE(void,   glCompileShader,    GLuint shader) \
+GLE(GLuint, glCreateProgram,    void) \
+GLE(GLuint, glCreateShader,     GLenum type) \
+GLE(void,   glGetShaderInfoLog, GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
+GLE(void,   glGetShaderiv,      GLuint shader, GLenum pname, GLint *params) \
+GLE(void,   glLinkProgram,      GLuint program) \
+GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
+
+#define GLE(ret, name, ...) typedef ret GLDECL name##proc(__VA_ARGS__); static name##proc * name;
+GL_FUNCS
+#undef GLE
+
+static void load_gl_funcs(void) {
+#define GLE(ret, name, ...) name = (name##proc *)SDL_GL_GetProcAddress(#name);
+	GL_FUNCS
+#undef GLE
+}
+
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 
 typedef uint64_t u64;
@@ -54,6 +91,28 @@ static bool strings_equal(String one, String two) {
 static String title = STRING("Summoning");
 static String win = STRING("You've Won!");
 static String lost = STRING("You've Lost!");
+
+typedef struct File_Resource {
+	String filename;
+	String contents;
+	int resource_type;
+	int resource_id;
+} File_Resource;
+
+static File_Resource vertex_shader_source = {.filename=STRING("vertex_shader.glsl"), .resource_type=ID_SHADER, .resource_id=VERTEX_SHADER_SOURCE};
+
+static void load_file_resource(File_Resource* resource) {
+#ifdef _WIN32
+	HMODULE handle = GetModuleHandle(NULL);
+	HRSRC rc = FindResource(handle, MAKEINTRESOURCE(resource->resource_id), MAKEINTRESOURCE(resource->resource_type));
+	HGLOBAL rc_data = LoadResource(handle, rc);
+	assert(rc_data != NULL);
+	DWORD size = SizeofResource(handle, rc);
+	assert(size > 0);
+	resource->contents.length = size;
+	resource->contents.str = rc_data;
+#endif
+}
 
 static String words[] = {
 	STRING("summon"),
@@ -193,15 +252,26 @@ typedef struct Glyph_Cache {
 	Glyph glyphs[NUM_GLYPHS];
 	int first_glyph;
 	int last_glyph;
+	float font_size;
+	stbtt_packedchar *packed_chars;
+	void* texture;
+	int texture_dim;
 } Glyph_Cache;
 
+// This is effectively the number of font sizes for a font
+#define NUM_GLYPH_CACHES 3
+
 typedef struct Font {
-	TTF_Font* font;
-	Glyph_Cache glyph_cache;
+	char* filename;
+	char* memory;
+	int memory_size;
+	stbtt_fontinfo font;
+	Glyph_Cache glyph_caches[NUM_GLYPH_CACHES];
+	int num_glyph_caches;
 } Font;
 
 typedef struct Type_Challenge {
-	Font* font;
+	int font_cache_id;
 	String text;
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
 	SDL_Rect* cursor_rects;
@@ -211,12 +281,13 @@ typedef struct Type_Challenge {
 	float alpha_fade_speed;
 } Type_Challenge;
 
-static void setup_challenge(Type_Challenge* challenge, Font* font, String text) {
+static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String text) {
 	challenge->text = text;
-	challenge->font = font;
+	challenge->font_cache_id = font_cache_id;
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
 	
+	#if 0
 	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
 	
 	int font_ascent = TTF_FontAscent(font->font);
@@ -235,6 +306,7 @@ static void setup_challenge(Type_Challenge* challenge, Font* font, String text) 
 		
 		x += glyph->advance;
 	}
+	#endif
 }
 
 static void free_challenge(Type_Challenge* challenge) {
@@ -319,10 +391,10 @@ typedef struct Level_Data {
 	int points;
 } Level_Data;
 
-static void setup_level(Level_Data* level, Font* font) {
+static void setup_level(Level_Data* level, int font_cache_id) {
 	for (int i = 0; i < ARRAY_LEN(words); i++) {
 		if (i >= MAX_NUM_CHALLENGES) { break; }
-		setup_challenge(&level->challenges[i], font, words[i]);
+		setup_challenge(&level->challenges[i], font_cache_id, words[i]);
 		level->challenges[i].alpha_fade_speed = 1.5f;
 		level->num_challenges++;
 	}
@@ -375,9 +447,11 @@ typedef struct Game_Window {
 	int window_width, window_height;
 	SDL_Window* window;
 	SDL_Renderer* renderer;
-	Font title_font;
-	Font challenge_font;
-	Font demonic_font;
+	SDL_GLContext gl_context;
+	Font font;
+	int title_font_cache_id;
+	int challenge_font_cache_id;
+	int demonic_font_cache_id;
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
@@ -430,39 +504,57 @@ static void ShowSDLError(char* message) {
 							 game_window->window);
 }
 
-static TTF_Font* init_font_from_memory(int point_size, const void* font_memory, int font_memory_size) {
-	TTF_Font* font = NULL;
-	SDL_RWops* font_data = SDL_RWFromConstMem(font_memory, font_memory_size);
-	font = TTF_OpenFontRW(font_data, 0, point_size);
-	if (font == NULL) {
-		ShowSDLError("Loading font from memory");
-	}
-	return font;
-}
+static bool fonts_are_in_memory = false;
 
-static TTF_Font* init_font_from_file(int point_size, char* filename) {
+static void init_font(Font* font) {
+	if (!fonts_are_in_memory) {
 #ifdef _WIN32
-	struct __stat64 file_stats;
-	_stat64(filename, &file_stats);
+		struct __stat64 file_stats;
+		_stat64(font->filename, &file_stats);
 #else
-	struct stat file_stats;
-	stat(filename, &file_stats);
+		struct stat file_stats;
+		stat(font->filename, &file_stats);
 #endif
+		
+		font->memory_size = file_stats.st_size;
+		font->memory = malloc(font->memory_size);
+		fread(font->memory, 1, font->memory_size, fopen(font->filename, "rb"));
+	} 
 	
-	int font_memory_size = file_stats.st_size;
-	char* font_memory = malloc(font_memory_size);
-	fread(font_memory, 1, font_memory_size, fopen(filename, "rb"));
-	return init_font_from_memory(point_size, font_memory, font_memory_size);
+	stbtt_InitFont(&font->font, font->memory, stbtt_GetFontOffsetForIndex(font->memory, 0));
 }
 
-static bool setup_font(Game_Window* game_window, Font* font, int size) {
-	TTF_Font* sdl_font = font->font;
-	font->glyph_cache.first_glyph = 32;
-	font->glyph_cache.last_glyph = 126;
-	for (int i = 0; i < NUM_GLYPHS; i++) {
-		font->glyph_cache.glyphs[i] = new_glyph(game_window->renderer, sdl_font, i+32);
+static int push_font_size(Font* font, float font_size) {
+	int font_size_i = font->num_glyph_caches;
+	assert(font_size_i < NUM_GLYPH_CACHES);
+	
+	Glyph_Cache* cache = &font->glyph_caches[font_size_i];
+	int font_index = 0;
+	cache->font_size = font_size;
+	cache->first_glyph = 32;
+	cache->last_glyph = 126;
+	int num_chars = cache->last_glyph - cache->first_glyph;
+	cache->packed_chars = calloc(num_chars+1, sizeof(stbtt_packedchar));
+	stbtt_pack_context pack_context;
+	cache->texture_dim = 512;
+	cache->texture = malloc(cache->texture_dim*cache->texture_dim);
+	while (true) {
+		if (!stbtt_PackBegin(&pack_context, cache->texture, cache->texture_dim, cache->texture_dim, 0, 1, NULL)) {
+			// error
+			return -1;
+		}
+		if (!stbtt_PackFontRange(&pack_context, font->memory, font_index, font_size, cache->first_glyph, num_chars, cache->packed_chars)) {
+			cache->texture_dim *= 2;
+			cache->texture = realloc(cache->texture, cache->texture_dim*cache->texture_dim);
+			assert(cache->texture != NULL);
+		} else {
+			stbtt_PackEnd(&pack_context);
+			break; // we're done!
+		}
 	}
-	return true;
+	
+	font->num_glyph_caches++;
+	return font_size_i;
 }
 
 // This is from https://www.computerenhance.com/p/efficient-dda-circle-outlines
@@ -586,6 +678,7 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 static bool rendered_sign = false;
 #endif
 
+#if 0
 static SDL_Texture* render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	area->w = area->h = 256;
 	SDL_Surface* surface = SDL_CreateRGBSurface(0, 256, 256, 32, 0xff000000, 0x00ff0000, 0x000000ff00, 0x000000ff);
@@ -680,21 +773,44 @@ static SDL_Texture* render_demonic_sign_to_texture(String word, SDL_Rect* area) 
 	
 	SDL_Texture* texture = SDL_CreateTextureFromSurface(game_window->renderer, surface);
 	assert(texture != NULL);
-#if 0
 	if (!rendered_sign) {
 		SDL_SaveBMP(surface, "output.bmp");
 		rendered_sign = true;
 	}
-#endif
 	SDL_FreeSurface(surface);
 	return texture;
 }
+#endif
 
+#if 0
 static void render_text_into_texture(SDL_Renderer* renderer, Sized_Texture* sized_texture, TTF_Font *font, String text) {
 	TTF_SizeText(font, text.str, &sized_texture->rect.w, &sized_texture->rect.h);
 	SDL_Surface* surface = TTF_RenderText_Solid(font, text.str, white);
 	sized_texture->texture = SDL_CreateTextureFromSurface(renderer, surface);
 	SDL_FreeSurface(surface);
+}
+#endif
+
+static void check_shader(File_Resource* resource, GLuint shader) {
+	int status = 0;
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
+	if (status != GL_TRUE) {
+		int info_len = 0;
+		char buffer[1024] = {0};
+		glGetShaderInfoLog(shader, 1024, &info_len, &buffer[0]);
+		printf("Error in shader %s:\n%s\n", resource->filename.str, buffer);
+	}
+	assert(status == GL_TRUE);
+}
+
+static void init_gl(void) {
+	GLuint program_id = glCreateProgram();
+	printf("program_id: %d\n", program_id);
+	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	load_file_resource(&vertex_shader_source);
+	glShaderSource(vertex_shader, 1, &vertex_shader_source.contents.str, NULL);
+	glCompileShader(vertex_shader);
+	check_shader(&vertex_shader_source, vertex_shader);
 }
 
 static void init_the_game(void) {
@@ -715,60 +831,48 @@ static void init_the_game(void) {
 											   -1, // initialize the first one supporting the requested flags
 											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
 	
-	TTF_Font* font;
-	const void* font_memory = NULL; // only used when font is embedded in binary
-	int font_memory_size = 0;
-	bool read_fonts_from_memory = false;
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+	game_window->gl_context = SDL_GL_CreateContext(game_window->window);
+	assert(game_window->gl_context != NULL);
+	load_gl_funcs();
+	init_gl();
 	
-	#ifdef _WIN32
+#ifdef _WIN32
 	{
 		HMODULE handle = GetModuleHandle(NULL);
 		HRSRC rc = FindResource(handle, MAKEINTRESOURCE(IM_FELL_FONT_ID), MAKEINTRESOURCE(ID_FONT));
 		HGLOBAL rc_data = LoadResource(handle, rc);
 		DWORD size = SizeofResource(handle, rc);
-		font_memory = rc_data;
-		font_memory_size = size;
-		assert(font_memory_size > 0);
-		assert(font_memory != NULL);
-		read_fonts_from_memory = true;
+		game_window->font.memory = rc_data;
+		game_window->font.memory_size = size;
+		assert(game_window->font.memory_size > 0);
+		assert(game_window->font.memory != NULL);
+		fonts_are_in_memory = true;
 	}
-	#endif
+#endif
 	
-	if (read_fonts_from_memory) {
-		game_window->title_font.font = init_font_from_memory(120, font_memory, font_memory_size);
-		game_window->challenge_font.font = init_font_from_memory(48, font_memory, font_memory_size);
-		game_window->demonic_font.font = init_font_from_memory(24, font_memory, font_memory_size);
-	} else {
-		char* font_filename = "./assets/fonts/im_fell_roman.ttf";
-		game_window->title_font.font = init_font_from_file(120, font_filename);
-		game_window->challenge_font.font = init_font_from_file(48, font_filename);
-		game_window->demonic_font.font = init_font_from_file(24, font_filename);
-	}
+	game_window->font.filename = "./assets/fonts/im_fell_roman.ttf";
+	init_font(&game_window->font);
 	
-	if (!setup_font(game_window, &game_window->title_font, 120)) {
-		abort();
-		return;
-	}
-	if (!setup_font(game_window, &game_window->challenge_font, 48)) {
-		abort();
-		return;
-	}
-	if (!setup_font(game_window, &game_window->demonic_font, 24)) {
-		abort();
-		return;
-	}
+	game_window->title_font_cache_id = push_font_size(&game_window->font, 120.0);
+	game_window->challenge_font_cache_id = push_font_size(&game_window->font, 48.0);
+	game_window->demonic_font_cache_id = push_font_size(&game_window->font, 24.0);
 	
-	render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
-	render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
+	//render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
+	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
-	setup_challenge(&game_window->title_challenge, &game_window->title_font, title);
+	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
+	#if 0
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
 	for (int i = 0; i < ARRAY_LEN(words); i++) {
 		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
 	}
+	#endif
 	
 	//if (SDL_IsTextInputActive()) {
 		//SDL_StopTextInput();
@@ -813,7 +917,7 @@ static void game_handle_input(void) {
 							SDL_StopTextInput();
 						}
 						game_window->state = STATE_PLAY;
-						setup_level(&game_window->level_data, &game_window->challenge_font);
+						setup_level(&game_window->level_data, game_window->challenge_font_cache_id);
 					}
 				}
 			}
@@ -919,6 +1023,8 @@ static void center_rect_veritcally(SDL_Rect* rect) {
 }
 
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
+	
+	#if 0
 	int x = 0;
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
@@ -950,6 +1056,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
 		x += glyph->advance;
 	}
+	#endif
 }
 
 static void render_win() {

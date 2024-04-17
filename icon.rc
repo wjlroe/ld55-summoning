@@ -2,3 +2,4 @@
 
 id ICON "icon.ico"
 IM_FELL_FONT_ID ID_FONT "assets/fonts/im_fell_roman.ttf"
+VERTEX_SHADER_SOURCE ID_SHADER "vertex_shader.glsl"
