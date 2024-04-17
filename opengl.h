@@ -34,6 +34,7 @@ GLE(void,   glAttachShader,     GLuint program, GLuint shader) \
 GLE(void,   glCompileShader,    GLuint shader) \
 GLE(GLuint, glCreateProgram,    void) \
 GLE(GLuint, glCreateShader,     GLenum type) \
+GLE(void,   glDeleteShader,     GLuint shader) \
 GLE(void,   glGetProgramInfoLog, GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
 GLE(void,   glGetProgramiv,     GLuint program, GLenum pname, GLint* params) \
 GLE(void,   glGetShaderInfoLog, GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \

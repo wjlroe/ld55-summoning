@@ -799,6 +799,9 @@ static void init_gl(void) {
 	glAttachShader(program_id, fragment_shader);
 	glLinkProgram(program_id);
 	
+	glDeleteShader(vertex_shader);
+	glDeleteShader(fragment_shader);
+	
 	// TODO: macOS may break if we validate linking before binding a VAO
 	check_program_linking(program_id);
 	check_program_valid(program_id);
