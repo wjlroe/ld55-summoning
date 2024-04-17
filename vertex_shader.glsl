@@ -1,4 +1,4 @@
-#version 300 core
+#version 140 core
 
 in vec3 position;
 in vec2 texture;

@@ -16,49 +16,18 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#endif
+
+#include "opengl.h"
+
+// TODO: we can 'open' files on emscripten I think?
+#ifndef __EMSCRIPTEN__
 #include "resources.h"
 #endif
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
-
-#ifdef _WIN32
-#define GLDECL APIENTRY
-#else
-#define GLDECL
-#endif
-
-typedef unsigned int GLenum;
-typedef unsigned int GLuint;
-typedef int GLsizei;
-typedef int GLint;
-typedef char GLchar;
-
-#define GL_FALSE 0
-#define GL_TRUE 1
-#define GL_VERTEX_SHADER 0x8B31
-#define GL_COMPILE_STATUS 0x8B81
-#define GL_LINK_STATUS 0x8B82
-
-#define GL_FUNCS \
-GLE(void,   glCompileShader,    GLuint shader) \
-GLE(GLuint, glCreateProgram,    void) \
-GLE(GLuint, glCreateShader,     GLenum type) \
-GLE(void,   glGetShaderInfoLog, GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
-GLE(void,   glGetShaderiv,      GLuint shader, GLenum pname, GLint *params) \
-GLE(void,   glLinkProgram,      GLuint program) \
-GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
-
-#define GLE(ret, name, ...) typedef ret GLDECL name##proc(__VA_ARGS__); static name##proc * name;
-GL_FUNCS
-#undef GLE
-
-static void load_gl_funcs(void) {
-#define GLE(ret, name, ...) name = (name##proc *)SDL_GL_GetProcAddress(#name);
-	GL_FUNCS
-#undef GLE
-}
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 
@@ -804,6 +773,8 @@ static void check_shader(File_Resource* resource, GLuint shader) {
 }
 
 static void init_gl(void) {
+	printf("gl version: %s\n", glGetString(GL_VERSION));
+	printf("gl shading language version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	GLuint program_id = glCreateProgram();
 	printf("program_id: %d\n", program_id);
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);

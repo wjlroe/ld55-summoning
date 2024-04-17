@@ -48,3 +48,6 @@ dkms.conf
 
 # Homebrew vomits this rubbish out
 Brewfile.lock.json
+
+# Generated asset headers
+assets/*.h
