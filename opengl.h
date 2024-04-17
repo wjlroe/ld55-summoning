@@ -28,6 +28,7 @@ typedef uint8_t GLubyte;
 #define GL_VERSION 0x1F02
 #define GL_EXTENSIONS 0x1F03
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
+#define GL_ACTIVE_ATTRIBUTES 0x8B89
 
 #define GL_FUNCS \
 GLE(void,   glAttachShader,     GLuint program, GLuint shader) \
@@ -35,6 +36,7 @@ GLE(void,   glCompileShader,    GLuint shader) \
 GLE(GLuint, glCreateProgram,    void) \
 GLE(GLuint, glCreateShader,     GLenum type) \
 GLE(void,   glDeleteShader,     GLuint shader) \
+GLE(void,   glGetActiveAttrib,  GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar *name) \
 GLE(void,   glGetProgramInfoLog, GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
 GLE(void,   glGetProgramiv,     GLuint program, GLenum pname, GLint* params) \
 GLE(void,   glGetShaderInfoLog, GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
@@ -42,6 +44,7 @@ GLE(void,   glGetShaderiv,      GLuint shader, GLenum pname, GLint *params) \
 GLE(const GLubyte*, glGetString, GLenum name)                             \
 GLE(void,   glLinkProgram,      GLuint program) \
 GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
+GLE(void,   glUseProgram,       GLuint program) \
 GLE(void,   glValidateProgram,  GLuint program) \
 
 
