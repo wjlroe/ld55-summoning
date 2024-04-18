@@ -875,6 +875,10 @@ static void init_the_game(void) {
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	game_window->gl_context = SDL_GL_CreateContext(game_window->window);
+	if (game_window->gl_context == NULL) {
+		const char* sdl_error = SDL_GetError();
+		printf("failed to create GL context: %s\n", sdl_error);
+	}
 	assert(game_window->gl_context != NULL);
 	load_gl_funcs();
 	init_gl();
