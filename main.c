@@ -810,18 +810,15 @@ static void init_gl(void) {
 	GLuint program_id = glCreateProgram();
 	printf("program_id: %d\n", program_id);
 	
-	load_file_resource(&vertex_shader_source);
-	load_file_resource(&fragment_shader_source);
-	
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex_shader, 1, (const char**)&vertex_shader_source.contents, NULL);
+	glShaderSource(vertex_shader, 1, (const char**)&resources.vertex_shader.contents, NULL);
 	glCompileShader(vertex_shader);
-	check_shader(&vertex_shader_source, vertex_shader);
+	check_shader(&resources.vertex_shader, vertex_shader);
 	
 	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment_shader, 1, (const char**)&fragment_shader_source.contents, NULL);
+	glShaderSource(fragment_shader, 1, (const char**)&resources.fragment_shader.contents, NULL);
 	glCompileShader(fragment_shader);
-	check_shader(&fragment_shader_source, fragment_shader);
+	check_shader(&resources.fragment_shader, fragment_shader);
 	
 	glAttachShader(program_id, vertex_shader);
 	glAttachShader(program_id, fragment_shader);
@@ -1178,6 +1175,7 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
+	init_resources();
 	init_the_game();
 
 	#ifdef __EMSCRIPTEN__

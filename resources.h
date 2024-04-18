@@ -8,51 +8,75 @@
 #define ID_SHADER 257
 #define VERTEX_SHADER_SOURCE 102
 #define FRAGMENT_SHADER_SOURCE 103
+#else
+#include "assets/vertex_shader_glsl.h"
+#include "assets/fragment_shader_glsl.h"
 #endif
 
 typedef struct File_Resource {
 	char* filename;
 	const char* contents;
 	int length;
-	
-#ifdef _WIN32	
-	int resource_type;
-	int resource_id;
-#endif
+	bool loaded;
 } File_Resource;
 
+static void load_file_resource(File_Resource* resource, 
+							   char* filename,
 #ifdef _WIN32
-#define RESOURCE(var, res_filename, win32_type, win32_id, unix_contents, unix_length) \
-static File_Resource var = { \
-.resource_type=win32_type, \
-.resource_id=win32_id,     \
-.filename=res_filename         \
-};                         
+							   int win32_type, 
+							   int win32_id
 #else
-#define RESOURCE(var, res_filename, win32_type, win32_id, unix_contents, unix_length) \
-static const char* unix_contents; \
-static const int unix_length; \
-static File_Resource var = { \
-.filename=res_filename,          \
-.contents=unix_contents,     \
-.length=unix_length          \
-};                                               
+							   char* unix_contents, 
+							   int unix_length
 #endif
-
-RESOURCE(vertex_shader_source, "vertex_shader.glsl", ID_SHADER, VERTEX_SHADER_SOURCE, vertex_shader_glsl, vertex_shader_glsl_len)
-RESOURCE(fragment_shader_source, "fragment_shader.glsl", ID_SHADER, FRAGMENT_SHADER_SOURCE, fragment_shader_glsl, fragment_shader_glsl_len)
-
-static void load_file_resource(File_Resource* resource) {
+							   
+							   ) {
+	resource->filename = filename;
 #ifdef _WIN32
 	HMODULE handle = GetModuleHandle(NULL);
-	HRSRC rc = FindResource(handle, MAKEINTRESOURCE(resource->resource_id), MAKEINTRESOURCE(resource->resource_type));
+	HRSRC rc = FindResource(handle, MAKEINTRESOURCE(win32_id), MAKEINTRESOURCE(win32_type));
 	HGLOBAL rc_data = LoadResource(handle, rc);
 	assert(rc_data != NULL);
 	DWORD size = SizeofResource(handle, rc);
 	assert(size > 0);
 	resource->length = size;
 	resource->contents = rc_data;
+	resource->loaded = true;
+#else
+	resource->length = unix_length;
+	resource->contents = unix_contents;
+	resource->loaded = true;
 #endif
+}
+
+typedef struct Resources {
+	File_Resource vertex_shader;
+	File_Resource fragment_shader;
+} Resources;
+
+static Resources resources;
+
+static void init_resources(void) {
+	load_file_resource(&resources.vertex_shader, 
+					   "vertex_shader.glsl",
+#ifdef _WIN32
+					   ID_SHADER,
+					   VERTEX_SHADER_SOURCE
+#else
+					   vertex_shader_glsl,
+					   vertex_shader_glsl_len
+#endif
+					   );
+	load_file_resource(&resources.fragment_shader,
+					   "fragment_shader.glsl",
+#ifdef _WIN32
+					   ID_SHADER,
+					   FRAGMENT_SHADER_SOURCE
+#else
+					   fragment_shader_glsl,
+					   fragment_shader_glsl_len
+#endif
+					   );
 }
 
 #define RESOURCES_H
