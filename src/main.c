@@ -729,21 +729,50 @@ typedef struct Shader {
 	// uniforms
 	int position_offset_loc;
 	int ortho_loc;
+	
+	// textures
+	int font_texture_loc;
 } Shader;
 
 static void init_shader(Shader* shader) {
 	glUseProgram(shader->program);
 	
-	int active_attributes = 0;
-	glGetProgramiv(shader->program, GL_ACTIVE_ATTRIBUTES, &active_attributes);
-	
 	char name_buffer[1024] = {0};
 	GLsizei name_size = 0;
 	GLsizei attr_size = 0;
 	GLuint attr_type = 0;
+	
+	int active_attributes = 0;
+	glGetProgramiv(shader->program, GL_ACTIVE_ATTRIBUTES, &active_attributes);
+	
 	for (int i = 0; i < active_attributes; i++) {
 		glGetActiveAttrib(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
+		int loc = glGetAttribLocation(shader->program, name_buffer);
+		printf("loc[%d] name: %s\n", loc, name_buffer);
+		if (strcmp(name_buffer, "position") == 0) {
+			shader->position_loc = loc;
+		} else if (strcmp(name_buffer, "texture") == 0) {
+			shader->texture_loc = loc;
+		} else if (strcmp(name_buffer, "in_color") == 0) {
+			shader->in_color_loc = loc;
+		}
 	}
+	
+	int active_uniforms = 0;
+	glGetProgramiv(shader->program, GL_ACTIVE_UNIFORMS, &active_uniforms);
+	
+	for (int i = 0; i < active_uniforms; i++) {
+		glGetActiveUniform(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
+		int loc = glGetUniformLocation(shader->program, name_buffer);
+		printf("loc[%d] name: %s\n", loc, name_buffer);
+		if (strcmp(name_buffer, "position_offset") == 0) {
+			shader->position_offset_loc = loc;
+		} else if (strcmp(name_buffer, "ortho") == 0) {
+			shader->ortho_loc = loc;
+		} else if (strcmp(name_buffer, "fontTexture") == 0) {
+			shader->font_texture_loc = loc;
+		}
+	}	
 }
 
 static void check_shader(File_Resource* resource, GLuint shader) {
