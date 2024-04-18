@@ -207,8 +207,7 @@ typedef struct Glyph_Cache {
 #define NUM_GLYPH_CACHES 3
 
 typedef struct Font {
-	const char* memory;
-	int memory_size;
+	File_Resource* resource;
 	stbtt_fontinfo font;
 	Glyph_Cache glyph_caches[NUM_GLYPH_CACHES];
 	int num_glyph_caches;
@@ -449,7 +448,7 @@ static void ShowSDLError(char* message) {
 }
 
 static void init_font(Font* font) {
-	stbtt_InitFont(&font->font, font->memory, stbtt_GetFontOffsetForIndex(font->memory, 0));
+	stbtt_InitFont(&font->font, font->resource->contents, stbtt_GetFontOffsetForIndex(font->resource->contents, 0));
 }
 
 static int push_font_size(Font* font, float font_size) {
@@ -471,7 +470,7 @@ static int push_font_size(Font* font, float font_size) {
 			// error
 			return -1;
 		}
-		if (!stbtt_PackFontRange(&pack_context, font->memory, font_index, font_size, cache->first_glyph, num_chars, cache->packed_chars)) {
+		if (!stbtt_PackFontRange(&pack_context, font->resource->contents, font_index, font_size, cache->first_glyph, num_chars, cache->packed_chars)) {
 			cache->texture_dim *= 2;
 			cache->texture = realloc(cache->texture, cache->texture_dim*cache->texture_dim);
 			assert(cache->texture != NULL);
@@ -849,8 +848,7 @@ static void init_the_game(void) {
 	load_gl_funcs();
 	init_gl();
 	
-	game_window->font.memory = global_file_resources[RES_ID(IM_FELL_FONT_ID)].contents;
-	game_window->font.memory_size = global_file_resources[RES_ID(IM_FELL_FONT_ID)].size;
+	game_window->font.resource = &global_file_resources[RES_ID(IM_FELL_FONT_ID)];
 	init_font(&game_window->font);
 	
 	game_window->title_font_cache_id = push_font_size(&game_window->font, 120.0);
