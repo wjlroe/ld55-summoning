@@ -43,6 +43,10 @@ static void load_file_resource(File_Resource* resource,
 #endif
 }
 
+#define MAX_FILE_RESOURCES 1024
+static int num_file_resources;
+static File_Resource global_file_resources[MAX_FILE_RESOURCES];
+
 typedef struct Resources {
 	File_Resource vertex_shader;
 	File_Resource fragment_shader;
