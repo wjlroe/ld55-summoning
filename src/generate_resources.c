@@ -1,10 +1,33 @@
 #include <assert.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include "resource_ids.h"
+
+typedef struct File_Contents {
+	int size;
+	uint8_t* contents;
+	char* filename;
+} File_Contents;
+
+static void load_file_contents(File_Contents* file) {
+#ifdef _WIN32
+	struct __stat64 file_stats;
+	_stat64(file->filename, &file_stats);
+#else
+	struct stat file_stats;
+	stat(file->filename, &file_stats);
+#endif
+	
+	file->size = file_stats.st_size;
+	assert(file->size > 0);
+	file->contents = malloc(file->size);
+	assert(file->contents != NULL);
+	fread(file->contents, 1, file->size, fopen(file->filename, "rb"));
+}
 
 typedef struct Resource_Line Resource_Line;
 typedef struct Resource_Line {
@@ -29,7 +52,23 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 			fprintf(output, "    global_file_resources[RES_ID(%s)].contents = rc_data;\n", line->name_id);
 			fprintf(output, "    global_file_resources[RES_ID(%s)].loaded = true;\n", line->name_id);
 #else
-			fprintf(output, "    global_file_resources[RES_ID(%s)];\n", line->name_id);
+			char filename_buffer[1024] = {0};
+			sprintf(&filename_buffer[0], "../%s", &line->filepath[1]); // remove first quote
+			int filename_len = strlen(&filename_buffer[0]);
+			filename_buffer[filename_len -1 ] = 0; // remove last quote
+			printf("read file: %s\n", &filename_buffer[0]);
+			File_Contents file = {.filename=&filename_buffer[0]};
+			load_file_contents(&file);
+			fprintf(output, "    global_file_resources[RES_ID(%s)].size = %d;\n", line->name_id, file.size);
+			fprintf(output, "    uint8_t contents[] = {");
+			for (int i = 0; i < file.size; i++) {
+				if (((i % 12) == 0)) { fprintf(output, "\n      "); }
+				fprintf(output, "0x%02x", file.contents[i]);
+				if (i < (file.size - 1)) { fprintf(output, ", "); }
+				else { fprintf(output, "\n"); }
+			}
+			fprintf(output, "    };\n");
+			fprintf(output, "    global_file_resources[RES_ID(%s)].contents = contents;\n", line->name_id);
 #endif
 			fprintf(output, "    global_file_resources[RES_ID(%s)].filename = %s;\n", line->name_id, line->filepath);
 			fprintf(output, "  }\n");
@@ -37,28 +76,6 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 		
 		line = line->next;
 	}
-}
-
-typedef struct File_Contents {
-	int size;
-	char* contents;
-	char* filename;
-} File_Contents;
-
-//FIXME: we don't need to read the files in on Windows, only Unix
-
-static void load_file_contents(File_Contents* file) {
-#ifdef _WIN32
-	struct __stat64 file_stats;
-	_stat64(file->filename, &file_stats);
-#else
-	struct stat file_stats;
-	stat(file->filename, &file_stats);
-#endif
-	
-	file->size = file_stats.st_size;
-	file->contents = malloc(file->size);
-	fread(file->contents, 1, file->size, fopen(file->filename, "rb"));
 }
 
 typedef enum Resource_Token {

@@ -4,7 +4,7 @@
 
 typedef struct File_Resource {
 	char* filename;
-	char* contents;
+	uint8_t* contents;
 	int size;
 	bool loaded;
 } File_Resource;
