@@ -37,7 +37,7 @@ set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
 
 echo Debug build
 cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
- -Fe:summoning_debug.exe ..\main.c resources.obj ^
+ -Fe:summoning_debug.exe ..\src\main.c resources.obj ^
  %includes% ^
  /link /DEBUG:FULL %links% ^
  /subsystem:console
@@ -45,7 +45,7 @@ IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 echo Release build
 cl /std:c11 -FC -Zc:strictStrings -diagnostics:caret /nologo ^
- -Fe:summoning.exe ..\main.c resources.obj ^
+ -Fe:summoning.exe ..\src\main.c resources.obj ^
  %includes% ^
  /link %links% ^
  /subsystem:windows

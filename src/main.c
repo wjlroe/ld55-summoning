@@ -67,8 +67,7 @@ static String words[] = {
 
 // TODO: move into generated resources.h file!!!
 #ifndef _WIN32
-#include "assets/vertex_shader_glsl.h"
-#include "assets/fragment_shader_glsl.h"
+#include "generated_resources.h"
 #endif
 
 typedef struct File_Resource {
@@ -125,8 +124,8 @@ static void init_resources(void) {
 					   ID_SHADER,
 					   VERTEX_SHADER_SOURCE
 #else
-					   vertex_shader_glsl,
-					   vertex_shader_glsl_len
+					   assets_shaders_vertex_shader_glsl,
+					   assets_shaders_vertex_shader_glsl_len
 #endif
 					   );
 	load_file_resource(&resources.fragment_shader,
@@ -135,8 +134,8 @@ static void init_resources(void) {
 					   ID_SHADER,
 					   FRAGMENT_SHADER_SOURCE
 #else
-					   fragment_shader_glsl,
-					   fragment_shader_glsl_len
+					   assets_shaders_fragment_shader_glsl,
+					   assets_shaders_fragment_shader_glsl_len
 #endif
 					   );
 }

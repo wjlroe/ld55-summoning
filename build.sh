@@ -4,8 +4,8 @@ set -eu
 
 host_os="$(uname -s)"
 
-xxd -i vertex_shader.glsl > assets/vertex_shader_glsl.h
-xxd -i fragment_shader.glsl > assets/fragment_shader_glsl.h
+xxd -i assets/shaders/vertex_shader.glsl > src/generated_resources.h
+xxd -i assets/shaders/fragment_shader.glsl >> src/generated_resources.h
 
 echo "Building natively"
 pushd build
@@ -25,8 +25,8 @@ if [[ "${host_os}" == "Darwin" ]]; then
 fi
 
 set -x
-cc -std=c11 -g -O0 -o summoning_debug ../main.c ${compile_flags} -lm -DDEBUG
-cc -std=c11 -O3 -o summoning ../main.c ${compile_flags} -lm
+cc -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG
+cc -std=c11 -O3 -o summoning ../src/main.c ${compile_flags} -lm
 set +x
 
 if [[ "${host_os}" == "Darwin" ]]; then

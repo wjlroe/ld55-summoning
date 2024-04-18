@@ -1,6 +1,6 @@
-#include "resource_ids.h"
+#include "src/resource_ids.h"
 
 id ICON "icon.ico"
 IM_FELL_FONT_ID ID_FONT "assets/fonts/im_fell_roman.ttf"
-VERTEX_SHADER_SOURCE ID_SHADER "vertex_shader.glsl"
-FRAGMENT_SHADER_SOURCE ID_SHADER "fragment_shader.glsl"
+VERTEX_SHADER_SOURCE ID_SHADER "assets/shaders/vertex_shader.glsl"
+FRAGMENT_SHADER_SOURCE ID_SHADER "assets/shaders/fragment_shader.glsl"
