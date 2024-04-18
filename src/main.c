@@ -448,7 +448,8 @@ static void ShowSDLError(char* message) {
 }
 
 static void init_font(Font* font) {
-	stbtt_InitFont(&font->font, font->resource->contents, stbtt_GetFontOffsetForIndex(font->resource->contents, 0));
+	const unsigned char* data = (const unsigned char*)font->resource->contents;
+	stbtt_InitFont(&font->font, data, stbtt_GetFontOffsetForIndex(data, 0));
 }
 
 static int push_font_size(Font* font, float font_size) {
