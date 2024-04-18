@@ -20,14 +20,7 @@
 
 #include "opengl.h"
 #include "resource_ids.h"
-
-typedef struct File_Resource {
-	char* filename;
-	const char* contents;
-	int size;
-	bool loaded;
-} File_Resource;
-
+#include "resources.h"
 #include "generated_resources.h"
 
 #ifdef __EMSCRIPTEN__
@@ -802,6 +795,7 @@ static void init_gl(void) {
 	printf("program_id: %d\n", program_id);
 	
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+	
 	File_Resource* vertex_shader_src = &global_file_resources[RES_ID(VERTEX_SHADER_SOURCE)];
 	glShaderSource(vertex_shader, 1, (const char**)&vertex_shader_src->contents, NULL);
 	glCompileShader(vertex_shader);
