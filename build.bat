@@ -17,6 +17,8 @@ set build_dir="build"
 IF NOT EXIST %build_dir% mkdir %build_dir%
 pushd %build_dir%
 
+rm *.pdb *.obj *.ilk
+
 cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 cp ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.dll .
 cp ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.dll .
