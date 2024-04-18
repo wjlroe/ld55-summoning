@@ -466,12 +466,13 @@ static int push_font_size(Font* font, float font_size) {
 	stbtt_pack_context pack_context;
 	cache->texture_dim = 512;
 	cache->texture = malloc(cache->texture_dim*cache->texture_dim);
+	const unsigned char* data = font->resource->contents;
 	while (true) {
 		if (!stbtt_PackBegin(&pack_context, cache->texture, cache->texture_dim, cache->texture_dim, 0, 1, NULL)) {
 			// error
 			return -1;
 		}
-		if (!stbtt_PackFontRange(&pack_context, font->resource->contents, font_index, font_size, cache->first_glyph, num_chars, cache->packed_chars)) {
+		if (!stbtt_PackFontRange(&pack_context, data, font_index, font_size, cache->first_glyph, num_chars, cache->packed_chars)) {
 			cache->texture_dim *= 2;
 			cache->texture = realloc(cache->texture, cache->texture_dim*cache->texture_dim);
 			assert(cache->texture != NULL);
