@@ -39,27 +39,27 @@ set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  opengl32.lib glu32.lib user32.lib gdi32.lib
 
 echo Generate resources
-cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
+cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:generate_resources.exe ..\src\generate_resources.c ^
- /link /DEBUG:FULL ^
+ /link /DEBUG:FULL -INCREMENTAL:NO ^
  /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 .\generate_resources.exe
 
 echo Debug build
-cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
+cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\src\main.c resources.obj ^
  %includes% ^
- /link /DEBUG:FULL %links% ^
+ /link /DEBUG:FULL -INCREMENTAL:NO %links% ^
  /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 echo Release build
-cl /std:c11 -FC -Zc:strictStrings -diagnostics:caret /nologo ^
+cl /std:c11 -Gm- -FC -Zc:strictStrings -diagnostics:caret /nologo ^
  -Fe:summoning.exe ..\src\main.c resources.obj ^
  %includes% ^
- /link %links% ^
+ /link -INCREMENTAL:NO %links% ^
  /subsystem:windows
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
