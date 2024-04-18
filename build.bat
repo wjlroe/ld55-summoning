@@ -35,6 +35,15 @@ set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib ^
  opengl32.lib glu32.lib user32.lib gdi32.lib
 
+echo Generate resources
+cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
+ -Fe:generate_resources.exe ..\src\generate_resources.c ^
+ /link /DEBUG:FULL ^
+ /subsystem:console
+IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
+
+echo generate_resources.exe
+
 echo Debug build
 cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\src\main.c resources.obj ^

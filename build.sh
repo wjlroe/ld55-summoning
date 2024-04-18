@@ -4,8 +4,8 @@ set -eu
 
 host_os="$(uname -s)"
 
-xxd -i assets/shaders/vertex_shader.glsl > src/generated_resources.h
-xxd -i assets/shaders/fragment_shader.glsl >> src/generated_resources.h
+# xxd -i assets/shaders/vertex_shader.glsl > src/generated_resources.h
+# xxd -i assets/shaders/fragment_shader.glsl >> src/generated_resources.h
 
 echo "Building natively"
 pushd build
