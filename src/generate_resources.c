@@ -96,6 +96,7 @@ static Resource_Line* consume_buffer(Resource_Line* line, Resource_Token current
 			}
 			return next;
 		} break;
+		default: {} break;
 	}
 	return line;
 }
