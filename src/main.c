@@ -869,7 +869,7 @@ static void init_the_game(void) {
 										   SDL_WINDOW_OPENGL);
 	game_window->renderer = SDL_CreateRenderer(game_window->window,
 											   -1, // initialize the first one supporting the requested flags
-											   SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+											   SDL_RENDERER_PRESENTVSYNC);
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
