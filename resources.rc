@@ -1,4 +1,4 @@
-#include "resources.h"
+#include "resource_ids.h"
 
 id ICON "icon.ico"
 IM_FELL_FONT_ID ID_FONT "assets/fonts/im_fell_roman.ttf"

@@ -2,13 +2,7 @@
 
 #ifndef RESOURCES_H
 
-#ifdef _WIN32
-#define ID_FONT 256
-#define IM_FELL_FONT_ID 101
-#define ID_SHADER 257
-#define VERTEX_SHADER_SOURCE 102
-#define FRAGMENT_SHADER_SOURCE 103
-#else
+#ifndef _WIN32
 #include "assets/vertex_shader_glsl.h"
 #include "assets/fragment_shader_glsl.h"
 #endif
