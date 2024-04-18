@@ -1,5 +1,8 @@
+#include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include "resource_ids.h"
 
@@ -9,12 +12,31 @@ typedef struct Resource_Line {
 	char* type_id;
 	char* filepath;
 	Resource_Line* next;
+	Resource_Line* prev;
 } Resource_Line;
 
-static void write_resource_to_output(FILE* output, Resource_Line* line) {
-	if (line->type_id == "ICON") { return; } // skip the icon, Windows does this automatically
-	
-	
+static void write_resources_to_output(FILE* output, Resource_Line* line) {
+	while (line != NULL) {
+		if (strcmp(line->filepath, "\"icon.ico\"") != 0) {
+			fprintf(output, "  {\n");
+#ifdef _WIN32
+			fprintf(output, "    HRSRC rc = FindResource(handle, MAKEINTRESOURCE(%s), MAKEINTRESOURCE(%s));\n", line->name_id, line->type_id);
+			fprintf(output, "    HGLOBAL rc_data = LoadResource(handle, rc);\n");
+			fprintf(output, "    assert(rc_data != NULL);\n");
+			fprintf(output, "    DWORD size = SizeofResource(handle, rc);\n");
+			fprintf(output, "    assert(size > 0);\n");
+			fprintf(output, "    global_file_resources[RES_ID(%s)].size = size;\n", line->name_id);
+			fprintf(output, "    global_file_resources[RES_ID(%s)].contents = rc_data;\n", line->name_id);
+			fprintf(output, "    global_file_resources[RES_ID(%s)].loaded = true;\n", line->name_id);
+#else
+			fprintf(output, "    global_file_resources[RES_ID(%s)];\n", line->name_id);
+#endif
+			fprintf(output, "    global_file_resources[RES_ID(%s)].filename = %s;\n", line->name_id, line->filepath);
+			fprintf(output, "  }\n");
+		} // skip the icon, Windows does this automatically
+		
+		line = line->next;
+	}
 }
 
 typedef struct File_Contents {
@@ -59,18 +81,19 @@ static Resource_Line* consume_buffer(Resource_Line* line, Resource_Token current
 	switch (current) {
 		case R_ID: {
 			line->name_id = buffer_to_string(buffer, buffer_i);
-			printf("name_id: '%s'\n", line->name_id);
 		} break;
 		case R_TYPE_ID: {
 			line->type_id = buffer_to_string(buffer, buffer_i);
-			printf("type_id: '%s'\n", line->type_id);
 		} break;
 		case R_FILEPATH: {
 			line->filepath = buffer_to_string(buffer, buffer_i);
-			printf("filepath: '%s'\n", line->filepath);
 			Resource_Line* next = malloc(sizeof(Resource_Line));
+			next->next = NULL;
+			next->prev = line;
 			line->next = next;
-			*num_resources++;
+			if (strcmp(line->filepath, "\"icon.ico\"") != 0) {
+				(*num_resources)++;
+			}
 			return next;
 		} break;
 	}
@@ -82,6 +105,7 @@ static Resource_Line* parse_resources_file(File_Contents* resources_file, int* n
 	int buffer_i = 0;
 	*num_resources = 0;
 	Resource_Line* first_line = malloc(sizeof(Resource_Line));
+	first_line->next = NULL;
 	Resource_Line* line = first_line;
 	Resource_Token current = R_UNKNOWN;
 	int i = 0;
@@ -111,6 +135,8 @@ static Resource_Line* parse_resources_file(File_Contents* resources_file, int* n
 	if (buffer_i > 0) {
 		line = consume_buffer(line, current, buffer, &buffer_i, num_resources);
 	}
+	line->prev->next = NULL;
+	free(line);
 	return first_line;
 }
 
@@ -119,9 +145,22 @@ int main(int argc, char** argv) {
 	load_file_contents(&resources_file);
 	int num_resources = 0;
 	Resource_Line *line = parse_resources_file(&resources_file, &num_resources);
-	FILE* output = fopen("generated_resources.h", "r");
+	FILE* output = fopen("generated_resources.h", "w");
+	assert(output != NULL);
+	if (output == NULL) {
+		printf("Cannot open the file! I must open the file! That is my purpose!\n");
+		exit(1);
+	}
 	fprintf(output, "#define ID_BASE 100\n");
 	fprintf(output, "#define NUM_RESOURCES %d\n", num_resources);
+	fprintf(output, "#define RES_ID(n) (n - ID_BASE)\n");
+	fprintf(output, "static File_Resource global_file_resources[NUM_RESOURCES];\n");
+	fprintf(output, "static void init_global_file_resources(void) {\n");
+#ifdef _WIN32
+	fprintf(output, "  HMODULE handle = GetModuleHandle(NULL);\n");
+#endif
+	write_resources_to_output(output, line);
+	fprintf(output, "}\n");
 	fclose(output);
 	return 0;
 }

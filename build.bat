@@ -23,7 +23,8 @@ cp ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.dll .
 mv ..\resources.res .
 cvtres -machine:x64 -out:resources.obj resources.res
 
-set includes=-I..\vendor\stb ^
+set includes=-I. ^
+ -I..\vendor\stb ^
  -I..\vendor\SDL2-2.30.2\include ^
  -I..\vendor\SDL2-2.30.2\include\SDL2 ^
  -I..\vendor\SDL2_image-2.8.2\include ^
@@ -42,7 +43,7 @@ cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  /subsystem:console
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
-echo generate_resources.exe
+.\generate_resources.exe
 
 echo Debug build
 cl /std:c11 -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^

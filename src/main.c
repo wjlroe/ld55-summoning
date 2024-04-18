@@ -21,6 +21,15 @@
 #include "opengl.h"
 #include "resource_ids.h"
 
+typedef struct File_Resource {
+	char* filename;
+	const char* contents;
+	int size;
+	bool loaded;
+} File_Resource;
+
+#include "generated_resources.h"
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #endif
@@ -64,81 +73,6 @@ static String words[] = {
 	STRING("awaken"),
 	STRING("cauldron"),
 };
-
-// TODO: move into generated resources.h file!!!
-#ifndef _WIN32
-#include "generated_resources.h"
-#endif
-
-typedef struct File_Resource {
-	char* filename;
-	const char* contents;
-	int length;
-	bool loaded;
-} File_Resource;
-
-static void load_file_resource(File_Resource* resource, 
-							   char* filename,
-#ifdef _WIN32
-							   int win32_type, 
-							   int win32_id
-#else
-							   char* unix_contents, 
-							   int unix_length
-#endif
-							   
-							   ) {
-	resource->filename = filename;
-#ifdef _WIN32
-	HMODULE handle = GetModuleHandle(NULL);
-	HRSRC rc = FindResource(handle, MAKEINTRESOURCE(win32_id), MAKEINTRESOURCE(win32_type));
-	HGLOBAL rc_data = LoadResource(handle, rc);
-	assert(rc_data != NULL);
-	DWORD size = SizeofResource(handle, rc);
-	assert(size > 0);
-	resource->length = size;
-	resource->contents = rc_data;
-	resource->loaded = true;
-#else
-	resource->length = unix_length;
-	resource->contents = unix_contents;
-	resource->loaded = true;
-#endif
-}
-
-#define MAX_FILE_RESOURCES 1024
-static int num_file_resources;
-static File_Resource global_file_resources[MAX_FILE_RESOURCES];
-
-typedef struct Resources {
-	File_Resource vertex_shader;
-	File_Resource fragment_shader;
-} Resources;
-
-static Resources resources;
-
-static void init_resources(void) {
-	load_file_resource(&resources.vertex_shader, 
-					   "vertex_shader.glsl",
-#ifdef _WIN32
-					   ID_SHADER,
-					   VERTEX_SHADER_SOURCE
-#else
-					   assets_shaders_vertex_shader_glsl,
-					   assets_shaders_vertex_shader_glsl_len
-#endif
-					   );
-	load_file_resource(&resources.fragment_shader,
-					   "fragment_shader.glsl",
-#ifdef _WIN32
-					   ID_SHADER,
-					   FRAGMENT_SHADER_SOURCE
-#else
-					   assets_shaders_fragment_shader_glsl,
-					   assets_shaders_fragment_shader_glsl_len
-#endif
-					   );
-}
 
 SDL_Color white = {255, 255, 255, 255};
 SDL_Color blue = {10, 10, 255, 255};
@@ -280,8 +214,7 @@ typedef struct Glyph_Cache {
 #define NUM_GLYPH_CACHES 3
 
 typedef struct Font {
-	char* filename;
-	char* memory;
+	const char* memory;
 	int memory_size;
 	stbtt_fontinfo font;
 	Glyph_Cache glyph_caches[NUM_GLYPH_CACHES];
@@ -522,23 +455,7 @@ static void ShowSDLError(char* message) {
 							 game_window->window);
 }
 
-static bool fonts_are_in_memory = false;
-
 static void init_font(Font* font) {
-	if (!fonts_are_in_memory) {
-#ifdef _WIN32
-		struct __stat64 file_stats;
-		_stat64(font->filename, &file_stats);
-#else
-		struct stat file_stats;
-		stat(font->filename, &file_stats);
-#endif
-		
-		font->memory_size = file_stats.st_size;
-		font->memory = malloc(font->memory_size);
-		fread(font->memory, 1, font->memory_size, fopen(font->filename, "rb"));
-	} 
-	
 	stbtt_InitFont(&font->font, font->memory, stbtt_GetFontOffsetForIndex(font->memory, 0));
 }
 
@@ -845,6 +762,9 @@ static void check_shader(File_Resource* resource, GLuint shader) {
 		char buffer[1024] = {0};
 		glGetShaderInfoLog(shader, 1024, &info_len, &buffer[0]);
 		printf("Error in shader %s:\n%s\n", resource->filename, buffer);
+		printf("\n======= shader source: ====== \n");
+		printf("%s", resource->contents);
+		printf("\n======= END OF SOURCE  ====== \n");
 	}
 	assert(status == GL_TRUE);
 }
@@ -882,14 +802,16 @@ static void init_gl(void) {
 	printf("program_id: %d\n", program_id);
 	
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex_shader, 1, (const char**)&resources.vertex_shader.contents, NULL);
+	File_Resource* vertex_shader_src = &global_file_resources[RES_ID(VERTEX_SHADER_SOURCE)];
+	glShaderSource(vertex_shader, 1, (const char**)&vertex_shader_src->contents, NULL);
 	glCompileShader(vertex_shader);
-	check_shader(&resources.vertex_shader, vertex_shader);
+	check_shader(vertex_shader_src, vertex_shader);
 	
 	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment_shader, 1, (const char**)&resources.fragment_shader.contents, NULL);
+	File_Resource* fragment_shader_src = &global_file_resources[RES_ID(FRAGMENT_SHADER_SOURCE)];
+	glShaderSource(fragment_shader, 1, (const char**)&fragment_shader_src->contents, NULL);
 	glCompileShader(fragment_shader);
-	check_shader(&resources.fragment_shader, fragment_shader);
+	check_shader(fragment_shader_src, fragment_shader);
 	
 	glAttachShader(program_id, vertex_shader);
 	glAttachShader(program_id, fragment_shader);
@@ -933,21 +855,8 @@ static void init_the_game(void) {
 	load_gl_funcs();
 	init_gl();
 	
-#ifdef _WIN32
-	{
-		HMODULE handle = GetModuleHandle(NULL);
-		HRSRC rc = FindResource(handle, MAKEINTRESOURCE(IM_FELL_FONT_ID), MAKEINTRESOURCE(ID_FONT));
-		HGLOBAL rc_data = LoadResource(handle, rc);
-		DWORD size = SizeofResource(handle, rc);
-		game_window->font.memory = rc_data;
-		game_window->font.memory_size = size;
-		assert(game_window->font.memory_size > 0);
-		assert(game_window->font.memory != NULL);
-		fonts_are_in_memory = true;
-	}
-#endif
-	
-	game_window->font.filename = "./assets/fonts/im_fell_roman.ttf";
+	game_window->font.memory = global_file_resources[RES_ID(IM_FELL_FONT_ID)].contents;
+	game_window->font.memory_size = global_file_resources[RES_ID(IM_FELL_FONT_ID)].size;
 	init_font(&game_window->font);
 	
 	game_window->title_font_cache_id = push_font_size(&game_window->font, 120.0);
@@ -1246,7 +1155,7 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
-	init_resources();
+	init_global_file_resources();
 	init_the_game();
 
 	#ifdef __EMSCRIPTEN__
