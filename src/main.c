@@ -385,12 +385,31 @@ typedef struct Sized_Texture {
 	SDL_Rect rect;
 } Sized_Texture;
 
+typedef struct Shader {
+	int program;
+	
+	// attributes
+	int position_loc;
+	int texture_loc;
+	int in_color_loc;
+	
+	// uniforms
+	int position_offset_loc;
+	int ortho_loc;
+	
+	// textures
+	int font_texture_loc;
+} Shader;
+
 typedef struct Game_Window {
 	bool quit; // zero-init means quit=false by default
 	int window_width, window_height;
 	SDL_Window* window;
-	SDL_Renderer* renderer;
+	//SDL_Renderer* renderer;
 	SDL_GLContext gl_context;
+	Shader shader;
+	GLuint vertex_buffer;
+	GLuint index_buffer;
 	Font font;
 	int title_font_cache_id;
 	int challenge_font_cache_id;
@@ -720,21 +739,12 @@ static void render_text_into_texture(SDL_Renderer* renderer, Sized_Texture* size
 }
 #endif
 
-typedef struct Shader {
-	int program;
+static void render_gl_test(void) {
+	glClearColor(0.5f, 0.2f, 0.8f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 	
-	// attributes
-	int position_loc;
-	int texture_loc;
-	int in_color_loc;
-	
-	// uniforms
-	int position_offset_loc;
-	int ortho_loc;
-	
-	// textures
-	int font_texture_loc;
-} Shader;
+	glUseProgram(game_window->shader.program);
+}
 
 static void init_shader(Shader* shader) {
 	glUseProgram(shader->program);
@@ -750,6 +760,7 @@ static void init_shader(Shader* shader) {
 	for (int i = 0; i < active_attributes; i++) {
 		glGetActiveAttrib(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
 		int loc = glGetAttribLocation(shader->program, name_buffer);
+		assert(loc >= 0);
 		printf("loc[%d] name: %s\n", loc, name_buffer);
 		if (strcmp(name_buffer, "position") == 0) {
 			shader->position_loc = loc;
@@ -766,6 +777,7 @@ static void init_shader(Shader* shader) {
 	for (int i = 0; i < active_uniforms; i++) {
 		glGetActiveUniform(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
 		int loc = glGetUniformLocation(shader->program, name_buffer);
+		assert(loc >= 0);
 		printf("loc[%d] name: %s\n", loc, name_buffer);
 		if (strcmp(name_buffer, "position_offset") == 0) {
 			shader->position_offset_loc = loc;
@@ -851,6 +863,24 @@ static void init_gl(void) {
 	Shader shader = {0};
 	shader.program = program_id;
 	init_shader(&shader);
+	
+	game_window->shader = shader;
+	
+	GLfloat vertexData[] =
+	{
+		-0.5f, -0.5f,
+		0.5f, -0.5f,
+		0.5f, 0.5f,
+		-0.5f, 0.5f
+	};
+	GLuint indexData[] = { 0, 1, 2, 3 };
+	glGenBuffers(1, &game_window->vertex_buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
+	glBufferData(GL_ARRAY_BUFFER, 2 * 4 * sizeof(GLfloat), vertexData, GL_STATIC_DRAW);
+	
+	glGenBuffers(1, &game_window->index_buffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
 }
 
 static void init_the_game(void) {
@@ -867,12 +897,12 @@ static void init_the_game(void) {
 										   game_window->window_width, 
 										   game_window->window_height, 
 										   SDL_WINDOW_OPENGL);
-	game_window->renderer = SDL_CreateRenderer(game_window->window,
-											   -1, // initialize the first one supporting the requested flags
-											   SDL_RENDERER_PRESENTVSYNC);
+	//game_window->renderer = SDL_CreateRenderer(game_window->window,
+											   //-1, // initialize the first one supporting the requested flags
+											   //SDL_RENDERER_PRESENTVSYNC);
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 	game_window->gl_context = SDL_GL_CreateContext(game_window->window);
 	if (game_window->gl_context == NULL) {
@@ -880,6 +910,14 @@ static void init_the_game(void) {
 		printf("failed to create GL context: %s\n", sdl_error);
 	}
 	assert(game_window->gl_context != NULL);
+	if (SDL_GL_SetSwapInterval(1) != 0) {
+		printf("Can't set VSync on GL context: %s\n", SDL_GetError());
+		abort();
+	}
+	if (SDL_GL_MakeCurrent(game_window->window, game_window->gl_context) != 0) {
+		printf("Can't make GL context current: %s\n", SDL_GetError());
+		abort();
+	}
 	load_gl_funcs();
 	init_gl();
 	
@@ -893,11 +931,11 @@ static void init_the_game(void) {
 	//render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
 	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
+	#if 0
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
-	#if 0
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
 	for (int i = 0; i < ARRAY_LEN(words); i++) {
 		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
@@ -1048,13 +1086,12 @@ static void center_rect_horizontally(SDL_Rect* rect) {
 	rect->x = (game_window->window_width / 2) - (rect->w / 2);
 }
 
-static void center_rect_veritcally(SDL_Rect* rect) {
+static void center_rect_vertically(SDL_Rect* rect) {
 	rect->y = (game_window->window_height / 2) - (rect->h / 2);
 }
 
+#if 0
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
-	
-	#if 0
 	int x = 0;
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
@@ -1086,24 +1123,23 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
 		x += glyph->advance;
 	}
-	#endif
 }
 
 static void render_win() {
 	center_rect_horizontally(&game_window->win_text.rect);
-	center_rect_veritcally(&game_window->win_text.rect);
+	center_rect_vertically(&game_window->win_text.rect);
 	SDL_RenderCopy(game_window->renderer, game_window->win_text.texture, NULL, &game_window->win_text.rect);
 }
 
 static void render_lose() {
 	center_rect_horizontally(&game_window->lose_text.rect);
-	center_rect_veritcally(&game_window->lose_text.rect);
+	center_rect_vertically(&game_window->lose_text.rect);
 	SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
 }
 
 static void render_menu(void) {
 	center_rect_horizontally(&game_window->title_challenge.bounding_box);
-	center_rect_veritcally(&game_window->title_challenge.bounding_box);
+	center_rect_vertically(&game_window->title_challenge.bounding_box);
 	render_challenge(game_window, &game_window->title_challenge);
 }
 
@@ -1114,11 +1150,15 @@ static void render_game(void) {
 	center_rect_veritcally(&challenge->bounding_box);
 	render_challenge(game_window, challenge);
 }
+#endif
 
 static void update_and_render(void) {
-	render_draw_color(game_window->renderer, very_dark_blue);
-	SDL_RenderClear(game_window->renderer);
+	//render_draw_color(game_window->renderer, very_dark_blue);
+	//SDL_RenderClear(game_window->renderer);
 	
+	render_gl_test();
+	
+#if 0
 	switch (game_window->state) {
 		case STATE_MENU: {
 			//SDL_Rect dest_rect;
@@ -1141,8 +1181,10 @@ static void update_and_render(void) {
 		} break;
 		default: {}
 	}
+#endif
 	
-	SDL_RenderPresent(game_window->renderer);
+	SDL_GL_SwapWindow(game_window->window);
+	//SDL_RenderPresent(game_window->renderer);
 }
 
 static void main_loop(void) {
@@ -1150,7 +1192,7 @@ static void main_loop(void) {
 		#ifdef __EMSCRIPTEN__
 		emscripten_cancel_main_loop();
 		#else
-		SDL_DestroyRenderer(game_window->renderer);
+		//SDL_DestroyRenderer(game_window->renderer);
 		SDL_DestroyWindow(game_window->window);
 		exit(0);
 		#endif

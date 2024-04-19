@@ -9,15 +9,31 @@
 #define GLDECL
 #endif
 
+#if defined(_WIN64)
+typedef signed   long long int khronos_ssize_t;
+typedef unsigned long long int khronos_usize_t;
+#else
+typedef signed   long  int     khronos_ssize_t;
+typedef unsigned long  int     khronos_usize_t;
+#endif
+
+typedef void GLvoid;
 typedef unsigned int GLenum;
 typedef unsigned int GLuint;
 typedef int GLsizei;
 typedef int GLint;
 typedef char GLchar;
 typedef uint8_t GLubyte;
+typedef float GLfloat;
+typedef float GLclampf;
+typedef khronos_ssize_t GLsizeiptr;
+typedef unsigned int GLbitfield;
 
 #define GL_FALSE 0
 #define GL_TRUE 1
+#define GL_DEPTH_BUFFER_BIT 0x00000100
+#define GL_STENCIL_BUFFER_BIT 0x00000400
+#define GL_COLOR_BUFFER_BIT 0x00004000
 #define GL_FRAGMENT_SHADER 0x8B30
 #define GL_VERTEX_SHADER 0x8B31
 #define GL_COMPILE_STATUS 0x8B81
@@ -30,13 +46,21 @@ typedef uint8_t GLubyte;
 #define GL_SHADING_LANGUAGE_VERSION 0x8B8C
 #define GL_ACTIVE_ATTRIBUTES 0x8B89
 #define GL_ACTIVE_UNIFORMS 0x8B86
+#define GL_ARRAY_BUFFER 0x8892
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+#define GL_STATIC_DRAW 0x88E4
 
 #define GL_FUNCS \
 GLE(void,   glAttachShader,     GLuint program, GLuint shader) \
+GLE(void,   glBindBuffer,       GLenum target, GLuint buffer) \
+GLE(void,   glBufferData,       GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage) \
+GLE(void,   glClear,            GLbitfield mask) \
+GLE(void,   glClearColor,       GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) \
 GLE(void,   glCompileShader,    GLuint shader) \
 GLE(GLuint, glCreateProgram,    void) \
 GLE(GLuint, glCreateShader,     GLenum type) \
 GLE(void,   glDeleteShader,     GLuint shader) \
+GLE(void,   glGenBuffers,       GLsizei n, GLuint* buffers) \
 GLE(void,   glGetActiveAttrib,  GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) \
 GLE(void,   glGetActiveUniform, GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) \
 GLE(GLint,  glGetAttribLocation, GLuint program, const GLchar* name) \
