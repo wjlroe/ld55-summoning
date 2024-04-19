@@ -4,9 +4,6 @@ set -eu
 
 host_os="$(uname -s)"
 
-# xxd -i assets/shaders/vertex_shader.glsl > src/generated_resources.h
-# xxd -i assets/shaders/fragment_shader.glsl >> src/generated_resources.h
-
 echo "Building natively"
 pushd build
 
@@ -34,7 +31,7 @@ set +x
 if [[ "${host_os}" == "Darwin" ]]; then
 	otool -L ./summoning
 else
-    ldd ./summoning
+  ldd ./summoning
 fi
 
 popd
