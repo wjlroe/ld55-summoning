@@ -28,9 +28,34 @@ typedef float GLfloat;
 typedef float GLclampf;
 typedef khronos_ssize_t GLsizeiptr;
 typedef unsigned int GLbitfield;
+typedef unsigned char GLboolean;
 
 #define GL_FALSE 0
 #define GL_TRUE 1
+#define GL_ZERO 0
+#define GL_ONE 1
+#define GL_POINTS 0x0000
+#define GL_LINES 0x0001
+#define GL_LINE_LOOP 0x0002
+#define GL_LINE_STRIP 0x0003
+#define GL_TRIANGLES 0x0004
+#define GL_TRIANGLE_STRIP 0x0005
+#define GL_TRIANGLE_FAN 0x0006
+#define GL_NEVER 0x0200
+#define GL_LESS 0x0201
+#define GL_EQUAL 0x0202
+#define GL_LEQUAL 0x0203
+#define GL_GREATER 0x0204
+#define GL_NOTEQUAL 0x0205
+#define GL_GEQUAL 0x0206
+#define GL_ALWAYS 0x0207
+#define GL_BYTE 0x1400
+#define GL_UNSIGNED_BYTE 0x1401
+#define GL_SHORT 0x1402
+#define GL_UNSIGNED_SHORT 0x1403
+#define GL_INT 0x1404
+#define GL_UNSIGNED_INT 0x1405
+#define GL_FLOAT 0x1406
 #define GL_DEPTH_BUFFER_BIT 0x00000100
 #define GL_STENCIL_BUFFER_BIT 0x00000400
 #define GL_COLOR_BUFFER_BIT 0x00004000
@@ -60,6 +85,9 @@ GLE(void,   glCompileShader,    GLuint shader) \
 GLE(GLuint, glCreateProgram,    void) \
 GLE(GLuint, glCreateShader,     GLenum type) \
 GLE(void,   glDeleteShader,     GLuint shader) \
+GLE(void,   glDisableVertexAttribArray, GLuint index) \
+GLE(void,   glDrawElements,     GLenum mode, GLsizei count, GLenum type, const GLvoid* indices) \
+GLE(void,   glEnableVertexAttribArray, GLuint index) \
 GLE(void,   glGenBuffers,       GLsizei n, GLuint* buffers) \
 GLE(void,   glGetActiveAttrib,  GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) \
 GLE(void,   glGetActiveUniform, GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) \
@@ -72,8 +100,12 @@ GLE(const GLubyte*, glGetString, GLenum name)                             \
 GLE(GLint,  glGetUniformLocation, GLuint program, const GLchar* name) \
 GLE(void,   glLinkProgram,      GLuint program) \
 GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
+GLE(void,   glUniform1uiv,      GLint location, GLsizei count, const GLuint* value) \
+GLE(void,   glUniformMatrix4fv, GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) \
 GLE(void,   glUseProgram,       GLuint program) \
-GLE(void,   glValidateProgram,  GLuint program) \
+GLE(void,   glValidateProgram,      GLuint program) \
+GLE(void,   glVertexAttribIPointer, GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid* pointer) \
+GLE(void,   glVertexAttribPointer,  GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid* pointer) \
 
 
 #define GLE(ret, name, ...) typedef ret GLDECL name##proc(__VA_ARGS__); static name##proc * name;

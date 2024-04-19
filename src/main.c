@@ -396,6 +396,7 @@ typedef struct Shader {
 	// uniforms
 	int position_offset_loc;
 	int ortho_loc;
+	int settings_loc;
 	
 	// textures
 	int font_texture_loc;
@@ -744,6 +745,29 @@ static void render_gl_test(void) {
 	glClear(GL_COLOR_BUFFER_BIT);
 	
 	glUseProgram(game_window->shader.program);
+	
+	float ortho[4][4] = {
+		{1.0f, 0.0f, 0.0f, 0.0f},
+		{0.0f, 1.0f, 0.0f, 0.0f},
+		{0.0f, 0.0f, 1.0f, 0.0f},
+		{0.0f, 0.0f, 0.0f, 1.0f}
+	};
+	glUniformMatrix4fv(game_window->shader.ortho_loc, 
+					   1,
+					   GL_FALSE,
+					   &ortho[0][0]);
+	u32 settings = 0;
+	glUniform1uiv(game_window->shader.settings_loc,
+				  1,
+				  &settings);
+	
+	glEnableVertexAttribArray(game_window->shader.position_loc);
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
+	glVertexAttribPointer(game_window->shader.position_loc, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
+	glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
+	glDisableVertexAttribArray(game_window->shader.position_loc);
+	glUseProgram(0);
 }
 
 static void init_shader(Shader* shader) {
@@ -785,6 +809,8 @@ static void init_shader(Shader* shader) {
 			shader->ortho_loc = loc;
 		} else if (strcmp(name_buffer, "fontTexture") == 0) {
 			shader->font_texture_loc = loc;
+		} else if (strcmp(name_buffer, "settings") == 0) {
+			shader->settings_loc = loc;
 		}
 	}	
 }
@@ -873,6 +899,7 @@ static void init_gl(void) {
 		0.5f, 0.5f,
 		-0.5f, 0.5f
 	};
+	
 	GLuint indexData[] = { 0, 1, 2, 3 };
 	glGenBuffers(1, &game_window->vertex_buffer);
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
