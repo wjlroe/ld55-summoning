@@ -102,7 +102,9 @@ GLE(GLint,  glGetUniformLocation, GLuint program, const GLchar* name) \
 GLE(void,   glGenVertexArrays,  GLsizei n, GLuint* arrays) \
 GLE(void,   glLinkProgram,      GLuint program) \
 GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
+GLE(void,   glUniform1iv,       GLint location, GLsizei count, const GLint* value) \
 GLE(void,   glUniform1uiv,      GLint location, GLsizei count, const GLuint* value) \
+GLE(void,   glUniform3fv,       GLint location, GLsizei count, const GLfloat* value) \
 GLE(void,   glUniformMatrix4fv, GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) \
 GLE(void,   glUseProgram,       GLuint program) \
 GLE(void,   glValidateProgram,      GLuint program) \

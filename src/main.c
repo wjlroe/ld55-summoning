@@ -413,9 +413,9 @@ typedef struct Game_Window {
 	//SDL_Renderer* renderer;
 	SDL_GLContext gl_context;
 	Shader shader;
-	GLuint vertex_buffer;
-	GLuint vertex_array;
-	GLuint index_buffer;
+	GLuint vao;
+	GLuint vbo;
+	GLuint ebo;
 	Font font;
 	int title_font_cache_id;
 	int challenge_font_cache_id;
@@ -745,6 +745,33 @@ static void render_text_into_texture(SDL_Renderer* renderer, Sized_Texture* size
 }
 #endif
 
+static GLfloat vertices[] = {
+	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, // top-left
+	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, // bottom-left
+	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, // bottom-right
+	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  // top-right
+};
+
+static void setup_vertices(void) {
+	float x0 = 10.0;
+	float x1 = 150.0;
+	float y0 = 15.0;
+	float y1 = 300.0;
+	float r = 0.97;
+	float g = 0.14;
+	float b = 0.59;
+	float a = 1.0;
+	
+	GLfloat new_vertices[] = {
+		x0, y0, 1.0f, 0.0f, 0.0f, r, g, b, a, // top-left
+		x0, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-left
+		x1, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-right
+		x1, y0, 1.0f, 0.0f, 0.0f, r, g, b, a  // top-right
+	};
+	int num_vertices = ARRAY_LEN(new_vertices);
+	memcpy(&vertices, &new_vertices, num_vertices*sizeof(GLfloat));
+}
+
 static void render_gl_test(void) {
 	glClearColor(0.5f, 0.2f, 0.8f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -770,19 +797,22 @@ static void render_gl_test(void) {
 	};
 	glUniformMatrix4fv(game_window->shader.ortho_loc, 
 					   1,
-					   GL_FALSE,
+					   GL_TRUE, // transpose temporarily
 					   &ortho[0][0]);
+	float position_offset[] = {0.0f, 0.0f, 0.0f};
+	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset);
 	i32 settings = 0;
-	glUniform1uiv(game_window->shader.settings_loc,
-				  1,
-				  &settings);
+	glUniform1iv(game_window->shader.settings_loc,
+				 1,
+				 &settings);
 	
-	glBindVertexArray(game_window->vertex_array);
-	//glEnableVertexAttribArray(game_window->shader.position_loc);
-	//glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
-	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
-	glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
-	//glDisableVertexAttribArray(game_window->shader.position_loc);
+	glBindVertexArray(game_window->vao);
+	
+	int stride = 9 * sizeof(GLfloat);
+	
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertices, GL_STATIC_DRAW);
+	
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 	glBindVertexArray(0);
 	glUseProgram(0);
 }
@@ -909,40 +939,31 @@ static void init_gl(void) {
 	
 	game_window->shader = shader;
 	
-	float x0 = 10.0;
-	float x1 = 150.0;
-	float y0 = 15.0;
-	float y1 = 300.0;
-	float r = 0.97;
-	float g = 0.14;
-	float b = 0.59;
-	float a = 1.0;
-	GLfloat vertexData[] =
-	{
-		x0, y0, 1.0f, 0.0f, 0.0f, r, g, b, a, // top-left
-		x0, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-left
-		x1, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-right
-		x1, y0, 1.0f, 0.0f, 0.0f, r, g, b, a  // top-right
-	};
 	int stride = 9 * sizeof(GLfloat);
 	
-	GLuint indexData[] = { 0, 1, 2, 3 };
-	glGenVertexArrays(1, &game_window->vertex_array);
-	glBindVertexArray(game_window->vertex_array);
-	glGenBuffers(1, &game_window->vertex_buffer);
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertexData, GL_STATIC_DRAW);
+	glGenVertexArrays(1, &game_window->vao);
+	glBindVertexArray(game_window->vao);
 	
-	glGenBuffers(1, &game_window->index_buffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+	glGenBuffers(1, &game_window->vbo);
+	glGenBuffers(1, &game_window->ebo);
 	
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertices, GL_STATIC_DRAW);
+	
+	glEnableVertexAttribArray(game_window->shader.position_loc);
 	glVertexAttribPointer(game_window->shader.position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL);
+	glEnableVertexAttribArray(game_window->shader.texture_loc);
 	glVertexAttribPointer(game_window->shader.texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(3*sizeof(GLfloat)));
+	glEnableVertexAttribArray(game_window->shader.in_color_loc);
 	glVertexAttribPointer(game_window->shader.in_color_loc, 4, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(5*sizeof(GLfloat)));
 	
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->ebo);
+	GLuint indexData[] = { 0, 1, 2, 2, 3, 0 };
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+	
 	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 static void init_the_game(void) {
@@ -1286,6 +1307,7 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
+	setup_vertices();
 	init_global_file_resources();
 	init_the_game();
 
