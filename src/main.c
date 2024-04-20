@@ -791,6 +791,7 @@ static void update_ortho_matrix(void) {
 		{0.0f,                 0.0f,                 -2.0f / zdiff,        0.0f},
 		{-((maxx+minx)/xdiff), -((maxy+miny)/ydiff), -((maxz+minz)/zdiff), 1.0f}
 	};
+	// NOTE: do we have to memcpy from one multi-dimensional array to another?
 	memcpy(&game_window->ortho_matrix, ortho_matrix, 4*4*sizeof(GLfloat));
 }
 
