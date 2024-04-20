@@ -790,14 +790,14 @@ static void render_gl_test(void) {
 	float zdiff = maxz - minz;
 	
 	float ortho[4][4] = {
-		{2.0f / xdiff, 0.0f,         0.0f,          -((maxx+minx)/xdiff)},
-		{0.0f,         2.0f / ydiff, 0.0f,          -((maxy+miny)/ydiff)},
-		{0.0f,         0.0f,         -2.0f / zdiff, -((maxz+minz)/zdiff)},
-		{0.0f,         0.0f,         0.0f,          1.0f}
+		{2.0f / xdiff,         0.0f,                 0.0f,                 0.0f},
+		{0.0f,                 2.0f / ydiff,         0.0f,                 0.0f},
+		{0.0f,                 0.0f,                 -2.0f / zdiff,        0.0f},
+		{-((maxx+minx)/xdiff), -((maxy+miny)/ydiff), -((maxz+minz)/zdiff), 1.0f}
 	};
 	glUniformMatrix4fv(game_window->shader.ortho_loc, 
 					   1,
-					   GL_TRUE, // transpose temporarily
+					   GL_FALSE,
 					   &ortho[0][0]);
 	float position_offset[] = {0.0f, 0.0f, 0.0f};
 	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset);
