@@ -416,6 +416,7 @@ typedef struct Game_Window {
 	GLuint vao;
 	GLuint vbo;
 	GLuint ebo;
+	float ortho_matrix[4][4];
 	Font font;
 	int title_font_cache_id;
 	int challenge_font_cache_id;
@@ -772,12 +773,7 @@ static void setup_vertices(void) {
 	memcpy(&vertices, &new_vertices, num_vertices*sizeof(GLfloat));
 }
 
-static void render_gl_test(void) {
-	glClearColor(0.5f, 0.2f, 0.8f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-	
-	glUseProgram(game_window->shader.program);
-	
+static void update_ortho_matrix(void) {
 	float minx = 0.0f;
 	float maxx = 1280.0f;
 	float maxy = 0.0f;
@@ -789,18 +785,29 @@ static void render_gl_test(void) {
 	float ydiff = maxy - miny;
 	float zdiff = maxz - minz;
 	
-	float ortho[4][4] = {
+	float ortho_matrix[4][4] = {
 		{2.0f / xdiff,         0.0f,                 0.0f,                 0.0f},
 		{0.0f,                 2.0f / ydiff,         0.0f,                 0.0f},
 		{0.0f,                 0.0f,                 -2.0f / zdiff,        0.0f},
 		{-((maxx+minx)/xdiff), -((maxy+miny)/ydiff), -((maxz+minz)/zdiff), 1.0f}
 	};
+	memcpy(&game_window->ortho_matrix, ortho_matrix, 4*4*sizeof(GLfloat));
+}
+
+static void render_gl_test(void) {
+	glClearColor(0.5f, 0.2f, 0.8f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	
+	glUseProgram(game_window->shader.program);
+	
 	glUniformMatrix4fv(game_window->shader.ortho_loc, 
 					   1,
 					   GL_FALSE,
-					   &ortho[0][0]);
+					   &game_window->ortho_matrix[0][0]);
+	
 	float position_offset[] = {0.0f, 0.0f, 0.0f};
 	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset);
+	
 	i32 settings = 0;
 	glUniform1iv(game_window->shader.settings_loc,
 				 1,
@@ -932,6 +939,8 @@ static void init_gl(void) {
 	// TODO: macOS may break if we validate linking before binding a VAO
 	check_program_linking(program_id);
 	check_program_valid(program_id);
+	
+	update_ortho_matrix();
 	
 	Shader shader = {0};
 	shader.program = program_id;
@@ -1307,7 +1316,7 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
-	setup_vertices();
+	setup_vertices(); // FIXME: make this go away!
 	init_global_file_resources();
 	init_the_game();
 
