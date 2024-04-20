@@ -5,10 +5,10 @@ in vec4 Color;
 
 out vec4 OutColor;
 
-uniform uint settings;
+uniform int settings;
 uniform sampler2D fontTexture;
 
-const uint SAMPLE_TEXTURE = (1 << 0);
+const int SAMPLE_TEXTURE = (1 << 0);
 
 void main() {
     vec4 other_color = Color;

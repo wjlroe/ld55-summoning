@@ -78,6 +78,7 @@ typedef unsigned char GLboolean;
 #define GL_FUNCS \
 GLE(void,   glAttachShader,     GLuint program, GLuint shader) \
 GLE(void,   glBindBuffer,       GLenum target, GLuint buffer) \
+GLE(void,   glBindVertexArray,  GLuint array) \
 GLE(void,   glBufferData,       GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage) \
 GLE(void,   glClear,            GLbitfield mask) \
 GLE(void,   glClearColor,       GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) \
@@ -98,6 +99,7 @@ GLE(void,   glGetShaderInfoLog, GLuint shader, GLsizei bufSize, GLsizei* length,
 GLE(void,   glGetShaderiv,      GLuint shader, GLenum pname, GLint *params) \
 GLE(const GLubyte*, glGetString, GLenum name)                             \
 GLE(GLint,  glGetUniformLocation, GLuint program, const GLchar* name) \
+GLE(void,   glGenVertexArrays,  GLsizei n, GLuint* arrays) \
 GLE(void,   glLinkProgram,      GLuint program) \
 GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
 GLE(void,   glUniform1uiv,      GLint location, GLsizei count, const GLuint* value) \

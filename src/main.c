@@ -33,6 +33,10 @@ typedef uint64_t u64;
 typedef uint32_t u32;
 typedef uint16_t u16;
 typedef uint8_t  u8;
+typedef int64_t  i64;
+typedef int32_t  i32;
+typedef int16_t  i16;
+typedef int8_t   i8;
 
 typedef struct String {
 	char* str;
@@ -410,6 +414,7 @@ typedef struct Game_Window {
 	SDL_GLContext gl_context;
 	Shader shader;
 	GLuint vertex_buffer;
+	GLuint vertex_array;
 	GLuint index_buffer;
 	Font font;
 	int title_font_cache_id;
@@ -746,27 +751,39 @@ static void render_gl_test(void) {
 	
 	glUseProgram(game_window->shader.program);
 	
+	float minx = 0.0f;
+	float maxx = 1280.0f;
+	float maxy = 0.0f;
+	float miny = 800.0f; // swapped?
+	float minz = -1.0f;
+	float maxz = 1.0f;
+	
+	float xdiff = maxx - minx;
+	float ydiff = maxy - miny;
+	float zdiff = maxz - minz;
+	
 	float ortho[4][4] = {
-		{1.0f, 0.0f, 0.0f, 0.0f},
-		{0.0f, 1.0f, 0.0f, 0.0f},
-		{0.0f, 0.0f, 1.0f, 0.0f},
-		{0.0f, 0.0f, 0.0f, 1.0f}
+		{2.0f / xdiff, 0.0f,         0.0f,          -((maxx+minx)/xdiff)},
+		{0.0f,         2.0f / ydiff, 0.0f,          -((maxy+miny)/ydiff)},
+		{0.0f,         0.0f,         -2.0f / zdiff, -((maxz+minz)/zdiff)},
+		{0.0f,         0.0f,         0.0f,          1.0f}
 	};
 	glUniformMatrix4fv(game_window->shader.ortho_loc, 
 					   1,
 					   GL_FALSE,
 					   &ortho[0][0]);
-	u32 settings = 0;
+	i32 settings = 0;
 	glUniform1uiv(game_window->shader.settings_loc,
 				  1,
 				  &settings);
 	
-	glEnableVertexAttribArray(game_window->shader.position_loc);
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
-	glVertexAttribPointer(game_window->shader.position_loc, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), NULL);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
+	glBindVertexArray(game_window->vertex_array);
+	//glEnableVertexAttribArray(game_window->shader.position_loc);
+	//glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
+	//glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
 	glDrawElements(GL_TRIANGLE_FAN, 4, GL_UNSIGNED_INT, NULL);
-	glDisableVertexAttribArray(game_window->shader.position_loc);
+	//glDisableVertexAttribArray(game_window->shader.position_loc);
+	glBindVertexArray(0);
 	glUseProgram(0);
 }
 
@@ -892,22 +909,40 @@ static void init_gl(void) {
 	
 	game_window->shader = shader;
 	
+	float x0 = 10.0;
+	float x1 = 150.0;
+	float y0 = 15.0;
+	float y1 = 300.0;
+	float r = 0.97;
+	float g = 0.14;
+	float b = 0.59;
+	float a = 1.0;
 	GLfloat vertexData[] =
 	{
-		-0.5f, -0.5f,
-		0.5f, -0.5f,
-		0.5f, 0.5f,
-		-0.5f, 0.5f
+		x0, y0, 1.0f, 0.0f, 0.0f, r, g, b, a, // top-left
+		x0, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-left
+		x1, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-right
+		x1, y0, 1.0f, 0.0f, 0.0f, r, g, b, a  // top-right
 	};
+	int stride = 9 * sizeof(GLfloat);
 	
 	GLuint indexData[] = { 0, 1, 2, 3 };
+	glGenVertexArrays(1, &game_window->vertex_array);
+	glBindVertexArray(game_window->vertex_array);
 	glGenBuffers(1, &game_window->vertex_buffer);
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vertex_buffer);
-	glBufferData(GL_ARRAY_BUFFER, 2 * 4 * sizeof(GLfloat), vertexData, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertexData, GL_STATIC_DRAW);
 	
 	glGenBuffers(1, &game_window->index_buffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->index_buffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+	
+	glVertexAttribPointer(game_window->shader.position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL);
+	glVertexAttribPointer(game_window->shader.texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(3*sizeof(GLfloat)));
+	glVertexAttribPointer(game_window->shader.in_color_loc, 4, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(5*sizeof(GLfloat)));
+	
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
 static void init_the_game(void) {

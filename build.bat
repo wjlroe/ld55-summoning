@@ -36,7 +36,7 @@ set includes=-I. ^
 set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.lib ^
  ..\vendor\SDL2_ttf-2.22.0\lib\x64\SDL2_ttf.lib ^
- opengl32.lib glu32.lib user32.lib gdi32.lib
+ glu32.lib user32.lib gdi32.lib
 
 echo Generate resources
 cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^

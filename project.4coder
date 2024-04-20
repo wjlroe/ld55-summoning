@@ -11,9 +11,10 @@ patterns = {
 "*.sh",
 "*.4coder",
 "*.txt",
+"*.glsl",
 };
 blacklist_patterns = {
-".*",
+"build",
 };
 load_paths_only = {
  {"."},
