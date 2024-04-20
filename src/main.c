@@ -775,11 +775,11 @@ static void setup_vertices(void) {
 
 static void update_ortho_matrix(void) {
 	float minx = 0.0f;
-	float maxx = 1280.0f;
+	float maxx = (float)game_window->window_width;
 	float maxy = 0.0f;
-	float miny = 800.0f; // swapped?
-	float minz = -1.0f;
-	float maxz = 1.0f;
+	float miny = (float)game_window->window_height; // swapped?
+	float minz = -1.0f; // TODO: hard-coded Z
+	float maxz = 1.0f;  // TODO: hard-coded Z
 	
 	float xdiff = maxx - minx;
 	float ydiff = maxy - miny;
