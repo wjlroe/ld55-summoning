@@ -38,6 +38,27 @@ typedef int32_t  i32;
 typedef int16_t  i16;
 typedef int8_t   i8;
 
+typedef union vec2 {
+	struct { float x, y; };
+	float values[2];
+} vec2;
+
+typedef union vec3 {
+	struct { float x, y, z; };
+	float values[3];
+} vec3;
+
+typedef union vec4 {
+	struct { float x, y, z, w; };
+	float values[4];
+} vec4;
+
+typedef struct Vertex {
+	vec3 position;
+	vec2 texture;
+	vec4 color;
+} Vertex;
+
 typedef struct String {
 	char* str;
 	int length;
@@ -797,33 +818,6 @@ static void render_text_into_texture(SDL_Renderer* renderer, Sized_Texture* size
 }
 #endif
 
-static GLfloat vertices[] = {
-	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, // top-left
-	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, // bottom-left
-	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, // bottom-right
-	0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f  // top-right
-};
-
-static void setup_vertices(void) {
-	float x0 = 10.0;
-	float x1 = 150.0;
-	float y0 = 15.0;
-	float y1 = 300.0;
-	float r = 0.97;
-	float g = 0.14;
-	float b = 0.59;
-	float a = 1.0;
-	
-	GLfloat new_vertices[] = {
-		x0, y0, 1.0f, 0.0f, 0.0f, r, g, b, a, // top-left
-		x0, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-left
-		x1, y1, 1.0f, 0.0f, 0.0f, r, g, b, a, // bottom-right
-		x1, y0, 1.0f, 0.0f, 0.0f, r, g, b, a  // top-right
-	};
-	int num_vertices = ARRAY_LEN(new_vertices);
-	memcpy(&vertices, &new_vertices, num_vertices*sizeof(GLfloat));
-}
-
 static void update_ortho_matrix(void) {
 	float minx = 0.0f;
 	float maxx = (float)game_window->window_width;
@@ -857,18 +851,38 @@ static void render_gl_test(void) {
 					   GL_FALSE,
 					   &game_window->ortho_matrix[0][0]);
 	
-	float position_offset[] = {0.0f, 0.0f, 0.0f};
+	float position_offset[] = {20.0f, 20.0f, 0.0f};
 	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset);
 	
-	i32 settings = 0;
+	i32 settings = 1; // sample texture
 	glUniform1iv(game_window->shader.settings_loc,
 				 1,
 				 &settings);
 	
 	glBindVertexArray(game_window->vao);
 	
-	int stride = 9 * sizeof(GLfloat);
+	vec4 color = {0.8, 0.1, 0.1, 1.0};
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[0];
+	// bind the texture
+	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX('S')];
+	float z = 0.5;
+	int x = 0;
+	int y = 0;
+	int baseline = y + font_cache->ascent;
+	int g_x0 = x + glyph->lsb;
+	int g_x1 = g_x0 + glyph->width;
+	int g_y0 = baseline + glyph->y0;
+	int g_y1 = baseline + glyph->y1;
+	Vertex vertices[4] = {
+		{.position={g_x0, g_y0, z}, .texture={glyph->tex_x0, glyph->tex_y0}, .color=color}, // top-left
+		{.position={g_x0, g_y1, z}, .texture={glyph->tex_x0, glyph->tex_y1}, .color=color}, // bottom-left
+		{.position={g_x1, g_y1, z}, .texture={glyph->tex_x1, glyph->tex_y1}, .color=color}, // bottom-right
+		{.position={g_x1, g_y0, z}, .texture={glyph->tex_x1, glyph->tex_y0}, .color=color}  // top-right
+	};
 	
+	int stride = sizeof(Vertex);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
 	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertices, GL_STATIC_DRAW);
 	
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
@@ -1009,7 +1023,7 @@ static void init_gl(void) {
 	glGenBuffers(1, &game_window->ebo);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, NULL, GL_STATIC_DRAW);
 	
 	glEnableVertexAttribArray(game_window->shader.position_loc);
 	glVertexAttribPointer(game_window->shader.position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL);
@@ -1368,7 +1382,6 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
-	setup_vertices(); // FIXME: make this go away!
 	init_global_file_resources();
 	init_the_game();
 
