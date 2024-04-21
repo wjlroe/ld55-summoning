@@ -171,15 +171,30 @@ typedef struct Input {
 
 typedef struct Glyph {
 	char character;
+	i32 x0;
+	i32 x1;
+	i32 y0;
+	i32 y1;
+	i32 width;
+	i32 height;
+	float advance;
+	float lsb;
+	
+	float tex_x0;
+	float tex_x1;
+	float tex_y0;
+	float tex_y1;
+	
 	SDL_Rect bounding_box;
 	int minx;
 	int maxx;
 	int miny;
 	int maxy;
-	int advance;
+	//int advance;
 	SDL_Texture* texture;
 } Glyph;
 
+#if 0
 static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
 	Glyph glyph = {0};
 	glyph.character = character;
@@ -193,6 +208,7 @@ static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
 	SDL_FreeSurface(surface);
 	return glyph;
 }
+#endif
 
 #define NUM_GLYPHS 94 //126-32
 #define GLYPH_INDEX(c) c-32
@@ -202,6 +218,7 @@ typedef struct Glyph_Cache {
 	int first_glyph;
 	int last_glyph;
 	float font_size;
+	float font_scale;
 	stbtt_packedchar *packed_chars;
 	void* texture;
 	int texture_dim;
@@ -213,6 +230,9 @@ typedef struct Glyph_Cache {
 typedef struct Font {
 	File_Resource* resource;
 	stbtt_fontinfo font;
+	i32 ascent;
+	i32 descent;
+	i32 line_gap;
 	Glyph_Cache glyph_caches[NUM_GLYPH_CACHES];
 	int num_glyph_caches;
 } Font;
@@ -476,6 +496,7 @@ static void ShowSDLError(char* message) {
 static void init_font(Font* font) {
 	const unsigned char* data = (const unsigned char*)font->resource->contents;
 	stbtt_InitFont(&font->font, data, stbtt_GetFontOffsetForIndex(data, 0));
+	stbtt_GetFontVMetrics(&font->font, &font->ascent, &font->descent, &font->line_gap);
 }
 
 static int push_font_size(Font* font, float font_size) {
@@ -491,6 +512,7 @@ static int push_font_size(Font* font, float font_size) {
 	cache->packed_chars = calloc(num_chars+1, sizeof(stbtt_packedchar));
 	stbtt_pack_context pack_context;
 	cache->texture_dim = 512;
+	cache->font_scale = stbtt_ScaleForPixelHeight(&font->font, cache->font_size);
 	cache->texture = malloc(cache->texture_dim*cache->texture_dim);
 	const unsigned char* data = (const unsigned char*)font->resource->contents;
 	while (true) {
@@ -506,6 +528,28 @@ static int push_font_size(Font* font, float font_size) {
 			stbtt_PackEnd(&pack_context);
 			break; // we're done!
 		}
+	}
+	
+	i32 x0, y0, x1, y1, advance, lsb = 0;
+	for (char character = cache->first_glyph; character <= cache->last_glyph; character++) {
+		int idx = character - cache->first_glyph;
+		int glyph_idx = stbtt_FindGlyphIndex(&font->font, character);
+		stbtt_packedchar packed_char = cache->packed_chars[idx];
+		stbtt_GetGlyphHMetrics(&font->font, glyph_idx, &advance, &lsb);
+		stbtt_GetGlyphBitmapBox(&font->font, glyph_idx, cache->font_scale, cache->font_scale, &x0, &y0, &x1, &y1);
+		cache->glyphs[idx].character = character;
+		cache->glyphs[idx].x0 = x0;
+		cache->glyphs[idx].x1 = x1;
+		cache->glyphs[idx].y0 = y0;
+		cache->glyphs[idx].y1 = y1;
+		cache->glyphs[idx].width = x1 - x0;
+		cache->glyphs[idx].height = y1 - y0;
+		cache->glyphs[idx].advance = (float)advance * cache->font_scale;
+		cache->glyphs[idx].lsb = (float)lsb * cache->font_scale;
+		cache->glyphs[idx].tex_x0 = (float)packed_char.x0 / (float)cache->texture_dim;
+		cache->glyphs[idx].tex_x1 = (float)packed_char.x1 / (float)cache->texture_dim;
+		cache->glyphs[idx].tex_y0 = (float)packed_char.y0 / (float)cache->texture_dim;
+		cache->glyphs[idx].tex_y1 = (float)packed_char.y1 / (float)cache->texture_dim;
 	}
 	
 	font->num_glyph_caches++;
@@ -1005,7 +1049,7 @@ static void init_the_game(void) {
 	assert(game_window->gl_context != NULL);
 	if (SDL_GL_SetSwapInterval(1) != 0) {
 		printf("Can't set VSync on GL context: %s\n", SDL_GetError());
-		abort();
+		//abort();
 	}
 	if (SDL_GL_MakeCurrent(game_window->window, game_window->gl_context) != 0) {
 		printf("Can't make GL context current: %s\n", SDL_GetError());
