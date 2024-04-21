@@ -888,6 +888,9 @@ static void render_gl_test(void) {
 	//gl.BindTexture(gl.TEXTURE_2D, opengl_texture.opengl_id)
 	glBindTexture(GL_TEXTURE_2D, font_cache->texture_id);
 	
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	
 	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX('S')];
 	float z = 0.5;
 	int x = 0;

@@ -92,6 +92,18 @@ typedef unsigned char GLboolean;
 #define GL_TEXTURE_MIN_FILTER 0x2801
 #define GL_TEXTURE0 0x84C0
 #define GL_SAMPLER_2D 0x8B5E
+#define GL_SRC_COLOR 0x0300
+#define GL_ONE_MINUS_SRC_COLOR 0x0301
+#define GL_SRC_ALPHA 0x0302
+#define GL_ONE_MINUS_SRC_ALPHA 0x0303
+#define GL_DST_ALPHA 0x0304
+#define GL_ONE_MINUS_DST_ALPHA 0x0305
+#define GL_DST_COLOR 0x0306
+#define GL_ONE_MINUS_DST_COLOR 0x0307
+#define GL_SRC_ALPHA_SATURATE 0x0308
+#define GL_BLEND_DST 0x0BE0
+#define GL_BLEND_SRC 0x0BE1
+#define GL_BLEND 0x0BE2
 
 #define GL_FUNCS \
 GLE(void,   glActiveTexture,    GLenum texture) \
@@ -99,6 +111,7 @@ GLE(void,   glAttachShader,     GLuint program, GLuint shader) \
 GLE(void,   glBindBuffer,       GLenum target, GLuint buffer) \
 GLE(void,   glBindTexture,      GLenum target, GLuint texture) \
 GLE(void,   glBindVertexArray,  GLuint array) \
+GLE(void,   glBlendFunc,        GLenum sfactor, GLenum dfactor) \
 GLE(void,   glBufferData,       GLenum target, GLsizeiptr size, const GLvoid* data, GLenum usage) \
 GLE(void,   glClear,            GLbitfield mask) \
 GLE(void,   glClearColor,       GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) \
@@ -108,6 +121,7 @@ GLE(GLuint, glCreateShader,     GLenum type) \
 GLE(void,   glDeleteShader,     GLuint shader) \
 GLE(void,   glDisableVertexAttribArray, GLuint index) \
 GLE(void,   glDrawElements,     GLenum mode, GLsizei count, GLenum type, const GLvoid* indices) \
+GLE(void,   glEnable,           GLenum cap) \
 GLE(void,   glEnableVertexAttribArray, GLuint index) \
 GLE(void,   glGenBuffers,       GLsizei n, GLuint* buffers) \
 GLE(void,   glGenTextures,      GLsizei n, GLuint* textures) \
