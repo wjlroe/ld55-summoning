@@ -90,8 +90,11 @@ typedef unsigned char GLboolean;
 #define GL_LINEAR_MIPMAP_LINEAR 0x2703
 #define GL_TEXTURE_MAG_FILTER 0x2800
 #define GL_TEXTURE_MIN_FILTER 0x2801
+#define GL_TEXTURE0 0x84C0
+#define GL_SAMPLER_2D 0x8B5E
 
 #define GL_FUNCS \
+GLE(void,   glActiveTexture,    GLenum texture) \
 GLE(void,   glAttachShader,     GLuint program, GLuint shader) \
 GLE(void,   glBindBuffer,       GLenum target, GLuint buffer) \
 GLE(void,   glBindTexture,      GLenum target, GLuint texture) \
@@ -122,6 +125,7 @@ GLE(void,   glLinkProgram,      GLuint program) \
 GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
 GLE(void,   glTexImage2D,       GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* data) \
 GLE(void,   glTexParameteri,    GLenum target, GLenum pname, GLint param) \
+GLE(void,   glUniform1i,        GLint location, GLint v0) \
 GLE(void,   glUniform1iv,       GLint location, GLsizei count, const GLint* value) \
 GLE(void,   glUniform1uiv,      GLint location, GLsizei count, const GLuint* value) \
 GLE(void,   glUniform3fv,       GLint location, GLsizei count, const GLfloat* value) \

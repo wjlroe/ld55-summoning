@@ -453,6 +453,7 @@ typedef struct Shader {
 	
 	// textures
 	int font_texture_loc;
+	int font_sampler_idx;
 } Shader;
 
 typedef struct Game_Window {
@@ -878,11 +879,12 @@ static void render_gl_test(void) {
 	// bind the texture (TODO: first param is the shader index of textures...)
 	//glBindTextureUnit(0, font_cache->texture_id);
 	
-	// font_texture_location: ??
+	// font_texture_location: ?? shader->font_texture_loc (index of SAMPLERS)
 	// shader_idx: ??
-	// opengl_id: ??
+	// opengl_id: ?? <- genTextures() / font_cache->texture_id
 	//gl.Uniform1i(i32(renderer.quad_shader.font_texture_location), i32(opengl_texture.shader_idx))
-	//gl.ActiveTexture(u32(gl.TEXTURE0 + opengl_texture.shader_idx))
+	glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
+	glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
 	//gl.BindTexture(gl.TEXTURE_2D, opengl_texture.opengl_id)
 	glBindTexture(GL_TEXTURE_2D, font_cache->texture_id);
 	
@@ -937,6 +939,7 @@ static void init_shader(Shader* shader) {
 		}
 	}
 	
+	int sampler_idx = 0;
 	int active_uniforms = 0;
 	glGetProgramiv(shader->program, GL_ACTIVE_UNIFORMS, &active_uniforms);
 	
@@ -951,8 +954,13 @@ static void init_shader(Shader* shader) {
 			shader->ortho_loc = loc;
 		} else if (strcmp(name_buffer, "fontTexture") == 0) {
 			shader->font_texture_loc = loc;
+			shader->font_sampler_idx = sampler_idx;
 		} else if (strcmp(name_buffer, "settings") == 0) {
 			shader->settings_loc = loc;
+		}
+		
+		if (attr_type == GL_SAMPLER_2D) {
+			sampler_idx++;
 		}
 	}	
 }
