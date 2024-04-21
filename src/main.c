@@ -222,6 +222,9 @@ typedef struct Glyph_Cache {
 	stbtt_packedchar *packed_chars;
 	void* texture;
 	int texture_dim;
+	float ascent;
+	float descent;
+	float line_gap;
 } Glyph_Cache;
 
 // This is effectively the number of font sizes for a font
@@ -513,6 +516,9 @@ static int push_font_size(Font* font, float font_size) {
 	stbtt_pack_context pack_context;
 	cache->texture_dim = 512;
 	cache->font_scale = stbtt_ScaleForPixelHeight(&font->font, cache->font_size);
+	cache->ascent = (float)font->ascent * cache->font_scale;
+	cache->descent = (float)font->descent * cache->font_scale;
+	cache->line_gap = (float)font->line_gap * cache->font_scale;
 	cache->texture = malloc(cache->texture_dim*cache->texture_dim);
 	const unsigned char* data = (const unsigned char*)font->resource->contents;
 	while (true) {
