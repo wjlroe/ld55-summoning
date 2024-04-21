@@ -50,8 +50,14 @@ typedef union vec3 {
 
 typedef union vec4 {
 	struct { float x, y, z, w; };
+	struct { float r, g, b, a; };
 	float values[4];
 } vec4;
+
+typedef vec4 Color;
+
+#define COLOR(v) (float)v/255.0f
+#define RGBA(r,g,b,a) {COLOR(r),COLOR(g),COLOR(b),COLOR(a)} 
 
 typedef struct Vertex {
 	vec3 position;
@@ -92,12 +98,12 @@ static String words[] = {
 	STRING("cauldron"),
 };
 
-SDL_Color white = {255, 255, 255, 255};
-SDL_Color blue = {10, 10, 255, 255};
-SDL_Color red = {255, 10, 10, 255};
-SDL_Color very_dark_blue = {4, 8, 13, 255};
-SDL_Color green = {10, 255, 10};
-SDL_Color amber = {255, 191, 0, 255};
+Color white = RGBA(255, 255, 255, 255);
+Color blue = RGBA(10, 10, 255, 255);
+Color red = RGBA(255, 10, 10, 255);
+Color very_dark_blue = RGBA(4, 8, 13, 255);
+Color green = RGBA(10, 255, 10, 255);
+Color amber = RGBA(255, 191, 0, 255);
 
 static void render_draw_color(SDL_Renderer* renderer, SDL_Color color) {
 	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
@@ -854,7 +860,8 @@ static void update_ortho_matrix(void) {
 }
 
 static void render_gl_test(void) {
-	glClearColor(0.5f, 0.2f, 0.8f, 1.0f);
+	Color background = very_dark_blue;
+	glClearColor(background.r, background.g, background.b, background.a);
 	glClear(GL_COLOR_BUFFER_BIT);
 	
 	glUseProgram(game_window->shader.program);
@@ -874,7 +881,7 @@ static void render_gl_test(void) {
 	
 	glBindVertexArray(game_window->vao);
 	
-	vec4 color = {0.8, 0.1, 0.1, 1.0};
+	Color color = white;
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[0];
 	
 	glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
