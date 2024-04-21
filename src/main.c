@@ -244,6 +244,7 @@ typedef struct Glyph_Cache {
 	float font_scale;
 	stbtt_packedchar *packed_chars;
 	void* texture;
+	u32 texture_id;
 	int texture_dim;
 	float ascent;
 	float descent;
@@ -563,6 +564,11 @@ static int push_font_size(Font* font, float font_size) {
 		}
 	}
 	
+	glGenTextures(1, &cache->texture_id);
+	glBindTexture(GL_TEXTURE_2D, cache->texture_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, cache->texture_dim, cache->texture_dim, 0, GL_RED, GL_UNSIGNED_BYTE, cache->texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	
 	i32 x0, y0, x1, y1, advance, lsb = 0;
 	for (char character = cache->first_glyph; character <= cache->last_glyph; character++) {
 		int idx = character - cache->first_glyph;
@@ -869,7 +875,17 @@ static void render_gl_test(void) {
 	
 	vec4 color = {0.8, 0.1, 0.1, 1.0};
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[0];
-	// bind the texture
+	// bind the texture (TODO: first param is the shader index of textures...)
+	//glBindTextureUnit(0, font_cache->texture_id);
+	
+	// font_texture_location: ??
+	// shader_idx: ??
+	// opengl_id: ??
+	//gl.Uniform1i(i32(renderer.quad_shader.font_texture_location), i32(opengl_texture.shader_idx))
+	//gl.ActiveTexture(u32(gl.TEXTURE0 + opengl_texture.shader_idx))
+	//gl.BindTexture(gl.TEXTURE_2D, opengl_texture.opengl_id)
+	glBindTexture(GL_TEXTURE_2D, font_cache->texture_id);
+	
 	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX('S')];
 	float z = 0.5;
 	int x = 0;
