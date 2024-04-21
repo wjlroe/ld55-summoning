@@ -876,16 +876,9 @@ static void render_gl_test(void) {
 	
 	vec4 color = {0.8, 0.1, 0.1, 1.0};
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[0];
-	// bind the texture (TODO: first param is the shader index of textures...)
-	//glBindTextureUnit(0, font_cache->texture_id);
 	
-	// font_texture_location: ?? shader->font_texture_loc (index of SAMPLERS)
-	// shader_idx: ??
-	// opengl_id: ?? <- genTextures() / font_cache->texture_id
-	//gl.Uniform1i(i32(renderer.quad_shader.font_texture_location), i32(opengl_texture.shader_idx))
 	glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
 	glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
-	//gl.BindTexture(gl.TEXTURE_2D, opengl_texture.opengl_id)
 	glBindTexture(GL_TEXTURE_2D, font_cache->texture_id);
 	
 	glEnable(GL_BLEND);
