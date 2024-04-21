@@ -206,6 +206,7 @@ typedef struct Glyph {
 	float tex_y0;
 	float tex_y1;
 	
+	// FIXME: SDL stuff, obsolete
 	SDL_Rect bounding_box;
 	int minx;
 	int maxx;
@@ -213,6 +214,7 @@ typedef struct Glyph {
 	int maxy;
 	//int advance;
 	SDL_Texture* texture;
+	// FIXME: end of SDL stuff
 } Glyph;
 
 #if 0
@@ -246,6 +248,8 @@ typedef struct Glyph_Cache {
 	float ascent;
 	float descent;
 	float line_gap;
+	float line_height;
+	float row_height;
 } Glyph_Cache;
 
 // This is effectively the number of font sizes for a font
@@ -540,6 +544,8 @@ static int push_font_size(Font* font, float font_size) {
 	cache->ascent = (float)font->ascent * cache->font_scale;
 	cache->descent = (float)font->descent * cache->font_scale;
 	cache->line_gap = (float)font->line_gap * cache->font_scale;
+	cache->line_height = cache->ascent - cache->descent;
+	cache->row_height = cache->line_height + cache->line_gap;
 	cache->texture = malloc(cache->texture_dim*cache->texture_dim);
 	const unsigned char* data = (const unsigned char*)font->resource->contents;
 	while (true) {
@@ -1382,6 +1388,10 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
+	printf("size of Vertex: %zu\n", sizeof(Vertex));
+	printf("size of 3+2+4 floats: %zu\n", (3+2+4)*sizeof(float));
+	assert(sizeof(Vertex) == (3+2+4)*sizeof(float)); // checking for no padding
+	
 	init_global_file_resources();
 	init_the_game();
 
