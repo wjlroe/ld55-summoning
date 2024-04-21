@@ -210,7 +210,7 @@ static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
 }
 #endif
 
-#define NUM_GLYPHS 94 //126-32
+#define NUM_GLYPHS 95 //126-32 (inclusive)
 #define GLYPH_INDEX(c) c-32
 
 typedef struct Glyph_Cache {
@@ -539,6 +539,7 @@ static int push_font_size(Font* font, float font_size) {
 	i32 x0, y0, x1, y1, advance, lsb = 0;
 	for (char character = cache->first_glyph; character <= cache->last_glyph; character++) {
 		int idx = character - cache->first_glyph;
+		assert(idx < NUM_GLYPHS);
 		int glyph_idx = stbtt_FindGlyphIndex(&font->font, character);
 		stbtt_packedchar packed_char = cache->packed_chars[idx];
 		stbtt_GetGlyphHMetrics(&font->font, glyph_idx, &advance, &lsb);
