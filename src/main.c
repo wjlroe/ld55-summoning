@@ -171,12 +171,12 @@ typedef struct Input {
 
 typedef struct Glyph {
 	char character;
-	i32 x0;
-	i32 x1;
-	i32 y0;
-	i32 y1;
-	i32 width;
-	i32 height;
+	float x0;
+	float x1;
+	float y0;
+	float y1;
+	float width;
+	float height;
 	float advance;
 	float lsb;
 	
@@ -545,12 +545,12 @@ static int push_font_size(Font* font, float font_size) {
 		stbtt_GetGlyphHMetrics(&font->font, glyph_idx, &advance, &lsb);
 		stbtt_GetGlyphBitmapBox(&font->font, glyph_idx, cache->font_scale, cache->font_scale, &x0, &y0, &x1, &y1);
 		cache->glyphs[idx].character = character;
-		cache->glyphs[idx].x0 = x0;
-		cache->glyphs[idx].x1 = x1;
-		cache->glyphs[idx].y0 = y0;
-		cache->glyphs[idx].y1 = y1;
-		cache->glyphs[idx].width = x1 - x0;
-		cache->glyphs[idx].height = y1 - y0;
+		cache->glyphs[idx].x0 = (float)x0;
+		cache->glyphs[idx].x1 = (float)x1;
+		cache->glyphs[idx].y0 = (float)y0;
+		cache->glyphs[idx].y1 = (float)y1;
+		cache->glyphs[idx].width = (float)(x1 - x0);
+		cache->glyphs[idx].height = (float)(y1 - y0);
 		cache->glyphs[idx].advance = (float)advance * cache->font_scale;
 		cache->glyphs[idx].lsb = (float)lsb * cache->font_scale;
 		cache->glyphs[idx].tex_x0 = (float)packed_char.x0 / (float)cache->texture_dim;
