@@ -912,11 +912,12 @@ static void render_gl_test(void) {
 	int g_y0 = baseline + glyph->y0;
 	int g_y1 = baseline + glyph->y1;
 	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
+	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
 	Quad quad;
-	quad.vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={glyph->tex_x0, glyph->tex_y0}, .color=color}; // top-left
-	quad.vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={glyph->tex_x0, glyph->tex_y1}, .color=color}; // bottom-left
-	quad.vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={glyph->tex_x1, glyph->tex_y1}, .color=color}; // bottom-right
-	quad.vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={glyph->tex_x1, glyph->tex_y0}, .color=color}; // top-right
+	quad.vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}, .color=color}; // top-left
+	quad.vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}, .color=color}; // bottom-left
+	quad.vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}, .color=color}; // bottom-right
+	quad.vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}, .color=color}; // top-right
 	
 	int stride = sizeof(Vertex);
 	
