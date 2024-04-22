@@ -28,6 +28,8 @@
 #endif
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
+#define MY_MIN(x,y) (x < y ? x : y)
+#define MY_MAX(x, y) (x > y ? x : y) // TODO: There's a MAX in SDL_rotozoom.c
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -330,6 +332,7 @@ typedef struct Type_Challenge {
 	float alpha;
 	float alpha_fade_speed;
 	Quad_Group quad_group;
+	Quad_Group background_quad_group;
 } Type_Challenge;
 
 static void free_challenge(Type_Challenge* challenge) {
@@ -504,6 +507,8 @@ typedef struct Game_Window {
 	Sized_Texture win_text;
 	Sized_Texture lose_text;
 	// TODO: points text
+	
+	FILE* debug_file;
 } Game_Window;
 
 static Game_Window* game_window = NULL;
@@ -516,7 +521,7 @@ static void center_quad_group_vertically(Quad_Group* group) {
 	group->position_offset.y = (game_window->window_height / 2) - (rect_height(group->bounding_box) / 2);
 }
 
-static void character_to_quad(Quad* quad, int font_cache_id, char character, vec3* starting_pos, Color color) {
+static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cache_id, char character, vec3* starting_pos, Color color) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
 	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
 	int x = (int)starting_pos->x;
@@ -526,8 +531,11 @@ static void character_to_quad(Quad* quad, int font_cache_id, char character, vec
 	float g_x1 = (float)(g_x0 + glyph->width);
 	float g_y0 = (float)(baseline + glyph->y0);
 	float g_y1 = (float)(baseline + glyph->y1);
+	fprintf(game_window->debug_file, "char: %c, g_x0: %5.1f, g_x1: %5.1f, g_y0: %5.1f, g_y1: %5.1f\n",
+			character, g_x0, g_x1, g_y0, g_y1);
 	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
 	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
+	*bounding_box = pos;
 	
 #if 0
 	quad->bounding_box.min = starting_pos;
@@ -550,12 +558,36 @@ static Quad_Group text_as_quad_group(String text, int font_cache_id, Color color
 	group.shader_settings = SHADER_SAMPLE_TEXTURE;
 	vec3 position = {0.0f, 0.0f, z};
 	group.bounding_box.min = position.xy;
+	rectangle2 glyph_bounding_box = {0};
 	for (int i = 0; i < text.length; i++) {
 		char character = text.str[i];
-		character_to_quad(&group.quads[i], font_cache_id, character, &position, color);
+		character_to_quad(&group.quads[i], &glyph_bounding_box, font_cache_id, character, &position, color);
+		group.bounding_box.min.x = MY_MIN(group.bounding_box.min.x, glyph_bounding_box.min.x);
+		group.bounding_box.max.x = MY_MAX(group.bounding_box.max.x, glyph_bounding_box.max.x);
+		group.bounding_box.min.y = MY_MIN(group.bounding_box.min.y, glyph_bounding_box.min.y);
+		group.bounding_box.max.y = MY_MAX(group.bounding_box.max.y, glyph_bounding_box.max.y);
 	}
-	group.bounding_box.max.x = position.x;
-	group.bounding_box.max.y = font_cache->line_height;
+	//group.bounding_box.max.x = position.x;
+	//group.bounding_box.max.y = font_cache->line_height;
+	fprintf(game_window->debug_file, "bounding_box.min.x = %5.1f, min.y = %5.1f, max.x = %5.1f, max.y = %5.1f\n",
+			group.bounding_box.min.x, 
+			group.bounding_box.min.y, 
+			group.bounding_box.max.x, 
+			group.bounding_box.max.y);
+	return group;
+}
+
+static Quad_Group fill_rect_as_quad_group(rectangle2 rect, Color color, float z) {
+	Quad_Group group = {0};
+	group.quads = calloc(1, sizeof(Quad));
+	group.num_quads = 1;
+	rectangle2 tex = {0}; // we don't have a texture to worry about
+	setup_textured_quad(&group.quads[0], rect, z, tex, color);
+	group.render_settings = RENDER_ALPHA_BLENDED;
+	group.shader_settings = SHADER_NONE;
+	vec3 position = {0.0f, 0.0f, z};
+	group.bounding_box = rect;
+	group.alpha_factor = 1.0;
 	return group;
 }
 
@@ -565,8 +597,10 @@ static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
 	challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
+	challenge->background_quad_group = fill_rect_as_quad_group(challenge->quad_group.bounding_box, red, 0.6f);
 	center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
-	center_quad_group_vertically(&challenge->quad_group);
+	center_quad_group_vertically(&challenge->quad_group);   // TODO: can't respond to changes in Window size
+	challenge->background_quad_group.position_offset = challenge->quad_group.position_offset;
 	
 #if 0
 	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
@@ -964,34 +998,18 @@ static void update_ortho_matrix(void) {
 	memcpy(&game_window->ortho_matrix, ortho_matrix, 4*4*sizeof(GLfloat));
 }
 
-static void render_gl_test(void) {
-	Color background = very_dark_blue;
-	glClearColor(background.r, background.g, background.b, background.a);
-	glClear(GL_COLOR_BUFFER_BIT);
-	
-	glUseProgram(game_window->shader.program);
-	
-	glUniformMatrix4fv(game_window->shader.ortho_loc, 
-					   1,
-					   GL_FALSE,
-					   &game_window->ortho_matrix[0][0]);
-	
-	Quad_Group* group = &game_window->title_challenge.quad_group;
-	
+static void render_quad_group(Quad_Group* group) {
 	glUniform3fv(game_window->shader.position_offset_loc, 1, group->position_offset.values);
 	
 	glUniform1i(game_window->shader.settings_loc, group->shader_settings);
 	
 	glUniform1f(game_window->shader.alpha_factor_loc, group->alpha_factor);
 	
-	glBindVertexArray(game_window->vao);
-	
-	//Glyph_Cache* font_cache = &game_window->font.glyph_caches[game_window->title_font_cache_id];
-	
-	glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
-	glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
-	
-	glBindTexture(GL_TEXTURE_2D, group->texture_id);
+	if (group->shader_settings & SHADER_SAMPLE_TEXTURE) {
+		glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
+		glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
+		glBindTexture(GL_TEXTURE_2D, group->texture_id);
+	}
 	
 	if (group->render_settings & RENDER_ALPHA_BLENDED) {
 		glEnable(GL_BLEND);
@@ -1004,6 +1022,29 @@ static void render_gl_test(void) {
 	glBufferData(GL_ARRAY_BUFFER, group->num_quads * 4 * stride, group->quads, GL_STATIC_DRAW);
 	for (int i = 0; i < group->num_quads; i++) {
 		glDrawElementsBaseVertex(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL, i*4);
+	}
+}
+
+static void render_gl_test(void) {
+	Color background = very_dark_blue;
+	glClearColor(background.r, background.g, background.b, background.a);
+	glClear(GL_COLOR_BUFFER_BIT);
+	
+	glUseProgram(game_window->shader.program);
+	glBindVertexArray(game_window->vao);
+	
+	glUniformMatrix4fv(game_window->shader.ortho_loc, 
+					   1,
+					   GL_FALSE,
+					   &game_window->ortho_matrix[0][0]);
+	
+	{
+		Quad_Group* group = &game_window->title_challenge.background_quad_group;
+		render_quad_group(group);
+	}
+	{
+		Quad_Group* group = &game_window->title_challenge.quad_group;
+		render_quad_group(group);
 	}
 	
 	glBindVertexArray(0);
@@ -1172,6 +1213,7 @@ static void init_gl(void) {
 static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
 	memset(game_window, 0, sizeof(Game_Window));
+	game_window->debug_file = fopen("summoning_debug_log.txt", "w");
 	game_window->window_width = DEFAULT_WINDOW_WIDTH;
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
@@ -1523,7 +1565,8 @@ int main(int argc, char** argv) {
 	fps_cap_in_ms = 1000.0f / fps_cap;
 	while (true) { main_loop(); }
     #endif
-
+	
+	fclose(game_window->debug_file);
 #ifdef UNIX
     printf("\n");
 #endif

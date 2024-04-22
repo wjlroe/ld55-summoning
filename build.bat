@@ -52,7 +52,7 @@ cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\src\main.c resources.obj ^
  %includes% ^
  /link /DEBUG:FULL -INCREMENTAL:NO %links% ^
- /subsystem:console
+ /subsystem:windows
 IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
 
 echo Release build

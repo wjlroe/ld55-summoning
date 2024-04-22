@@ -51,3 +51,5 @@ Brewfile.lock.json
 
 # Generated asset headers
 assets/*.h
+
+*debug_log.txt
