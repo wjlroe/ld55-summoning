@@ -362,6 +362,8 @@ static void debug_reset_challenge() {
 }
 #endif
 
+static void update_challenge_cursor(Type_Challenge* challenge);
+
 static void enter_challenge_character(Type_Challenge* challenge, char character) {
 	if (!is_challenge_done(challenge)) {
 		#ifdef DEBUG
@@ -369,6 +371,7 @@ static void enter_challenge_character(Type_Challenge* challenge, char character)
 		#endif
 		challenge->typed_correctly[challenge->position] = (character == challenge->text.str[challenge->position]);
 		challenge->position++;
+		update_challenge_cursor(challenge);
 	}
 	#ifdef DEBUG
 	if (is_challenge_done(challenge)) {
@@ -570,8 +573,6 @@ static Quad_Group text_as_quad_group(String text, int font_cache_id, Color color
 		group.bounding_box.min.y = MY_MIN(group.bounding_box.min.y, glyph_bounding_box.min.y);
 		group.bounding_box.max.y = MY_MAX(group.bounding_box.max.y, glyph_bounding_box.max.y);
 	}
-	//group.bounding_box.max.x = position.x;
-	//group.bounding_box.max.y = font_cache->line_height;
 	fprintf(game_window->debug_file, "bounding_box.min.x = %5.1f, min.y = %5.1f, max.x = %5.1f, max.y = %5.1f\n",
 			group.bounding_box.min.x, 
 			group.bounding_box.min.y, 
@@ -594,10 +595,13 @@ static Quad_Group fill_rect_as_quad_group(rectangle2 rect, Color color, float z)
 }
 
 static void update_challenge_cursor(Type_Challenge* challenge) {
-	// TODO: which character is this placed on?
+	int ci = challenge->position;
+	// TODO: this breaks once we've typed the whole word
+	// and it's too baked in. We want to immediate-mode
+	// rendering and not this sort of retain-style thing...
 	for (int i = 0; i < 4; i++) {
-		memcpy(&challenge->cursor_quad.quads[0].vertices[i].position, 
-			   &challenge->quad_group.quads[0].vertices[i].position,
+		memcpy(&challenge->cursor_quad.quads[ci].vertices[i].position, 
+			   &challenge->quad_group.quads[ci].vertices[i].position,
 			   sizeof(vec3));
 	}
 	challenge->cursor_quad.position_offset = challenge->quad_group.position_offset;
