@@ -45,6 +45,7 @@ typedef union vec2 {
 
 typedef union vec3 {
 	struct { float x, y, z; };
+	struct { vec2 xy; float _z; };
 	float values[3];
 } vec3;
 
@@ -61,6 +62,14 @@ typedef struct rectangle2 {
 	vec2 max;
 } rectangle2;
 
+static float rect_width(rectangle2 rect) {
+	return (rect.max.x - rect.min.x);
+}
+
+static float rect_height(rectangle2 rect) {
+	return (rect.max.y - rect.min.y);
+}
+
 typedef vec4 Color;
 
 #define COLOR(v) (float)v/255.0f
@@ -76,14 +85,33 @@ typedef struct Quad {
 	Vertex vertices[4];
 } Quad;
 
-static Quad new_textured_quad(rectangle2 pos, float z, rectangle2 tex, Color color) {
-	Quad quad;
-	quad.vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}, .color=color}; // top-left
-	quad.vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}, .color=color}; // bottom-left
-	quad.vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}, .color=color}; // bottom-right
-	quad.vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}, .color=color}; // top-right
-	return quad;
+static void setup_textured_quad(Quad* quad, rectangle2 pos, float z, rectangle2 tex, Color color) {
+	quad->vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}, .color=color}; // top-left
+	quad->vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}, .color=color}; // bottom-left
+	quad->vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}, .color=color}; // bottom-right
+	quad->vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}, .color=color}; // top-right
 }
+
+typedef enum Shader_Setting {
+	SHADER_NONE           = 0,
+	SHADER_SAMPLE_TEXTURE = (1 << 0),
+} Shader_Setting;
+
+typedef enum Render_Setting {
+	RENDER_NONE          = 0,
+	RENDER_ALPHA_BLENDED = (1 << 0),
+} Render_Setting;
+
+typedef struct Quad_Group {
+	Quad* quads;
+	int num_quads;
+	rectangle2 bounding_box;
+	u32 shader_settings;
+	float alpha_factor;
+	u32 render_settings;
+	vec3 position_offset;
+	int texture_id;
+} Quad_Group;
 
 typedef struct String {
 	char* str;
@@ -301,35 +329,8 @@ typedef struct Type_Challenge {
 	SDL_Rect bounding_box;
 	float alpha;
 	float alpha_fade_speed;
+	Quad_Group quad_group;
 } Type_Challenge;
-
-static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String text) {
-	challenge->text = text;
-	challenge->font_cache_id = font_cache_id;
-	challenge->typed_correctly = calloc(text.length, sizeof(bool));
-	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
-	
-	#if 0
-	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
-	
-	int font_ascent = TTF_FontAscent(font->font);
-	int font_descent = TTF_FontDescent(font->font);
-	int cursor_height = font_ascent + font_descent;
-	int x = 0;
-	for (int i = 0; i < challenge->text.length; i++) {
-		char character = challenge->text.str[i];
-		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &font->glyph_cache.glyphs[GLYPH_INDEX(character)];
-		SDL_Rect* rect = &challenge->cursor_rects[i];
-		rect->w = glyph->bounding_box.w;
-		rect->h = cursor_height;
-		rect->x = glyph->bounding_box.x + x;
-		rect->y = glyph->bounding_box.y;
-		
-		x += glyph->advance;
-	}
-	#endif
-}
 
 static void free_challenge(Type_Challenge* challenge) {
 	free(challenge->typed_correctly);
@@ -383,14 +384,15 @@ static bool challenge_has_mistakes(Type_Challenge* challenge) {
 
 static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 	// TODO: LERP?
-	if (challenge->alpha < 1.0f) {
+	float* alpha = &challenge->quad_group.alpha_factor;
+	if (*alpha < 1.0f) {
 		if (has_typing_started(challenge) || (challenge->alpha_fade_speed == 0.0f)) {
 			// speed up fading in if the typing has started
-			challenge->alpha += dt;
+			*alpha += dt;
 		} else {
-			challenge->alpha += dt / challenge->alpha_fade_speed;
+			*alpha += dt / challenge->alpha_fade_speed;
 		}
-		challenge->alpha = (challenge->alpha > 1.0) ? 1.0 : challenge->alpha;
+		*alpha = (*alpha > 1.0) ? 1.0 : *alpha;
 	}
 }
 
@@ -412,19 +414,6 @@ typedef struct Level_Data {
 	int level_number;
 	int points;
 } Level_Data;
-
-static void setup_level(Level_Data* level, int font_cache_id) {
-	for (int i = 0; i < ARRAY_LEN(words); i++) {
-		if (i >= MAX_NUM_CHALLENGES) { break; }
-		setup_challenge(&level->challenges[i], font_cache_id, words[i]);
-		level->challenges[i].alpha_fade_speed = 1.5f;
-		level->num_challenges++;
-	}
-	level->current_challenge = 0; // bit redundant!
-	 if (!SDL_IsTextInputActive()) {
-		SDL_StartTextInput(); // so we can type 'into' the initial challenge text
-	}
-}
 
 static void reset_level(Level_Data* level) {
 	for (int i = 0; i < level->current_challenge+1; i++) {
@@ -519,7 +508,15 @@ typedef struct Game_Window {
 
 static Game_Window* game_window = NULL;
 
-static Quad character_to_quad(int font_cache_id, char character, vec3* starting_pos, Color color) {
+static void center_quad_group_horizontally(Quad_Group* group) {
+	group->position_offset.x = (game_window->window_width / 2) - (rect_width(group->bounding_box) / 2);
+}
+
+static void center_quad_group_vertically(Quad_Group* group) {
+	group->position_offset.y = (game_window->window_height / 2) - (rect_height(group->bounding_box) / 2);
+}
+
+static void character_to_quad(Quad* quad, int font_cache_id, char character, vec3* starting_pos, Color color) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
 	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
 	int x = (int)starting_pos->x;
@@ -531,8 +528,79 @@ static Quad character_to_quad(int font_cache_id, char character, vec3* starting_
 	float g_y1 = (float)(baseline + glyph->y1);
 	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
 	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
+	
+#if 0
+	quad->bounding_box.min = starting_pos;
+	quad->bounding_box.max = starting_pos;
+	quad->bounding_box.max.x += (float)glyph->advance;
+	quad->bounding_box.max.y += font_cache->line_height;
+#endif
+	
 	starting_pos->x += (float)glyph->advance;
-	return new_textured_quad(pos, starting_pos->z, tex, color);
+	setup_textured_quad(quad, pos, starting_pos->z, tex, color);
+}
+
+static Quad_Group text_as_quad_group(String text, int font_cache_id, Color color, float z) {
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
+	Quad_Group group = {0};
+	group.texture_id = font_cache->texture_id;
+	group.quads = calloc(text.length, sizeof(Quad));
+	group.num_quads = text.length;
+	group.render_settings = RENDER_ALPHA_BLENDED;
+	group.shader_settings = SHADER_SAMPLE_TEXTURE;
+	vec3 position = {0.0f, 0.0f, z};
+	group.bounding_box.min = position.xy;
+	for (int i = 0; i < text.length; i++) {
+		char character = text.str[i];
+		character_to_quad(&group.quads[i], font_cache_id, character, &position, color);
+	}
+	group.bounding_box.max.x = position.x;
+	group.bounding_box.max.y = font_cache->line_height;
+	return group;
+}
+
+static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String text) {
+	challenge->text = text;
+	challenge->font_cache_id = font_cache_id;
+	challenge->typed_correctly = calloc(text.length, sizeof(bool));
+	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
+	challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
+	center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
+	center_quad_group_vertically(&challenge->quad_group);
+	
+#if 0
+	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
+	
+	int font_ascent = TTF_FontAscent(font->font);
+	int font_descent = TTF_FontDescent(font->font);
+	int cursor_height = font_ascent + font_descent;
+	int x = 0;
+	for (int i = 0; i < challenge->text.length; i++) {
+		char character = challenge->text.str[i];
+		assert((character >= 32) && (character <= 126));
+		Glyph* glyph = &font->glyph_cache.glyphs[GLYPH_INDEX(character)];
+		SDL_Rect* rect = &challenge->cursor_rects[i];
+		rect->w = glyph->bounding_box.w;
+		rect->h = cursor_height;
+		rect->x = glyph->bounding_box.x + x;
+		rect->y = glyph->bounding_box.y;
+		
+		x += glyph->advance;
+	}
+#endif
+}
+
+static void setup_level(Level_Data* level, int font_cache_id) {
+	for (int i = 0; i < ARRAY_LEN(words); i++) {
+		if (i >= MAX_NUM_CHALLENGES) { break; }
+		setup_challenge(&level->challenges[i], font_cache_id, words[i]);
+		level->challenges[i].alpha_fade_speed = 1.5f;
+		level->num_challenges++;
+	}
+	level->current_challenge = 0; // bit redundant!
+	if (!SDL_IsTextInputActive()) {
+		SDL_StartTextInput(); // so we can type 'into' the initial challenge text
+	}
 }
 
 static bool key_first_down() {
@@ -908,42 +976,35 @@ static void render_gl_test(void) {
 					   GL_FALSE,
 					   &game_window->ortho_matrix[0][0]);
 	
-	vec3 position_offset = {20.0f, 20.0f, 0.0f};
-	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset.values);
+	Quad_Group* group = &game_window->title_challenge.quad_group;
 	
-	i32 settings = 1; // sample texture
-	glUniform1iv(game_window->shader.settings_loc,
-				 1,
-				 &settings);
+	glUniform3fv(game_window->shader.position_offset_loc, 1, group->position_offset.values);
 	
-	glUniform1f(game_window->shader.alpha_factor_loc, game_window->title_challenge.alpha);
+	glUniform1i(game_window->shader.settings_loc, group->shader_settings);
+	
+	glUniform1f(game_window->shader.alpha_factor_loc, group->alpha_factor);
 	
 	glBindVertexArray(game_window->vao);
 	
-	Color color = white;
-	Glyph_Cache* font_cache = &game_window->font.glyph_caches[game_window->title_font_cache_id];
+	//Glyph_Cache* font_cache = &game_window->font.glyph_caches[game_window->title_font_cache_id];
 	
 	glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
 	glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
-	glBindTexture(GL_TEXTURE_2D, font_cache->texture_id);
 	
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glBindTexture(GL_TEXTURE_2D, group->texture_id);
+	
+	if (group->render_settings & RENDER_ALPHA_BLENDED) {
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	}
 	
 	int stride = sizeof(Vertex);
 	
-	vec3 position = {0.0f, 0.0f, 0.5f};
-	Quad glyph_quad = character_to_quad(game_window->title_font_cache_id, 'S', &position, color);
-	
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, glyph_quad.vertices, GL_STATIC_DRAW);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
-	
-	glyph_quad = character_to_quad(game_window->title_font_cache_id, 'u', &position, color);
-	
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, glyph_quad.vertices, GL_STATIC_DRAW);
-	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+	glBufferData(GL_ARRAY_BUFFER, group->num_quads * 4 * stride, group->quads, GL_STATIC_DRAW);
+	for (int i = 0; i < group->num_quads; i++) {
+		glDrawElementsBaseVertex(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL, i*4);
+	}
 	
 	glBindVertexArray(0);
 	glUseProgram(0);
@@ -1157,8 +1218,8 @@ static void init_the_game(void) {
 	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
-	#if 0
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
+	#if 0
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
