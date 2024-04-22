@@ -102,6 +102,7 @@ typedef enum Shader_Setting {
 typedef enum Render_Setting {
 	RENDER_NONE          = 0,
 	RENDER_ALPHA_BLENDED = (1 << 0),
+	RENDER_BLEND_REVERSE = (1 << 1),
 } Render_Setting;
 
 typedef struct Quad_Group {
@@ -332,7 +333,7 @@ typedef struct Type_Challenge {
 	float alpha;
 	float alpha_fade_speed;
 	Quad_Group quad_group;
-	Quad_Group background_quad_group;
+	Quad_Group cursor_quad;
 } Type_Challenge;
 
 static void free_challenge(Type_Challenge* challenge) {
@@ -387,7 +388,7 @@ static bool challenge_has_mistakes(Type_Challenge* challenge) {
 
 static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 	// TODO: LERP?
-	float* alpha = &challenge->quad_group.alpha_factor;
+	float* alpha = &challenge->alpha;
 	if (*alpha < 1.0f) {
 		if (has_typing_started(challenge) || (challenge->alpha_fade_speed == 0.0f)) {
 			// speed up fading in if the typing has started
@@ -397,6 +398,8 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 		}
 		*alpha = (*alpha > 1.0) ? 1.0 : *alpha;
 	}
+	challenge->quad_group.alpha_factor = challenge->alpha;
+	challenge->cursor_quad.alpha_factor = challenge->alpha;
 }
 
 static void reset_challenge(Type_Challenge* challenge) {
@@ -587,8 +590,17 @@ static Quad_Group fill_rect_as_quad_group(rectangle2 rect, Color color, float z)
 	group.shader_settings = SHADER_NONE;
 	vec3 position = {0.0f, 0.0f, z};
 	group.bounding_box = rect;
-	group.alpha_factor = 1.0;
-	return group;
+ 	return group;
+}
+
+static void update_challenge_cursor(Type_Challenge* challenge) {
+	// TODO: which character is this placed on?
+	for (int i = 0; i < 4; i++) {
+		memcpy(&challenge->cursor_quad.quads[0].vertices[i].position, 
+			   &challenge->quad_group.quads[0].vertices[i].position,
+			   sizeof(vec3));
+	}
+	challenge->cursor_quad.position_offset = challenge->quad_group.position_offset;
 }
 
 static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String text) {
@@ -597,10 +609,11 @@ static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
 	challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
-	challenge->background_quad_group = fill_rect_as_quad_group(challenge->quad_group.bounding_box, red, 0.6f);
+	challenge->cursor_quad = fill_rect_as_quad_group((rectangle2){0}, amber, 0.4f);
+	challenge->cursor_quad.render_settings |= RENDER_BLEND_REVERSE;
 	center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
 	center_quad_group_vertically(&challenge->quad_group);   // TODO: can't respond to changes in Window size
-	challenge->background_quad_group.position_offset = challenge->quad_group.position_offset;
+	update_challenge_cursor(challenge);
 	
 #if 0
 	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
@@ -1013,7 +1026,11 @@ static void render_quad_group(Quad_Group* group) {
 	
 	if (group->render_settings & RENDER_ALPHA_BLENDED) {
 		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		if (group->render_settings & RENDER_BLEND_REVERSE) {
+			glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);
+		} else {
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		}
 	}
 	
 	int stride = sizeof(Vertex);
@@ -1039,13 +1056,14 @@ static void render_gl_test(void) {
 					   &game_window->ortho_matrix[0][0]);
 	
 	{
-		Quad_Group* group = &game_window->title_challenge.background_quad_group;
-		render_quad_group(group);
-	}
-	{
 		Quad_Group* group = &game_window->title_challenge.quad_group;
 		render_quad_group(group);
 	}
+	{
+		Quad_Group* group = &game_window->title_challenge.cursor_quad;
+		render_quad_group(group);
+	}
+	
 	
 	glBindVertexArray(0);
 	glUseProgram(0);
