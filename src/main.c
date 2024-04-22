@@ -76,6 +76,15 @@ typedef struct Quad {
 	Vertex vertices[4];
 } Quad;
 
+static Quad new_textured_quad(rectangle2 pos, float z, rectangle2 tex, Color color) {
+	Quad quad;
+	quad.vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}, .color=color}; // top-left
+	quad.vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}, .color=color}; // bottom-left
+	quad.vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}, .color=color}; // bottom-right
+	quad.vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}, .color=color}; // top-right
+	return quad;
+}
+
 typedef struct String {
 	char* str;
 	int length;
@@ -509,6 +518,22 @@ typedef struct Game_Window {
 
 static Game_Window* game_window = NULL;
 
+static Quad character_to_quad(int font_cache_id, char character, vec3* starting_pos, Color color) {
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
+	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
+	int x = (int)starting_pos->x;
+	int y = (int)starting_pos->y;
+	int baseline = y + font_cache->ascent;
+	float g_x0 = (float)(x + glyph->lsb);
+	float g_x1 = (float)(g_x0 + glyph->width);
+	float g_y0 = (float)(baseline + glyph->y0);
+	float g_y1 = (float)(baseline + glyph->y1);
+	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
+	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
+	starting_pos->x += (float)glyph->advance;
+	return new_textured_quad(pos, starting_pos->z, tex, color);
+}
+
 static bool key_first_down() {
 	return (game_window->input.kbd_input.is_down) && !(game_window->input.kbd_input.was_down);
 }
@@ -893,7 +918,7 @@ static void render_gl_test(void) {
 	glBindVertexArray(game_window->vao);
 	
 	Color color = white;
-	Glyph_Cache* font_cache = &game_window->font.glyph_caches[0];
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[game_window->title_font_cache_id];
 	
 	glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
 	glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
@@ -902,29 +927,21 @@ static void render_gl_test(void) {
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	
-	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX('S')];
-	float z = 0.5;
-	int x = 0;
-	int y = 0;
-	int baseline = y + font_cache->ascent;
-	int g_x0 = x + glyph->lsb;
-	int g_x1 = g_x0 + glyph->width;
-	int g_y0 = baseline + glyph->y0;
-	int g_y1 = baseline + glyph->y1;
-	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
-	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
-	Quad quad;
-	quad.vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}, .color=color}; // top-left
-	quad.vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}, .color=color}; // bottom-left
-	quad.vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}, .color=color}; // bottom-right
-	quad.vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}, .color=color}; // top-right
-	
 	int stride = sizeof(Vertex);
 	
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, quad.vertices, GL_STATIC_DRAW);
+	vec3 position = {0.0f, 0.0f, 0.5f};
+	Quad glyph_quad = character_to_quad(game_window->title_font_cache_id, 'S', &position, color);
 	
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, glyph_quad.vertices, GL_STATIC_DRAW);
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+	
+	glyph_quad = character_to_quad(game_window->title_font_cache_id, 'u', &position, color);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, glyph_quad.vertices, GL_STATIC_DRAW);
+	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+	
 	glBindVertexArray(0);
 	glUseProgram(0);
 }
