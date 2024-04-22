@@ -908,8 +908,8 @@ static void render_gl_test(void) {
 					   GL_FALSE,
 					   &game_window->ortho_matrix[0][0]);
 	
-	float position_offset[] = {20.0f, 20.0f, 0.0f};
-	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset);
+	vec3 position_offset = {20.0f, 20.0f, 0.0f};
+	glUniform3fv(game_window->shader.position_offset_loc, 1, position_offset.values);
 	
 	i32 settings = 1; // sample texture
 	glUniform1iv(game_window->shader.settings_loc,
