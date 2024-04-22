@@ -139,6 +139,7 @@ GLE(void,   glLinkProgram,      GLuint program) \
 GLE(void,   glShaderSource,     GLuint shader, GLsizei count, const GLchar** string, const GLint* length) \
 GLE(void,   glTexImage2D,       GLenum target, GLint level, GLint internalFormat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid* data) \
 GLE(void,   glTexParameteri,    GLenum target, GLenum pname, GLint param) \
+GLE(void,   glUniform1f,        GLint location, GLfloat v0) \
 GLE(void,   glUniform1i,        GLint location, GLint v0) \
 GLE(void,   glUniform1iv,       GLint location, GLsizei count, const GLint* value) \
 GLE(void,   glUniform1uiv,      GLint location, GLsizei count, const GLuint* value) \

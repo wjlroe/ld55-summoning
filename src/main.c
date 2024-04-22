@@ -476,6 +476,7 @@ typedef struct Shader {
 	int position_offset_loc;
 	int ortho_loc;
 	int settings_loc;
+	int alpha_factor_loc;
 	
 	// textures
 	int font_texture_loc;
@@ -915,6 +916,8 @@ static void render_gl_test(void) {
 				 1,
 				 &settings);
 	
+	glUniform1f(game_window->shader.alpha_factor_loc, game_window->title_challenge.alpha);
+	
 	glBindVertexArray(game_window->vao);
 	
 	Color color = white;
@@ -989,6 +992,8 @@ static void init_shader(Shader* shader) {
 			shader->font_sampler_idx = sampler_idx;
 		} else if (strcmp(name_buffer, "settings") == 0) {
 			shader->settings_loc = loc;
+		} else if (strcmp(name_buffer, "alphaFactor") == 0) {
+			shader->alpha_factor_loc = loc;
 		}
 		
 		if (attr_type == GL_SAMPLER_2D) {
@@ -1151,9 +1156,9 @@ static void init_the_game(void) {
 	//render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
 	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
+	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	#if 0
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
-	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
@@ -1376,6 +1381,7 @@ static void update_and_render(void) {
 	//render_draw_color(game_window->renderer, very_dark_blue);
 	//SDL_RenderClear(game_window->renderer);
 	
+	title_screen_do_animation();
 	render_gl_test();
 	
 #if 0
@@ -1386,7 +1392,6 @@ static void update_and_render(void) {
 			//center_rect_veritcally(&dest_rect);
 			//center_rect_horizontally(&dest_rect);
 			//SDL_RenderCopy(game_window->renderer, game_window->demonic_word_textures[game_window->demonic_word_i].texture, NULL, &(game_window->demonic_word_textures[game_window->demonic_word_i].rect));
-			title_screen_do_animation();
 			render_menu();
 		} break;
 		case STATE_PLAY: {
