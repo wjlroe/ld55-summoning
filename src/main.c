@@ -65,6 +65,10 @@ typedef struct Vertex {
 	vec4 color;
 } Vertex;
 
+typedef struct Quad {
+	Vertex vertices[4];
+} Quad;
+
 typedef struct String {
 	char* str;
 	int length;
@@ -900,17 +904,16 @@ static void render_gl_test(void) {
 	int g_x1 = g_x0 + glyph->width;
 	int g_y0 = baseline + glyph->y0;
 	int g_y1 = baseline + glyph->y1;
-	Vertex vertices[4] = {
-		{.position={g_x0, g_y0, z}, .texture={glyph->tex_x0, glyph->tex_y0}, .color=color}, // top-left
-		{.position={g_x0, g_y1, z}, .texture={glyph->tex_x0, glyph->tex_y1}, .color=color}, // bottom-left
-		{.position={g_x1, g_y1, z}, .texture={glyph->tex_x1, glyph->tex_y1}, .color=color}, // bottom-right
-		{.position={g_x1, g_y0, z}, .texture={glyph->tex_x1, glyph->tex_y0}, .color=color}  // top-right
-	};
+	Quad quad;
+	quad.vertices[0] = (Vertex){.position={g_x0, g_y0, z}, .texture={glyph->tex_x0, glyph->tex_y0}, .color=color}; // top-left
+	quad.vertices[1] = (Vertex){.position={g_x0, g_y1, z}, .texture={glyph->tex_x0, glyph->tex_y1}, .color=color}; // bottom-left
+	quad.vertices[2] = (Vertex){.position={g_x1, g_y1, z}, .texture={glyph->tex_x1, glyph->tex_y1}, .color=color}; // bottom-right
+	quad.vertices[3] = (Vertex){.position={g_x1, g_y0, z}, .texture={glyph->tex_x1, glyph->tex_y0}, .color=color}; // top-right
 	
 	int stride = sizeof(Vertex);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 4 * stride, quad.vertices, GL_STATIC_DRAW);
 	
 	glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
 	glBindVertexArray(0);
