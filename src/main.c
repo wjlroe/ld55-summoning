@@ -27,6 +27,17 @@
 #include <emscripten.h>
 #endif
 
+// TODO
+// * Size a String as on-screen rendered text (for positioning and bounding box)
+// * Render character by character, changing colour as we go
+// * Render a rounded rect (cursor) where the position is (if it's within a String)
+// * Switch to glDrawElements->glDrawArrays so we only have 1 vertex buffer
+// * Command_Buffer abstraction for general rendering needs (is that just Quad_Group? or are there non-quads we want in the Command_Buffer? - like clear the background color etc.)
+// * Command_Buffer
+//    ->shader_id
+//    *uniforms[] {.type=UNIFORM_FLOAT, .value=union{float,i32,u32,vec2,vec3...}}
+//    *textures[] {.shader_idx, .texture_id, ...}
+
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 #define MY_MIN(x,y) (x < y ? x : y)
 #define MY_MAX(x, y) (x > y ? x : y) // TODO: There's a MAX in SDL_rotozoom.c
@@ -39,6 +50,82 @@ typedef int64_t  i64;
 typedef int32_t  i32;
 typedef int16_t  i16;
 typedef int8_t   i8;
+
+#define KB(x) ((size_t) (x) << 10)
+#define MB(x) ((size_t) (x) << 20)
+
+typedef struct Free_Entry Free_Entry;
+struct Free_Entry {
+	u8* start;
+	ptrdiff_t size;
+	Free_Entry* prev;
+	Free_Entry* next;
+};
+
+typedef struct Arena {
+	u8* start;
+	u8* end;
+	Free_Entry* first_free;
+} Arena;
+
+static Arena new_memory(size_t size) {
+	Arena arena = {0};
+	arena.start = malloc(size);
+	arena.end = arena.start + size;
+	return arena;
+}
+
+static u8* alloc(Arena* arena, size_t size, u32 count) {
+	size_t available = arena->end - arena->start;
+	size_t total = count * size;
+	if (arena->first_free) {
+		Free_Entry* last_free = arena->first_free;
+		do {
+			if (last_free->size >= total) {
+				Free_Entry* new_next = last_free->next;
+				Free_Entry* new_prev = last_free->prev;
+				if (new_next) {
+					new_next->prev = new_prev;
+				}
+				if (new_prev) {
+					new_prev->next = new_next;
+				}
+				memset(last_free->start, 0, last_free->size);
+				return last_free->start;
+			}
+			last_free = last_free->next;
+		} while (last_free);
+	}
+	if (count > (available / size)) {
+		abort();
+	}
+	u8* result = arena->start;
+	arena->start += total;
+	for (int i = 0; i < total; i++) {
+		result[i] = 0;
+	}
+	return result;
+}
+
+static void free_mem(Arena* arena, size_t size, u8* start) {
+	memset(start, 0, size);
+	ptrdiff_t alloc_size = (ptrdiff_t)sizeof(Free_Entry);
+	Free_Entry* entry = (Free_Entry*)alloc(arena, alloc_size, 1);
+	entry->start = start;
+	entry->size = size;
+	entry->next = NULL;
+	entry->prev = NULL;
+	Free_Entry* last = arena->first_free;
+	if (!last) {
+		arena->first_free = entry;
+		return;
+	}
+	while (last->next) {
+		last = last->next;
+	}
+	entry->prev = last;
+	last->next = entry;
+}
 
 typedef union vec2 {
 	struct { float x, y; };
@@ -115,6 +202,70 @@ typedef struct Quad_Group {
 	vec3 position_offset;
 	int texture_id;
 } Quad_Group;
+
+typedef enum Render_Command_Type {
+	COMMAND_NONE,
+	COMMAND_QUAD,
+} Render_Command_Type;
+
+typedef enum Uniform_Type {
+	UNIFORM_NONE,
+	UNIFORM_FLOAT,
+	UNIFORM_U32,
+	UNIFORM_I32,
+	UNIFORM_VEC2,
+	UNIFORM_VEC3,
+	UNIFORM_VEC4,
+	UNIFORM_MATRIX4_4,
+} Uniform_Type;
+
+typedef struct Uniform_Data {
+	Uniform_Type type;
+	union {
+		float f;
+		u32 unum;
+		i32 inum;
+		vec2 vec_2;
+		vec3 vec_3;
+		vec4 vec_4;
+		float matrix[4][4]; // FIXME: typedef this
+	};
+} Uniform_Data;
+
+typedef struct Texture_Data {
+	u32 shader_idx;
+	u32 texture_id;
+} Texture_Data;
+
+typedef struct Render_Command Render_Command;
+struct Render_Command {
+	Render_Command_Type type;
+	u32 shader_id;
+	Uniform_Data* uniforms;
+	u32 num_uniforms;
+	Texture_Data* textures;
+	u32 num_textures;
+	
+	Render_Command* next;
+};
+
+typedef struct Command_Buffer {
+	Arena memory;
+	Render_Command* first;
+	Render_Command* last;
+} Command_Buffer;
+
+static Render_Command* push_render_command(Command_Buffer* buffer) {
+	Render_Command* cmd = (Render_Command*)alloc(&buffer->memory, sizeof(Render_Command), 1);
+	if (!buffer->first) {
+		buffer->first = cmd;
+		buffer->last  = cmd;
+	} else {
+		buffer->last->next = cmd;
+		buffer->last = cmd;
+	}
+	return cmd;
+}
 
 typedef struct String {
 	char* str;
@@ -499,6 +650,8 @@ typedef struct Game_Window {
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
+	
+	Command_Buffer command_buffer;
 
 	Game_State state;
 	Type_Challenge title_challenge; // initial title page challenge
@@ -1042,6 +1195,7 @@ static void render_quad_group(Quad_Group* group) {
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
 	glBufferData(GL_ARRAY_BUFFER, group->num_quads * 4 * stride, group->quads, GL_STATIC_DRAW);
 	for (int i = 0; i < group->num_quads; i++) {
+		// TODO: undo using the element buffer - too complex for now
 		glDrawElementsBaseVertex(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL, i*4);
 	}
 }
@@ -1235,6 +1389,7 @@ static void init_gl(void) {
 static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
 	memset(game_window, 0, sizeof(Game_Window));
+	game_window->command_buffer.memory = new_memory(MB(8));
 	game_window->debug_file = fopen("summoning_debug_log.txt", "w");
 	game_window->window_width = DEFAULT_WINDOW_WIDTH;
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
