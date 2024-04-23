@@ -42,27 +42,32 @@ echo Generate resources
 cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:generate_resources.exe ..\src\generate_resources.c ^
  /link /DEBUG:FULL -INCREMENTAL:NO ^
- /subsystem:console
-IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
+ /subsystem:console || goto :error
 
-.\generate_resources.exe
+.\generate_resources.exe || goto :error
 
 echo Debug build
 cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
  -Fe:summoning_debug.exe ..\src\main.c resources.obj ^
  %includes% ^
  /link /DEBUG:FULL -INCREMENTAL:NO %links% ^
- /subsystem:windows
-IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
+ /subsystem:windows || goto :error
 
 echo Release build
 cl /std:c11 -Gm- -FC -Zc:strictStrings -diagnostics:caret /nologo ^
  -Fe:summoning.exe ..\src\main.c resources.obj ^
  %includes% ^
  /link -INCREMENTAL:NO %links% ^
- /subsystem:windows
-IF %ERRORLEVEL% NEQ 0 SET /A errno=%ERRORLEVEL%
+ /subsystem:windows || goto :error
 
 popd
 
-if %errno% neq 0 EXIT /B %errno%
+goto :end
+
+:error
+echo Failed with error #%errorlevel%.
+exit /b %errorlevel%
+
+:end
+
+endlocal
