@@ -28,15 +28,8 @@
 #endif
 
 // TODO
-// * Size a String as on-screen rendered text (for positioning and bounding box)
-// * Render character by character, changing colour as we go
 // * Render a rounded rect (cursor) where the position is (if it's within a String)
 // * Switch to glDrawElements->glDrawArrays so we only have 1 vertex buffer
-// * Command_Buffer abstraction for general rendering needs (is that just Quad_Group? or are there non-quads we want in the Command_Buffer? - like clear the background color etc.)
-// * Command_Buffer
-//    ->shader_id
-//    *uniforms[] {.type=UNIFORM_FLOAT, .value=union{float,i32,u32,vec2,vec3...}}
-//    *textures[] {.shader_idx, .texture_id, ...}
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 #define MY_MIN(x,y) (x < y ? x : y)
@@ -405,14 +398,6 @@ Color very_dark_blue = RGBA(4, 8, 13, 255);
 Color green = RGBA(10, 255, 10, 255);
 Color amber = RGBA(255, 191, 0, 255);
 
-static void render_draw_color(SDL_Renderer* renderer, SDL_Color color) {
-	SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-}
-
-static void texture_color_mod(SDL_Texture* texture, SDL_Color color) {
-	SDL_SetTextureColorMod(texture, color.r, color.g, color.b);
-}
-
 static Render_Command* fill_rounded_rect(Command_Buffer* buffer, Shader* shader, rectangle2 rect, Color color, float z, float radius) {
 	Render_Command* command = push_render_command(buffer);
 	command->type = COMMAND_QUAD;
@@ -422,7 +407,6 @@ static Render_Command* fill_rounded_rect(Command_Buffer* buffer, Shader* shader,
 	// TODO: implement rounded rects in quad shader
 	setup_textured_quad(&command->data.quad, rect, z, (rectangle2){0});
 	
-	//roundedBoxRGBA(renderer, rect.x, rect.y, rect.x+rect.w, rect.y+rect.h, radius, color.r, color.g, color.b, color.a);
 	return command;
 }
 
@@ -531,22 +515,6 @@ typedef struct Glyph {
 	SDL_Texture* texture;
 	// FIXME: end of SDL stuff
 } Glyph;
-
-#if 0
-static Glyph new_glyph(SDL_Renderer* renderer, TTF_Font* font, char character) {
-	Glyph glyph = {0};
-	glyph.character = character;
-	TTF_GlyphMetrics(font, character,
-					 &glyph.minx, &glyph.maxx,
-					 &glyph.miny, &glyph.maxy, &glyph.advance);
-	SDL_Surface* surface = TTF_RenderGlyph_Solid(font, character, white);
-	glyph.bounding_box.w = surface->w;
-	glyph.bounding_box.h = surface->h;
-	glyph.texture = SDL_CreateTextureFromSurface(renderer, surface);
-	SDL_FreeSurface(surface);
-	return glyph;
-}
-#endif
 
 #define NUM_GLYPHS 95 //126-32 (inclusive)
 #define GLYPH_INDEX(c) c-32
@@ -776,9 +744,6 @@ typedef struct Game_Window {
 	
 	Text_Group win_text_group;
 	Text_Group lose_text_group;
-	//Sized_Texture win_text;
-	//Sized_Texture lose_text;
-	// TODO: points text
 } Game_Window;
 
 static Game_Window* game_window = NULL;
@@ -822,32 +787,6 @@ static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String
 	
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
-	//challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
-	//challenge->cursor_quad = fill_rect_as_quad_group((rectangle2){0}, amber, 0.4f);
-	//challenge->cursor_quad.render_settings |= RENDER_BLEND_REVERSE;
-	//center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
-	//center_quad_group_vertically(&challenge->quad_group);   // TODO: can't respond to changes in Window size
-	
-#if 0
-	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
-	
-	int font_ascent = TTF_FontAscent(font->font);
-	int font_descent = TTF_FontDescent(font->font);
-	int cursor_height = font_ascent + font_descent;
-	int x = 0;
-	for (int i = 0; i < challenge->text.length; i++) {
-		char character = challenge->text.str[i];
-		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &font->glyph_cache.glyphs[GLYPH_INDEX(character)];
-		SDL_Rect* rect = &challenge->cursor_rects[i];
-		rect->w = glyph->bounding_box.w;
-		rect->h = cursor_height;
-		rect->x = glyph->bounding_box.x + x;
-		rect->y = glyph->bounding_box.y;
-		
-		x += glyph->advance;
-	}
-#endif
 }
 
 static void setup_level(Level_Data* level, int font_cache_id) {
@@ -1272,35 +1211,6 @@ static void render_quad_group(Quad_Group* group) {
 	}
 }
 
-#if 0
-static void render_gl_test(void) {
-	Color background = very_dark_blue;
-	glClearColor(background.r, background.g, background.b, background.a);
-	glClear(GL_COLOR_BUFFER_BIT);
-	
-	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
-	glUseProgram(shader->program);
-	glBindVertexArray(game_window->vao);
-	
-	glUniformMatrix4fv(shader->ortho_loc, 
-					   1,
-					   GL_FALSE,
-					   &game_window->ortho_matrix[0][0]);
-	
-	{
-		Quad_Group* group = &game_window->title_challenge.quad_group;
-		render_quad_group(group);
-	}
-	{
-		Quad_Group* group = &game_window->title_challenge.cursor_quad;
-		render_quad_group(group);
-	}
-	
-	glBindVertexArray(0);
-	glUseProgram(0);
-}
-#endif
-
 static void exec_command_buffer() {
 	Command_Buffer* buffer = &game_window->command_buffer;
 	Render_Command* command = buffer->first;
@@ -1606,15 +1516,13 @@ static void init_the_game(void) {
 	game_window->lose_text_group.text = lost;
 	game_window->lose_text_group.font_cache_id = game_window->title_font_cache_id;
 	setup_text_group(&game_window->lose_text_group);
-	//render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
-	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
 	
-#if 0
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
+#if 0
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
 	for (int i = 0; i < ARRAY_LEN(words); i++) {
 		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
@@ -1815,7 +1723,6 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
 			float radius = rect_width(&glyph_bounding_box)/4.0f;
-			//rectangle2 cursor_rect = glyph_bounding_box;
 			rectangle2 glyph_box = {.min={.x=glyph->x0,.y=glyph->y0},.max={.x=glyph->x1,.y=glyph->y1}};
 			float glyph_width = rect_width(&glyph_box);
 			float c_x0 = glyph_bounding_box.min.x;
@@ -1849,15 +1756,12 @@ static void render_win() {
 	center_rect_horizontally(&game_window->win_text_group.bounding_box);
 	center_rect_vertically(&game_window->win_text_group.bounding_box);
 	render_text_group(&game_window->win_text_group);
-	// TODO: render_text_group !!!
-	//SDL_RenderCopy(game_window->renderer, game_window->win_text_group.texture, NULL, &game_window->win_text.rect);
 }
 
 static void render_lose() {
 	center_rect_horizontally(&game_window->lose_text_group.bounding_box);
 	center_rect_vertically(&game_window->lose_text_group.bounding_box);
 	render_text_group(&game_window->lose_text_group);
-	//SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
 }
 
 static void render_game(void) {
