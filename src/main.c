@@ -405,48 +405,6 @@ static Render_Command* fill_rounded_rect(Command_Buffer* buffer, Shader* shader,
 	return command;
 }
 
-typedef struct Spritesheet {
-	int rows, cols;
-	int numFrames, frame;
-	float dtPerFrame, dtThisFrame;
-	int sheet_width, sheet_height;
-	SDL_Texture *texture;
-	SDL_Rect source_rect;
-	SDL_Rect dest_rect;
-} Spritesheet;
-
-static void set_spritesheet_source_rect(Spritesheet* sprite) {
-	int current_col = sprite->frame % sprite->cols;
-	sprite->source_rect.x = current_col * sprite->source_rect.w;
-	int current_row = sprite->frame / sprite->cols;
-	sprite->source_rect.y = current_row * sprite->source_rect.h;
-}
-
-static Spritesheet new_spritesheet(SDL_Texture *texture, int tex_width, int tex_height, int rows, int cols) {
-	Spritesheet sheet = {0};
-	sheet.texture = texture;
-	sheet.rows = rows;
-	sheet.cols = cols;
-	sheet.numFrames = rows * cols;
-	sheet.sheet_width = tex_width;
-	sheet.sheet_height = tex_height;
-	sheet.source_rect.w = sheet.sheet_width / sheet.cols;
-	sheet.source_rect.h = sheet.sheet_height / sheet.rows;
-	set_spritesheet_source_rect(&sheet);
-	return sheet;
-}
-
-static void update_sprite_animation(Spritesheet* sprite, float dt) {
-	sprite->dtThisFrame += dt;
-	float dtDiff = sprite->dtThisFrame - sprite->dtPerFrame;
-	if (dtDiff >= 0.0f) {
-		sprite->frame++;
-		sprite->frame %= sprite->numFrames;
-		sprite->dtThisFrame = fmodf(dtDiff, sprite->dtPerFrame);
-		set_spritesheet_source_rect(sprite);
-	}
-}
-
 typedef enum Game_State {
 	STATE_MENU,
 	STATE_PLAY,
