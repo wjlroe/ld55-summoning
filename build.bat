@@ -47,11 +47,11 @@ cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
 .\generate_resources.exe || goto :error
 
 echo Debug build
-cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
+cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG /DDEBUG_STDOUT ^
  -Fe:summoning_debug.exe ..\src\main.c resources.obj ^
  %includes% ^
  /link /DEBUG:FULL -INCREMENTAL:NO %links% ^
- /subsystem:windows || goto :error
+ /subsystem:console || goto :error
 
 echo Release build
 cl /std:c11 -Gm- -FC -Zc:strictStrings -diagnostics:caret /nologo ^

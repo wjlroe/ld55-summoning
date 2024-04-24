@@ -6,14 +6,12 @@ out vec4 OutColor;
 
 uniform int settings;
 uniform sampler2D fontTexture;
-uniform float alphaFactor;
 uniform vec4 color;
 
 const int SAMPLE_TEXTURE = (1 << 0);
 
 void main() {
     vec4 other_color = color;
-	other_color.a *= alphaFactor;
     if (bool(settings & SAMPLE_TEXTURE)) {
     	vec4 texture_color = texture(fontTexture, TexCoords);
 	    float final_alpha = other_color.a * texture_color.r;

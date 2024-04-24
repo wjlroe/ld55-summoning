@@ -104,6 +104,11 @@ typedef unsigned char GLboolean;
 #define GL_BLEND_DST 0x0BE0
 #define GL_BLEND_SRC 0x0BE1
 #define GL_BLEND 0x0BE2
+#define GL_NO_ERROR 0
+#define GL_INVALID_ENUM 0x0500
+#define GL_INVALID_VALUE 0x0501
+#define GL_INVALID_OPERATION 0x0502
+#define GL_OUT_OF_MEMORY 0x0505
 
 #define GL_FUNCS \
 GLE(void,   glActiveTexture,    GLenum texture) \
@@ -129,6 +134,7 @@ GLE(void,   glGenTextures,      GLsizei n, GLuint* textures) \
 GLE(void,   glGetActiveAttrib,  GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) \
 GLE(void,   glGetActiveUniform, GLuint program, GLuint index, GLsizei bufSize, GLsizei* length, GLint* size, GLenum* type, GLchar* name) \
 GLE(GLint,  glGetAttribLocation, GLuint program, const GLchar* name) \
+GLE(GLenum, glGetError) \
 GLE(void,   glGetProgramInfoLog, GLuint program, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
 GLE(void,   glGetProgramiv,     GLuint program, GLenum pname, GLint* params) \
 GLE(void,   glGetShaderInfoLog, GLuint shader, GLsizei bufSize, GLsizei* length, GLchar* infoLog) \
@@ -158,8 +164,14 @@ GLE(void,   glVertexAttribPointer,  GLuint index, GLint size, GLenum type, GLboo
 GL_FUNCS
 #undef GLE
 
+static void* gl_get_proc_address(const char* proc) {
+	return SDL_GL_GetProcAddress(proc);
+}
+
+// TODO: how to have this resolve to a wrapping function that'll call catch_gl_error() after everything?
+
 static void load_gl_funcs(void) {
-#define GLE(ret, name, ...) name = (name##proc *)SDL_GL_GetProcAddress(#name);
+#define GLE(ret, name, ...) name = (name##proc *)gl_get_proc_address(#name);
 	GL_FUNCS
 #undef GLE
 }

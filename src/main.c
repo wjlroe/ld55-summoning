@@ -54,8 +54,13 @@ typedef int8_t   i8;
 #define KB(x) ((size_t) (x) << 10)
 #define MB(x) ((size_t) (x) << 20)
 
+#ifdef DEBUG
 static FILE* debug_file;
 #define DEBUG_MSG(...) fprintf(debug_file, __VA_ARGS__)
+#else
+// TODO: what about release mode - where do we get logs if that goes wrong?
+#define DEBUG_MSG
+#endif
 
 typedef struct Free_Entry Free_Entry;
 struct Free_Entry {
@@ -170,6 +175,10 @@ static float rect_height(rectangle2* rect) {
 
 typedef vec4 Color;
 
+typedef struct matrix4_4 {
+	float values[4][4];
+} matrix4_4;
+
 #define COLOR(v) (float)v/255.0f
 #define RGBA(r,g,b,a) {COLOR(r),COLOR(g),COLOR(b),COLOR(a)} 
 
@@ -256,7 +265,7 @@ struct Uniform_Data {
 		vec2 vec_2;
 		vec3 vec_3;
 		vec4 vec_4;
-		float matrix[4][4]; // FIXME: typedef this
+		matrix4_4 matrix;
 	} data;
 	
 	Uniform_Data* next;
@@ -312,9 +321,11 @@ data->type = u_type; \
 data->location = s_location; \
 data->data.field = value; \
 }
+#define PUSH_UNIFORM_I32(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_I32, inum, value)
 #define PUSH_UNIFORM_FLOAT(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_FLOAT, f, value)
 #define PUSH_UNIFORM_VEC2(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_VEC2, vec_2, value)
 #define PUSH_UNIFORM_VEC4(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_VEC4, vec_4, value)
+#define PUSH_UNIFORM_MATRIX(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_MATRIX4_4, matrix, value)
 
 static Texture_Data* push_texture(Arena* memory, Render_Command* command) {
 	Texture_Data* texture = (Texture_Data*)alloc(memory, sizeof(Texture_Data), 1);
@@ -326,6 +337,12 @@ static Texture_Data* push_texture(Arena* memory, Render_Command* command) {
 		command->last_texture = texture;
 	}
 	return texture;
+}
+
+#define PUSH_TEXTURE(memory, command, t_shader_idx, t_texture_id) {\
+Texture_Data* texture = push_texture(memory, command);\
+texture->shader_idx = t_shader_idx;\
+texture->texture_id = t_texture_id;\
 }
 
 typedef struct Command_Buffer {
@@ -394,13 +411,17 @@ static void texture_color_mod(SDL_Texture* texture, SDL_Color color) {
 	SDL_SetTextureColorMod(texture, color.r, color.g, color.b);
 }
 
-static void fill_rounded_rect(Command_Buffer* buffer, Shader* shader, rectangle2 rect, Color color, float radius) {
+static Render_Command* fill_rounded_rect(Command_Buffer* buffer, Shader* shader, rectangle2 rect, Color color, float z, float radius) {
 	Render_Command* command = push_render_command(buffer);
 	command->type = COMMAND_QUAD;
+	command->program_id = shader->program;
+	command->render_settings = RENDER_ALPHA_BLENDED;
 	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
 	// TODO: implement rounded rects in quad shader
+	setup_textured_quad(&command->data.quad, rect, z, (rectangle2){0});
 	
 	//roundedBoxRGBA(renderer, rect.x, rect.y, rect.x+rect.w, rect.y+rect.h, radius, color.r, color.g, color.b, color.a);
+	return command;
 }
 
 typedef struct Spritesheet {
@@ -709,7 +730,7 @@ typedef struct Game_Window {
 	GLuint vao;
 	GLuint vbo;
 	GLuint ebo;
-	float ortho_matrix[4][4];
+	matrix4_4 ortho_matrix;
 	Font font;
 	int title_font_cache_id;
 	int challenge_font_cache_id;
@@ -761,8 +782,12 @@ static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cac
 	float g_x1 = (float)(g_x0 + glyph->width);
 	float g_y0 = (float)(baseline + glyph->y0);
 	float g_y1 = (float)(baseline + glyph->y1);
-	DEBUG_MSG("char: %c, g_x0: %5.1f, g_x1: %5.1f, g_y0: %5.1f, g_y1: %5.1f\n",
-		  character, g_x0, g_x1, g_y0, g_y1);
+	static bool printed_debug_char = false;
+	if (!printed_debug_char) {
+		DEBUG_MSG("char: %c, g_x0: %5.1f, g_x1: %5.1f, g_y0: %5.1f, g_y1: %5.1f\n",
+				  character, g_x0, g_x1, g_y0, g_y1);
+		printed_debug_char = true;
+	}
 	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
 	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
 	*bounding_box = pos;
@@ -839,9 +864,22 @@ static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String
 	challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
 	challenge->cursor_quad = fill_rect_as_quad_group((rectangle2){0}, amber, 0.4f);
 	challenge->cursor_quad.render_settings |= RENDER_BLEND_REVERSE;
-	center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
-	center_quad_group_vertically(&challenge->quad_group);   // TODO: can't respond to changes in Window size
+	//center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
+	//center_quad_group_vertically(&challenge->quad_group);   // TODO: can't respond to changes in Window size
 	update_challenge_cursor(challenge);
+	
+	// Size the whole text as a bounding_box:
+	vec3 position = {0};
+	rectangle2 glyph_bounding_box = {0};
+	Quad test_quad = {0};
+	for (int i = 0; i < text.length; i++) {
+		char character = text.str[i];
+		character_to_quad(&test_quad, &glyph_bounding_box, font_cache_id, character, &position);
+		challenge->bounding_box.min.x = MY_MIN(challenge->bounding_box.min.x, glyph_bounding_box.min.x);
+		challenge->bounding_box.max.x = MY_MAX(challenge->bounding_box.max.x, glyph_bounding_box.max.x);
+		challenge->bounding_box.min.y = MY_MIN(challenge->bounding_box.min.y, glyph_bounding_box.min.y);
+		challenge->bounding_box.max.y = MY_MAX(challenge->bounding_box.max.y, glyph_bounding_box.max.y);
+	}
 	
 #if 0
 	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
@@ -907,6 +945,15 @@ static void ShowSDLError(char* message) {
 							 "Error",
 							 &buffer[0],
 							 game_window->window);
+}
+
+static void ShowGLError() {
+	GLenum error = glGetError();
+	assert(error == GL_NO_ERROR);
+	while (error != GL_NO_ERROR) {
+		// do something with each error that has occured
+		error = glGetError();
+	}
 }
 
 static void init_font(Font* font) {
@@ -1235,8 +1282,16 @@ static void update_ortho_matrix(void) {
 		{0.0f,                 0.0f,                 -2.0f / zdiff,        0.0f},
 		{-((maxx+minx)/xdiff), -((maxy+miny)/ydiff), -((maxz+minz)/zdiff), 1.0f}
 	};
+	DEBUG_MSG("ortho matrix:\n");
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			DEBUG_MSG("%8.4f, ", ortho_matrix[i][j]);
+		}
+		DEBUG_MSG("\n");
+	}
+	//game_window->ortho_matrix.values = ortho_matrix;
 	// NOTE: do we have to memcpy from one multi-dimensional array to another?
-	memcpy(&game_window->ortho_matrix, ortho_matrix, 4*4*sizeof(GLfloat));
+	memcpy(&game_window->ortho_matrix.values, ortho_matrix, 4*4*sizeof(GLfloat));
 }
 
 static void render_quad_group(Quad_Group* group) {
@@ -1270,6 +1325,7 @@ static void render_quad_group(Quad_Group* group) {
 	}
 }
 
+#if 0
 static void render_gl_test(void) {
 	Color background = very_dark_blue;
 	glClearColor(background.r, background.g, background.b, background.a);
@@ -1293,10 +1349,10 @@ static void render_gl_test(void) {
 		render_quad_group(group);
 	}
 	
-	
 	glBindVertexArray(0);
 	glUseProgram(0);
 }
+#endif
 
 static void exec_command_buffer() {
 	Command_Buffer* buffer = &game_window->command_buffer;
@@ -1322,6 +1378,7 @@ static void exec_command_buffer() {
 			} break;
 			case COMMAND_QUAD: {
 				Quad* quad = &command->data.quad;
+				assert(command->program_id > 0);
 				glUseProgram(command->program_id);
 				glBindVertexArray(game_window->vao); // TODO: move into Command?
 				
@@ -1344,7 +1401,7 @@ static void exec_command_buffer() {
 							glUniform4fv(uniform->location, 1, &uniform->data.vec_4.values[0]);
 						} break;
 						case UNIFORM_MATRIX4_4: {
-							glUniformMatrix4fv(uniform->location, 1, GL_FALSE, &uniform->data.matrix[0][0]);
+							glUniformMatrix4fv(uniform->location, 1, GL_FALSE, &uniform->data.matrix.values[0][0]);
 						} break;
 					}
 					uniform = uniform->next;
@@ -1411,6 +1468,8 @@ static void init_shader(Shader* shader) {
 			shader->font_sampler_idx = sampler_idx;
 		} else if (strcmp(name_buffer, "settings") == 0) {
 			shader->settings_loc = loc;
+		} else if (strcmp(name_buffer, "color") == 0) {
+			shader->color_loc = loc;
 		}
 		
 		if (attr_type == GL_SAMPLER_2D) {
@@ -1498,19 +1557,19 @@ static void init_gl(void) {
 	
 	int stride = sizeof(Vertex);
 	
-	glGenVertexArrays(1, &game_window->vao);
-	glBindVertexArray(game_window->vao);
+	glGenVertexArrays(1, &game_window->vao); ShowGLError();
+	glBindVertexArray(game_window->vao); ShowGLError();
 	
 	glGenBuffers(1, &game_window->vbo);
 	glGenBuffers(1, &game_window->ebo);
 	
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, NUM_VERTICES * stride, NULL, GL_STATIC_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo); ShowGLError();
+	glBufferData(GL_ARRAY_BUFFER, NUM_VERTICES * stride, NULL, GL_STATIC_DRAW); ShowGLError();
 	
-	glEnableVertexAttribArray(shader->position_loc);
-	glVertexAttribPointer(shader->position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL);
-	glEnableVertexAttribArray(shader->texture_loc);
-	glVertexAttribPointer(shader->texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(sizeof(vec3)));
+	glEnableVertexAttribArray(shader->position_loc); ShowGLError();
+	glVertexAttribPointer(shader->position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL); ShowGLError();
+	glEnableVertexAttribArray(shader->texture_loc); ShowGLError();
+	glVertexAttribPointer(shader->texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(sizeof(vec3))); ShowGLError();
 	
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->ebo);
 	GLuint indexData[] = { 0, 1, 2, 2, 3, 0 };
@@ -1525,8 +1584,14 @@ static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
 	memset(game_window, 0, sizeof(Game_Window));
 	game_window->command_buffer.memory = new_memory(MB(8));
+	
+#if defined(DEBUG) && defined(DEBUG_STDOUT)
+	debug_file = stdout;
+#elif defined(DEBUG)
 	debug_file = fopen("summoning_debug_log.txt", "w");
 	setvbuf(debug_file, NULL, _IONBF, 0);
+#endif
+	
 	game_window->window_width = DEFAULT_WINDOW_WIDTH;
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
@@ -1539,8 +1604,8 @@ static void init_the_game(void) {
 										   game_window->window_height, 
 										   SDL_WINDOW_OPENGL);
 	//game_window->renderer = SDL_CreateRenderer(game_window->window,
-											   //-1, // initialize the first one supporting the requested flags
-											   //SDL_RENDERER_PRESENTVSYNC);
+	//-1, // initialize the first one supporting the requested flags
+	//SDL_RENDERER_PRESENTVSYNC);
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
@@ -1574,17 +1639,17 @@ static void init_the_game(void) {
 	
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
-	#if 0
+#if 0
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
 	for (int i = 0; i < ARRAY_LEN(words); i++) {
 		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
 	}
-	#endif
+#endif
 	
 	//if (SDL_IsTextInputActive()) {
-		//SDL_StopTextInput();
+	//SDL_StopTextInput();
 	//}
 }
 
@@ -1611,9 +1676,9 @@ static void game_handle_input(void) {
 		} break;
 		case STATE_MENU: {
 			//if (key_is_down(KEY_SPACE) && key_first_down()) {
-				//game_window->demonic_word_i++;
-				//game_window->demonic_word_i %= ARRAY_LEN(words);
-				//return;
+			//game_window->demonic_word_i++;
+			//game_window->demonic_word_i %= ARRAY_LEN(words);
+			//return;
 			//}
 			if (game_window->input.character != 0) {
 				enter_challenge_character(&game_window->title_challenge, game_window->input.character);
@@ -1763,7 +1828,12 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
 			float radius = rect_width(&glyph_bounding_box)/4.0f;
-			fill_rounded_rect(buffer, shader, glyph_bounding_box, cursor_color, radius);
+			rectangle2 cursor_rect = glyph_bounding_box;
+			
+			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader, glyph_bounding_box, cursor_color, 0.3f, radius);
+			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_NONE);
+			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->bounding_box.min);
+			PUSH_UNIFORM_MATRIX(&buffer->memory, cursor_cmd, shader->ortho_loc, game_window->ortho_matrix);
 		}
 		
 		Render_Command* command = push_render_command(buffer);
@@ -1771,8 +1841,12 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		command->program_id = shader->program;
 		command->render_settings = RENDER_ALPHA_BLENDED;
 		color.a = challenge->alpha;
+		PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
+		PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
 		PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
 		PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, challenge->bounding_box.min);
+		PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
+		PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
 		memcpy(&command->data.quad, &glyph_quad, sizeof(Quad));
 	}
 }
@@ -1845,32 +1919,32 @@ static void update_and_render(void) {
 
 static void main_loop(void) {
 	if (game_window->quit) {
-		#ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
 		emscripten_cancel_main_loop();
-		#else
+#else
 		//SDL_DestroyRenderer(game_window->renderer);
 		SDL_DestroyWindow(game_window->window);
 		exit(0);
-		#endif
+#endif
 	}
-
+	
 	uint64_t this_frame_perf_counter = SDL_GetPerformanceCounter();
 	game_window->dt = (float)(this_frame_perf_counter - game_window->last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
 	//char buffer[1024] = {0};
 	//sprintf(&buffer[0], "Summoning. dt = %.5f | demonic_i = %d", game_window->dt, game_window->demonic_word_i);
 	//SDL_SetWindowTitle(game_window->window, &buffer[0]);
 	game_window->frame_number++;
-
+	
 	handle_inputs();
 	update_and_render();
-
-	#ifndef __EMSCRIPTEN__
+	
+#ifndef __EMSCRIPTEN__
 	uint64_t delta = game_window->dt * 1000.0f;
 	if (delta < fps_cap_in_ms) {
 		SDL_Delay(fps_cap_in_ms - delta);
 	}
-	#endif
-
+#endif
+	
 	game_window->last_frame_perf_counter = this_frame_perf_counter;
 }
 
@@ -1884,15 +1958,18 @@ int main(int argc, char** argv) {
 	
 	init_global_file_resources();
 	init_the_game();
-
-	#ifdef __EMSCRIPTEN__
+	
+#ifdef __EMSCRIPTEN__
 	emscripten_set_main_loop(main_loop, 0, 1);
-	#else
+#else
 	fps_cap_in_ms = 1000.0f / fps_cap;
 	while (true) { main_loop(); }
-    #endif
+#endif
 	
+#if defined(DEBUG) && !defined(DEBUG_STDOUT)
 	fclose(debug_file);
+#endif
+	
 #ifdef UNIX
     printf("\n");
 #endif
