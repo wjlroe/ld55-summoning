@@ -772,6 +772,7 @@ static void center_quad_group_vertically(Quad_Group* group) {
 	group->position_offset.y = (game_window->window_height / 2) - (rect_height(&group->bounding_box) / 2);
 }
 
+// TODO: pass a Glyph* here and not all the other junk!
 static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cache_id, char character, vec3* starting_pos) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
 	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
@@ -1807,6 +1808,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 	Command_Buffer* buffer = &game_window->command_buffer;
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[challenge->font_cache_id];
 	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
+	float cursor_height = font_cache->ascent + font_cache->descent;
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
 		assert((character >= 32) && (character <= 126));
@@ -1828,9 +1830,16 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
 			float radius = rect_width(&glyph_bounding_box)/4.0f;
-			rectangle2 cursor_rect = glyph_bounding_box;
+			//rectangle2 cursor_rect = glyph_bounding_box;
+			rectangle2 glyph_box = {.min={.x=glyph->x0,.y=glyph->y0},.max={.x=glyph->x1,.y=glyph->y1}};
+			float glyph_width = rect_width(&glyph_box);
+			float c_x0 = glyph_bounding_box.min.x;
+			float c_y0 = 0.0f;
+			float c_x1 = c_x0 + glyph_width;
+			float c_y1 = c_y0 + cursor_height;
+			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
-			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader, glyph_bounding_box, cursor_color, 0.3f, radius);
+			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader, cursor_rect, cursor_color, 0.3f, radius);
 			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_NONE);
 			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->bounding_box.min);
 			PUSH_UNIFORM_MATRIX(&buffer->memory, cursor_cmd, shader->ortho_loc, game_window->ortho_matrix);
