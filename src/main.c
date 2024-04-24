@@ -579,13 +579,37 @@ typedef struct Font {
 	int num_glyph_caches;
 } Font;
 
-typedef struct Type_Challenge {
-	int font_cache_id;
+static void glyph_to_quad(Quad* quad, Glyph* glyph, Glyph_Cache* font_cache, rectangle2* bounding_box, vec3* starting_pos) {
+	int x = (int)starting_pos->x;
+	int y = (int)starting_pos->y;
+	int baseline = y + font_cache->ascent;
+	float g_x0 = (float)(x + glyph->lsb);
+	float g_x1 = (float)(g_x0 + glyph->width);
+	float g_y0 = (float)(baseline + glyph->y0);
+	float g_y1 = (float)(baseline + glyph->y1);
+	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
+	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
+	*bounding_box = pos;
+	
+	starting_pos->x += (float)glyph->advance;
+	setup_textured_quad(quad, pos, starting_pos->z, tex);
+}
+
+typedef struct Text_Group {
 	String text;
+	u32 font_cache_id;
+	
+	// calculated from the above
+	Quad* quads;
+	u32 num_quads;
+	rectangle2 bounding_box;
+} Text_Group;
+
+typedef struct Type_Challenge {
+	Text_Group text_group;
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
 	SDL_Rect* cursor_rects;
 	int position;
-	rectangle2 bounding_box;
 	float alpha;
 	float alpha_fade_speed;
 	Quad_Group quad_group;
@@ -598,7 +622,7 @@ static void free_challenge(Type_Challenge* challenge) {
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
-	return (challenge->position >= challenge->text.length);
+	return (challenge->position >= challenge->text_group.text.length);
 }
 
 static bool has_typing_started(Type_Challenge* challenge) {
@@ -618,16 +642,13 @@ static void debug_reset_challenge() {
 }
 #endif
 
-static void update_challenge_cursor(Type_Challenge* challenge);
-
 static void enter_challenge_character(Type_Challenge* challenge, char character) {
 	if (!is_challenge_done(challenge)) {
 #ifdef DEBUG
 		debug_enter_character(character);
 #endif
-		challenge->typed_correctly[challenge->position] = (character == challenge->text.str[challenge->position]);
+		challenge->typed_correctly[challenge->position] = (character == challenge->text_group.text.str[challenge->position]);
 		challenge->position++;
-		update_challenge_cursor(challenge);
 	}
 #ifdef DEBUG
 	if (is_challenge_done(challenge)) {
@@ -751,12 +772,32 @@ typedef struct Game_Window {
 	Sized_Texture* demonic_word_textures;
 	int demonic_word_i;
 	
-	Sized_Texture win_text;
-	Sized_Texture lose_text;
+	Text_Group win_text_group;
+	Text_Group lose_text_group;
+	//Sized_Texture win_text;
+	//Sized_Texture lose_text;
 	// TODO: points text
 } Game_Window;
 
 static Game_Window* game_window = NULL;
+
+static void setup_text_group(Text_Group* group) {
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[group->font_cache_id];
+	vec3 position = {0};
+	rectangle2 glyph_bounding_box = {0};
+	group->quads = (Quad*)calloc(group->text.length, sizeof(Quad));
+	group->num_quads = group->text.length;
+	for (int i = 0; i < group->text.length; i++) {
+		char character = group->text.str[i];
+		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
+		Quad* quad = &group->quads[i];
+		glyph_to_quad(quad, glyph, font_cache, &glyph_bounding_box, &position);
+		group->bounding_box.min.x = MY_MIN(group->bounding_box.min.x, glyph_bounding_box.min.x);
+		group->bounding_box.max.x = MY_MAX(group->bounding_box.max.x, glyph_bounding_box.max.x);
+		group->bounding_box.min.y = MY_MIN(group->bounding_box.min.y, glyph_bounding_box.min.y);
+		group->bounding_box.max.y = MY_MAX(group->bounding_box.max.y, glyph_bounding_box.max.y);
+	}
+}
 
 static Shader* push_shader(u32* shader_id) {
 	assert(game_window->num_shaders < MAX_SHADERS);
@@ -772,115 +813,18 @@ static void center_quad_group_vertically(Quad_Group* group) {
 	group->position_offset.y = (game_window->window_height / 2) - (rect_height(&group->bounding_box) / 2);
 }
 
-// TODO: pass a Glyph* here and not all the other junk!
-static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cache_id, char character, vec3* starting_pos) {
-	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
-	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
-	int x = (int)starting_pos->x;
-	int y = (int)starting_pos->y;
-	int baseline = y + font_cache->ascent;
-	float g_x0 = (float)(x + glyph->lsb);
-	float g_x1 = (float)(g_x0 + glyph->width);
-	float g_y0 = (float)(baseline + glyph->y0);
-	float g_y1 = (float)(baseline + glyph->y1);
-	static bool printed_debug_char = false;
-	if (!printed_debug_char) {
-		DEBUG_MSG("char: %c, g_x0: %5.1f, g_x1: %5.1f, g_y0: %5.1f, g_y1: %5.1f\n",
-				  character, g_x0, g_x1, g_y0, g_y1);
-		printed_debug_char = true;
-	}
-	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
-	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
-	*bounding_box = pos;
-	
-#if 0
-	quad->bounding_box.min = starting_pos;
-	quad->bounding_box.max = starting_pos;
-	quad->bounding_box.max.x += (float)glyph->advance;
-	quad->bounding_box.max.y += font_cache->line_height;
-#endif
-	
-	starting_pos->x += (float)glyph->advance;
-	setup_textured_quad(quad, pos, starting_pos->z, tex);
-}
-
-static Quad_Group text_as_quad_group(String text, int font_cache_id, Color color, float z) {
-	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
-	Quad_Group group = {0};
-	group.texture_id = font_cache->texture_id;
-	group.quads = calloc(text.length, sizeof(Quad));
-	group.num_quads = text.length;
-	group.render_settings = RENDER_ALPHA_BLENDED;
-	group.shader_settings = SHADER_SAMPLE_TEXTURE;
-	vec3 position = {0.0f, 0.0f, z};
-	group.bounding_box.min = position.xy;
-	rectangle2 glyph_bounding_box = {0};
-	for (int i = 0; i < text.length; i++) {
-		char character = text.str[i];
-		character_to_quad(&group.quads[i], &glyph_bounding_box, font_cache_id, character, &position);
-		group.bounding_box.min.x = MY_MIN(group.bounding_box.min.x, glyph_bounding_box.min.x);
-		group.bounding_box.max.x = MY_MAX(group.bounding_box.max.x, glyph_bounding_box.max.x);
-		group.bounding_box.min.y = MY_MIN(group.bounding_box.min.y, glyph_bounding_box.min.y);
-		group.bounding_box.max.y = MY_MAX(group.bounding_box.max.y, glyph_bounding_box.max.y);
-	}
-	DEBUG_MSG("bounding_box.min.x = %5.1f, min.y = %5.1f, max.x = %5.1f, max.y = %5.1f\n",
-		  group.bounding_box.min.x, 
-		  group.bounding_box.min.y, 
-		  group.bounding_box.max.x, 
-		  group.bounding_box.max.y);
-	return group;
-}
-
-static Quad_Group fill_rect_as_quad_group(rectangle2 rect, Color color, float z) {
-	Quad_Group group = {0};
-	group.quads = calloc(1, sizeof(Quad));
-	group.num_quads = 1;
-	rectangle2 tex = {0}; // we don't have a texture to worry about
-	setup_textured_quad(&group.quads[0], rect, z, tex);
-	group.render_settings = RENDER_ALPHA_BLENDED;
-	group.shader_settings = SHADER_NONE;
-	vec3 position = {0.0f, 0.0f, z};
-	group.bounding_box = rect;
-	return group;
-}
-
-static void update_challenge_cursor(Type_Challenge* challenge) {
-	int ci = challenge->position;
-	// TODO: this breaks once we've typed the whole word
-	// and it's too baked in. We want to immediate-mode
-	// rendering and not this sort of retain-style thing...
-	for (int i = 0; i < 4; i++) {
-		memcpy(&challenge->cursor_quad.quads[ci].vertices[i].position, 
-			   &challenge->quad_group.quads[ci].vertices[i].position,
-			   sizeof(vec3));
-	}
-	challenge->cursor_quad.position_offset = challenge->quad_group.position_offset;
-}
-
 static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String text) {
-	challenge->text = text;
-	challenge->font_cache_id = font_cache_id;
+	challenge->text_group.text = text;
+	challenge->text_group.font_cache_id = font_cache_id;
+	setup_text_group(&challenge->text_group);
+	
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
-	challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
-	challenge->cursor_quad = fill_rect_as_quad_group((rectangle2){0}, amber, 0.4f);
-	challenge->cursor_quad.render_settings |= RENDER_BLEND_REVERSE;
+	//challenge->quad_group = text_as_quad_group(text, font_cache_id, white, 0.5f);
+	//challenge->cursor_quad = fill_rect_as_quad_group((rectangle2){0}, amber, 0.4f);
+	//challenge->cursor_quad.render_settings |= RENDER_BLEND_REVERSE;
 	//center_quad_group_horizontally(&challenge->quad_group); // TODO: can't respond to changes in Window size
 	//center_quad_group_vertically(&challenge->quad_group);   // TODO: can't respond to changes in Window size
-	update_challenge_cursor(challenge);
-	
-	// Size the whole text as a bounding_box:
-	vec3 position = {0};
-	rectangle2 glyph_bounding_box = {0};
-	Quad test_quad = {0};
-	for (int i = 0; i < text.length; i++) {
-		char character = text.str[i];
-		character_to_quad(&test_quad, &glyph_bounding_box, font_cache_id, character, &position);
-		challenge->bounding_box.min.x = MY_MIN(challenge->bounding_box.min.x, glyph_bounding_box.min.x);
-		challenge->bounding_box.max.x = MY_MAX(challenge->bounding_box.max.x, glyph_bounding_box.max.x);
-		challenge->bounding_box.min.y = MY_MIN(challenge->bounding_box.min.y, glyph_bounding_box.min.y);
-		challenge->bounding_box.max.y = MY_MAX(challenge->bounding_box.max.y, glyph_bounding_box.max.y);
-	}
 	
 #if 0
 	TTF_SizeText(font->font, text.str, &challenge->bounding_box.w, &challenge->bounding_box.h);
@@ -1635,6 +1579,10 @@ static void init_the_game(void) {
 	game_window->challenge_font_cache_id = push_font_size(&game_window->font, 48.0);
 	game_window->demonic_font_cache_id = push_font_size(&game_window->font, 24.0);
 	
+	game_window->win_text_group.text = win;
+	game_window->win_text_group.font_cache_id = game_window->title_font_cache_id;
+	game_window->lose_text_group.text = lost;
+	game_window->lose_text_group.font_cache_id = game_window->title_font_cache_id;
 	//render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
 	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
@@ -1780,15 +1728,6 @@ static void handle_inputs(void) {
 	}
 }
 
-static void play_screen_do_animation(void) {
-	// update_sprite_animation(&game_window->runner1, game_window->dt);
-	// update_sprite_animation(&game_window->runner2, game_window->dt);
-}
-
-static void title_screen_do_animation(void) {
-	update_challenge_alpha(&game_window->title_challenge, game_window->dt);
-}
-
 static void center_rect_horizontally(rectangle2* rect) {
 	float width = rect_width(rect);
 	float x_offset = ((float)game_window->window_width / 2.0f) - (width / 2.0f);
@@ -1806,16 +1745,17 @@ static void center_rect_vertically(rectangle2* rect) {
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
 	vec3 position = {0.0f, 0.0f, 0.4f};
 	Command_Buffer* buffer = &game_window->command_buffer;
-	Glyph_Cache* font_cache = &game_window->font.glyph_caches[challenge->font_cache_id];
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[challenge->text_group.font_cache_id];
 	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
 	float cursor_height = font_cache->ascent + font_cache->descent;
-	for (int i = 0; i < challenge->text.length; i++) {
-		char character = challenge->text.str[i];
+	for (int i = 0; i < challenge->text_group.text.length; i++) {
+		char character = challenge->text_group.text.str[i];
 		assert((character >= 32) && (character <= 126));
 		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
 		rectangle2 glyph_bounding_box;
 		Quad glyph_quad = {0};
-		character_to_quad(&glyph_quad, &glyph_bounding_box, challenge->font_cache_id, character, &position);
+		// FIXME: this has already been calculated and saved on Text_Group.quads!!!
+		glyph_to_quad(&glyph_quad, glyph, font_cache, &glyph_bounding_box, &position);
 		
 		Color color = white;
 		if (challenge->position > i) {
@@ -1841,7 +1781,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader, cursor_rect, cursor_color, 0.3f, radius);
 			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_NONE);
-			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->bounding_box.min);
+			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->text_group.bounding_box.min);
 			PUSH_UNIFORM_MATRIX(&buffer->memory, cursor_cmd, shader->ortho_loc, game_window->ortho_matrix);
 		}
 		
@@ -1853,51 +1793,46 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
 		PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
 		PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
-		PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, challenge->bounding_box.min);
+		PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, challenge->text_group.bounding_box.min);
 		PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
 		PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
 		memcpy(&command->data.quad, &glyph_quad, sizeof(Quad));
 	}
 }
 
-#if 0
 static void render_win() {
-	center_rect_horizontally(&game_window->win_text.rect);
-	center_rect_vertically(&game_window->win_text.rect);
-	SDL_RenderCopy(game_window->renderer, game_window->win_text.texture, NULL, &game_window->win_text.rect);
+	center_rect_horizontally(&game_window->win_text_group.bounding_box);
+	center_rect_vertically(&game_window->win_text_group.bounding_box);
+	// TODO: render_text_group !!!
+	//SDL_RenderCopy(game_window->renderer, game_window->win_text_group.texture, NULL, &game_window->win_text.rect);
 }
 
 static void render_lose() {
-	center_rect_horizontally(&game_window->lose_text.rect);
-	center_rect_vertically(&game_window->lose_text.rect);
-	SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
+	center_rect_horizontally(&game_window->lose_text_group.bounding_box);
+	center_rect_vertically(&game_window->lose_text_group.bounding_box);
+	//SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
 }
 
 static void render_game(void) {
 	Type_Challenge* challenge = &game_window->level_data.challenges[game_window->level_data.current_challenge];
 	update_challenge_alpha(challenge, game_window->dt);
-	center_rect_horizontally(&challenge->bounding_box);
-	center_rect_veritcally(&challenge->bounding_box);
+	center_rect_horizontally(&challenge->text_group.bounding_box);
+	center_rect_vertically(&challenge->text_group.bounding_box);
 	render_challenge(game_window, challenge);
 }
-#endif
 
 static void render_menu(void) {
-	center_rect_horizontally(&game_window->title_challenge.bounding_box);
-	center_rect_vertically(&game_window->title_challenge.bounding_box);
+	update_challenge_alpha(&game_window->title_challenge, game_window->dt);
+	center_rect_horizontally(&game_window->title_challenge.text_group.bounding_box);
+	center_rect_vertically(&game_window->title_challenge.text_group.bounding_box);
 	render_challenge(game_window, &game_window->title_challenge);
 }
 
 static void update_and_render(void) {
-	//render_draw_color(game_window->renderer, very_dark_blue);
 	Render_Command* clear = push_render_command(&game_window->command_buffer);
 	clear->type = COMMAND_CLEAR;
 	clear->data.clear_command.clear_color = true;
 	clear->data.clear_command.color = very_dark_blue;
-	//SDL_RenderClear(game_window->renderer);
-	
-	title_screen_do_animation();
-	//render_gl_test();
 	
 	switch (game_window->state) {
 		case STATE_MENU: {
@@ -1909,21 +1844,19 @@ static void update_and_render(void) {
 			render_menu();
 		} break;
 		case STATE_PLAY: {
-			play_screen_do_animation();
-			//render_game();
+			render_game();
 		} break;
 		case STATE_WIN: {
-			//render_win();
+			render_win();
 		} break;
 		case STATE_LOSE: {
-			//render_lose();
+			render_lose();
 		} break;
 		default: {}
 	}
 	
 	exec_command_buffer();
 	SDL_GL_SwapWindow(game_window->window);
-	//SDL_RenderPresent(game_window->renderer);
 }
 
 static void main_loop(void) {
@@ -1931,7 +1864,6 @@ static void main_loop(void) {
 #ifdef __EMSCRIPTEN__
 		emscripten_cancel_main_loop();
 #else
-		//SDL_DestroyRenderer(game_window->renderer);
 		SDL_DestroyWindow(game_window->window);
 		exit(0);
 #endif
