@@ -1,18 +1,18 @@
 #version 150 core
 
 in vec2 TexCoords;
-in vec4 Color;
 
 out vec4 OutColor;
 
 uniform int settings;
 uniform sampler2D fontTexture;
 uniform float alphaFactor;
+uniform vec4 color;
 
 const int SAMPLE_TEXTURE = (1 << 0);
 
 void main() {
-    vec4 other_color = Color;
+    vec4 other_color = color;
 	other_color.a *= alphaFactor;
     if (bool(settings & SAMPLE_TEXTURE)) {
     	vec4 texture_color = texture(fontTexture, TexCoords);

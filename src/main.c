@@ -54,6 +54,9 @@ typedef int8_t   i8;
 #define KB(x) ((size_t) (x) << 10)
 #define MB(x) ((size_t) (x) << 20)
 
+static FILE* debug_file;
+#define DEBUG_MSG(...) fprintf(debug_file, __VA_ARGS__)
+
 typedef struct Free_Entry Free_Entry;
 struct Free_Entry {
 	u8* start;
@@ -66,13 +69,19 @@ typedef struct Arena {
 	u8* start;
 	u8* end;
 	Free_Entry* first_free;
+	u8* original_start;
 } Arena;
 
 static Arena new_memory(size_t size) {
 	Arena arena = {0};
 	arena.start = malloc(size);
+	arena.original_start = arena.start;
 	arena.end = arena.start + size;
 	return arena;
+}
+
+static void reset_arena(Arena* arena) {
+	arena->start = arena->original_start;
 }
 
 static u8* alloc(Arena* arena, size_t size, u32 count) {
@@ -151,12 +160,12 @@ typedef struct rectangle2 {
 	vec2 max;
 } rectangle2;
 
-static float rect_width(rectangle2 rect) {
-	return (rect.max.x - rect.min.x);
+static float rect_width(rectangle2* rect) {
+	return (rect->max.x - rect->min.x);
 }
 
-static float rect_height(rectangle2 rect) {
-	return (rect.max.y - rect.min.y);
+static float rect_height(rectangle2* rect) {
+	return (rect->max.y - rect->min.y);
 }
 
 typedef vec4 Color;
@@ -164,21 +173,40 @@ typedef vec4 Color;
 #define COLOR(v) (float)v/255.0f
 #define RGBA(r,g,b,a) {COLOR(r),COLOR(g),COLOR(b),COLOR(a)} 
 
+typedef struct Shader {
+	int program;
+	
+	// attributes
+	int position_loc;
+	int texture_loc;
+	
+	// uniforms
+	int position_offset_loc;
+	int color_loc;
+	int ortho_loc;
+	int settings_loc;
+	
+	// textures
+	int font_texture_loc;
+	int font_sampler_idx;
+} Shader;
+
 typedef struct Vertex {
 	vec3 position;
 	vec2 texture;
-	vec4 color;
 } Vertex;
 
+#define NUM_VERTICES 4
+
 typedef struct Quad {
-	Vertex vertices[4];
+	Vertex vertices[NUM_VERTICES];
 } Quad;
 
-static void setup_textured_quad(Quad* quad, rectangle2 pos, float z, rectangle2 tex, Color color) {
-	quad->vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}, .color=color}; // top-left
-	quad->vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}, .color=color}; // bottom-left
-	quad->vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}, .color=color}; // bottom-right
-	quad->vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}, .color=color}; // top-right
+static void setup_textured_quad(Quad* quad, rectangle2 pos, float z, rectangle2 tex) {
+	quad->vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={tex.min.x, tex.min.y}}; // top-left
+	quad->vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={tex.min.x, tex.max.y}}; // bottom-left
+	quad->vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={tex.max.x, tex.max.y}}; // bottom-right
+	quad->vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}}; // top-right
 }
 
 typedef enum Shader_Setting {
@@ -197,21 +225,20 @@ typedef struct Quad_Group {
 	int num_quads;
 	rectangle2 bounding_box;
 	u32 shader_settings;
-	float alpha_factor;
 	u32 render_settings;
-	vec3 position_offset;
+	vec2 position_offset;
 	int texture_id;
 } Quad_Group;
 
 typedef enum Render_Command_Type {
 	COMMAND_NONE,
 	COMMAND_QUAD,
+	COMMAND_CLEAR,
 } Render_Command_Type;
 
 typedef enum Uniform_Type {
 	UNIFORM_NONE,
 	UNIFORM_FLOAT,
-	UNIFORM_U32,
 	UNIFORM_I32,
 	UNIFORM_VEC2,
 	UNIFORM_VEC3,
@@ -219,35 +246,87 @@ typedef enum Uniform_Type {
 	UNIFORM_MATRIX4_4,
 } Uniform_Type;
 
-typedef struct Uniform_Data {
+typedef struct Uniform_Data Uniform_Data;
+struct Uniform_Data {
 	Uniform_Type type;
+	u32 location;
 	union {
 		float f;
-		u32 unum;
 		i32 inum;
 		vec2 vec_2;
 		vec3 vec_3;
 		vec4 vec_4;
 		float matrix[4][4]; // FIXME: typedef this
-	};
-} Uniform_Data;
+	} data;
+	
+	Uniform_Data* next;
+};
 
-typedef struct Texture_Data {
+typedef struct Texture_Data Texture_Data;
+struct Texture_Data {
 	u32 shader_idx;
 	u32 texture_id;
-} Texture_Data;
+	
+	Texture_Data* next;
+};
+
+typedef struct Clear_Command {
+	bool clear_color;
+	Color color;
+} Clear_Command;
 
 typedef struct Render_Command Render_Command;
 struct Render_Command {
 	Render_Command_Type type;
-	u32 shader_id;
-	Uniform_Data* uniforms;
-	u32 num_uniforms;
-	Texture_Data* textures;
-	u32 num_textures;
+	u32 program_id;
+	u32 render_settings;
+	
+	union {
+		Quad quad;
+		Clear_Command clear_command;
+	} data;
+	
+	Uniform_Data* first_uniform;
+	Uniform_Data* last_uniform;
+	Texture_Data* first_texture;
+	Texture_Data* last_texture;
 	
 	Render_Command* next;
 };
+
+static Uniform_Data* push_uniform(Arena* memory, Render_Command* command) {
+	Uniform_Data* uniform = (Uniform_Data*)alloc(memory, sizeof(Uniform_Data), 1);
+	if (!command->first_uniform) {
+		command->first_uniform = uniform;
+		command->last_uniform  = uniform;
+	} else {
+		command->last_uniform->next = uniform;
+		command->last_uniform = uniform;
+	}
+	return uniform;
+}
+
+#define PUSH_UNIFORM(memory, command, s_location, u_type, field, value) {\
+Uniform_Data* data = push_uniform(memory, command); \
+data->type = u_type; \
+data->location = s_location; \
+data->data.field = value; \
+}
+#define PUSH_UNIFORM_FLOAT(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_FLOAT, f, value)
+#define PUSH_UNIFORM_VEC2(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_VEC2, vec_2, value)
+#define PUSH_UNIFORM_VEC4(memory, command, location, value) PUSH_UNIFORM(memory, command, location, UNIFORM_VEC4, vec_4, value)
+
+static Texture_Data* push_texture(Arena* memory, Render_Command* command) {
+	Texture_Data* texture = (Texture_Data*)alloc(memory, sizeof(Texture_Data), 1);
+	if (!command->first_texture) {
+		command->first_texture = texture;
+		command->last_texture  = texture;
+	} else {
+		command->last_texture->next = texture;
+		command->last_texture = texture;
+	}
+	return texture;
+}
 
 typedef struct Command_Buffer {
 	Arena memory;
@@ -315,8 +394,13 @@ static void texture_color_mod(SDL_Texture* texture, SDL_Color color) {
 	SDL_SetTextureColorMod(texture, color.r, color.g, color.b);
 }
 
-static void fill_rounded_rect(SDL_Renderer *renderer, SDL_Rect rect, SDL_Color color, int radius) {
-	roundedBoxRGBA(renderer, rect.x, rect.y, rect.x+rect.w, rect.y+rect.h, radius, color.r, color.g, color.b, color.a);
+static void fill_rounded_rect(Command_Buffer* buffer, Shader* shader, rectangle2 rect, Color color, float radius) {
+	Render_Command* command = push_render_command(buffer);
+	command->type = COMMAND_QUAD;
+	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
+	// TODO: implement rounded rects in quad shader
+	
+	//roundedBoxRGBA(renderer, rect.x, rect.y, rect.x+rect.w, rect.y+rect.h, radius, color.r, color.g, color.b, color.a);
 }
 
 typedef struct Spritesheet {
@@ -480,7 +564,7 @@ typedef struct Type_Challenge {
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
 	SDL_Rect* cursor_rects;
 	int position;
-	SDL_Rect bounding_box;
+	rectangle2 bounding_box;
 	float alpha;
 	float alpha_fade_speed;
 	Quad_Group quad_group;
@@ -517,18 +601,18 @@ static void update_challenge_cursor(Type_Challenge* challenge);
 
 static void enter_challenge_character(Type_Challenge* challenge, char character) {
 	if (!is_challenge_done(challenge)) {
-		#ifdef DEBUG
+#ifdef DEBUG
 		debug_enter_character(character);
-		#endif
+#endif
 		challenge->typed_correctly[challenge->position] = (character == challenge->text.str[challenge->position]);
 		challenge->position++;
 		update_challenge_cursor(challenge);
 	}
-	#ifdef DEBUG
+#ifdef DEBUG
 	if (is_challenge_done(challenge)) {
 		debug_end_challenge();
 	}
-	#endif
+#endif
 }
 
 static bool challenge_has_mistakes(Type_Challenge* challenge) {
@@ -552,14 +636,12 @@ static void update_challenge_alpha(Type_Challenge* challenge, float dt) {
 		}
 		*alpha = (*alpha > 1.0) ? 1.0 : *alpha;
 	}
-	challenge->quad_group.alpha_factor = challenge->alpha;
-	challenge->cursor_quad.alpha_factor = challenge->alpha;
 }
 
 static void reset_challenge(Type_Challenge* challenge) {
-	#ifdef DEBUG
+#ifdef DEBUG
 	debug_reset_challenge();
-	#endif
+#endif
 	challenge->position = 0;
 	challenge->alpha = 0.0;
 }
@@ -581,7 +663,7 @@ static void reset_level(Level_Data* level) {
 	}
 	level->current_challenge = 0;
 	level->points = 0;
-	 if (!SDL_IsTextInputActive()) {
+	if (!SDL_IsTextInputActive()) {
 		SDL_StartTextInput();
 	}
 }
@@ -613,24 +695,7 @@ typedef struct Sized_Texture {
 	SDL_Rect rect;
 } Sized_Texture;
 
-typedef struct Shader {
-	int program;
-	
-	// attributes
-	int position_loc;
-	int texture_loc;
-	int in_color_loc;
-	
-	// uniforms
-	int position_offset_loc;
-	int ortho_loc;
-	int settings_loc;
-	int alpha_factor_loc;
-	
-	// textures
-	int font_texture_loc;
-	int font_sampler_idx;
-} Shader;
+#define MAX_SHADERS 8
 
 typedef struct Game_Window {
 	bool quit; // zero-init means quit=false by default
@@ -638,7 +703,9 @@ typedef struct Game_Window {
 	SDL_Window* window;
 	//SDL_Renderer* renderer;
 	SDL_GLContext gl_context;
-	Shader shader;
+	Shader shaders[MAX_SHADERS];
+	u32 num_shaders;
+	u32 quad_shader_id;
 	GLuint vao;
 	GLuint vbo;
 	GLuint ebo;
@@ -652,7 +719,7 @@ typedef struct Game_Window {
 	int frame_number;
 	
 	Command_Buffer command_buffer;
-
+	
 	Game_State state;
 	Type_Challenge title_challenge; // initial title page challenge
 	
@@ -666,21 +733,25 @@ typedef struct Game_Window {
 	Sized_Texture win_text;
 	Sized_Texture lose_text;
 	// TODO: points text
-	
-	FILE* debug_file;
 } Game_Window;
 
 static Game_Window* game_window = NULL;
 
+static Shader* push_shader(u32* shader_id) {
+	assert(game_window->num_shaders < MAX_SHADERS);
+	*shader_id = game_window->num_shaders;
+	return &game_window->shaders[game_window->num_shaders++];
+}
+
 static void center_quad_group_horizontally(Quad_Group* group) {
-	group->position_offset.x = (game_window->window_width / 2) - (rect_width(group->bounding_box) / 2);
+	group->position_offset.x = (game_window->window_width / 2) - (rect_width(&group->bounding_box) / 2);
 }
 
 static void center_quad_group_vertically(Quad_Group* group) {
-	group->position_offset.y = (game_window->window_height / 2) - (rect_height(group->bounding_box) / 2);
+	group->position_offset.y = (game_window->window_height / 2) - (rect_height(&group->bounding_box) / 2);
 }
 
-static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cache_id, char character, vec3* starting_pos, Color color) {
+static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cache_id, char character, vec3* starting_pos) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[font_cache_id];
 	Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
 	int x = (int)starting_pos->x;
@@ -690,8 +761,8 @@ static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cac
 	float g_x1 = (float)(g_x0 + glyph->width);
 	float g_y0 = (float)(baseline + glyph->y0);
 	float g_y1 = (float)(baseline + glyph->y1);
-	fprintf(game_window->debug_file, "char: %c, g_x0: %5.1f, g_x1: %5.1f, g_y0: %5.1f, g_y1: %5.1f\n",
-			character, g_x0, g_x1, g_y0, g_y1);
+	DEBUG_MSG("char: %c, g_x0: %5.1f, g_x1: %5.1f, g_y0: %5.1f, g_y1: %5.1f\n",
+		  character, g_x0, g_x1, g_y0, g_y1);
 	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
 	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
 	*bounding_box = pos;
@@ -704,7 +775,7 @@ static void character_to_quad(Quad* quad, rectangle2* bounding_box, int font_cac
 #endif
 	
 	starting_pos->x += (float)glyph->advance;
-	setup_textured_quad(quad, pos, starting_pos->z, tex, color);
+	setup_textured_quad(quad, pos, starting_pos->z, tex);
 }
 
 static Quad_Group text_as_quad_group(String text, int font_cache_id, Color color, float z) {
@@ -720,17 +791,17 @@ static Quad_Group text_as_quad_group(String text, int font_cache_id, Color color
 	rectangle2 glyph_bounding_box = {0};
 	for (int i = 0; i < text.length; i++) {
 		char character = text.str[i];
-		character_to_quad(&group.quads[i], &glyph_bounding_box, font_cache_id, character, &position, color);
+		character_to_quad(&group.quads[i], &glyph_bounding_box, font_cache_id, character, &position);
 		group.bounding_box.min.x = MY_MIN(group.bounding_box.min.x, glyph_bounding_box.min.x);
 		group.bounding_box.max.x = MY_MAX(group.bounding_box.max.x, glyph_bounding_box.max.x);
 		group.bounding_box.min.y = MY_MIN(group.bounding_box.min.y, glyph_bounding_box.min.y);
 		group.bounding_box.max.y = MY_MAX(group.bounding_box.max.y, glyph_bounding_box.max.y);
 	}
-	fprintf(game_window->debug_file, "bounding_box.min.x = %5.1f, min.y = %5.1f, max.x = %5.1f, max.y = %5.1f\n",
-			group.bounding_box.min.x, 
-			group.bounding_box.min.y, 
-			group.bounding_box.max.x, 
-			group.bounding_box.max.y);
+	DEBUG_MSG("bounding_box.min.x = %5.1f, min.y = %5.1f, max.x = %5.1f, max.y = %5.1f\n",
+		  group.bounding_box.min.x, 
+		  group.bounding_box.min.y, 
+		  group.bounding_box.max.x, 
+		  group.bounding_box.max.y);
 	return group;
 }
 
@@ -739,12 +810,12 @@ static Quad_Group fill_rect_as_quad_group(rectangle2 rect, Color color, float z)
 	group.quads = calloc(1, sizeof(Quad));
 	group.num_quads = 1;
 	rectangle2 tex = {0}; // we don't have a texture to worry about
-	setup_textured_quad(&group.quads[0], rect, z, tex, color);
+	setup_textured_quad(&group.quads[0], rect, z, tex);
 	group.render_settings = RENDER_ALPHA_BLENDED;
 	group.shader_settings = SHADER_NONE;
 	vec3 position = {0.0f, 0.0f, z};
 	group.bounding_box = rect;
- 	return group;
+	return group;
 }
 
 static void update_challenge_cursor(Type_Challenge* challenge) {
@@ -1169,15 +1240,14 @@ static void update_ortho_matrix(void) {
 }
 
 static void render_quad_group(Quad_Group* group) {
-	glUniform3fv(game_window->shader.position_offset_loc, 1, group->position_offset.values);
+	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
+	glUniform3fv(shader->position_offset_loc, 1, group->position_offset.values);
 	
-	glUniform1i(game_window->shader.settings_loc, group->shader_settings);
-	
-	glUniform1f(game_window->shader.alpha_factor_loc, group->alpha_factor);
+	glUniform1i(shader->settings_loc, group->shader_settings);
 	
 	if (group->shader_settings & SHADER_SAMPLE_TEXTURE) {
-		glUniform1i(game_window->shader.font_texture_loc, game_window->shader.font_sampler_idx);
-		glActiveTexture(GL_TEXTURE0 + game_window->shader.font_sampler_idx);
+		glUniform1i(shader->font_texture_loc, shader->font_sampler_idx);
+		glActiveTexture(GL_TEXTURE0 + shader->font_sampler_idx);
 		glBindTexture(GL_TEXTURE_2D, group->texture_id);
 	}
 	
@@ -1205,10 +1275,11 @@ static void render_gl_test(void) {
 	glClearColor(background.r, background.g, background.b, background.a);
 	glClear(GL_COLOR_BUFFER_BIT);
 	
-	glUseProgram(game_window->shader.program);
+	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
+	glUseProgram(shader->program);
 	glBindVertexArray(game_window->vao);
 	
-	glUniformMatrix4fv(game_window->shader.ortho_loc, 
+	glUniformMatrix4fv(shader->ortho_loc, 
 					   1,
 					   GL_FALSE,
 					   &game_window->ortho_matrix[0][0]);
@@ -1227,6 +1298,78 @@ static void render_gl_test(void) {
 	glUseProgram(0);
 }
 
+static void exec_command_buffer() {
+	Command_Buffer* buffer = &game_window->command_buffer;
+	Render_Command* command = buffer->first;
+	while (command) {
+		if (command->render_settings & RENDER_ALPHA_BLENDED) {
+			glEnable(GL_BLEND);
+			if (command->render_settings & RENDER_BLEND_REVERSE) {
+				glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);
+			} else {
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			}
+		}
+		
+		switch (command->type) {
+			case COMMAND_CLEAR: {
+				Clear_Command clear = command->data.clear_command;
+				if (clear.clear_color) {
+					Color c = clear.color;
+					glClearColor(c.r, c.g, c.b, c.a);
+					glClear(GL_COLOR_BUFFER_BIT);
+				}
+			} break;
+			case COMMAND_QUAD: {
+				Quad* quad = &command->data.quad;
+				glUseProgram(command->program_id);
+				glBindVertexArray(game_window->vao); // TODO: move into Command?
+				
+				Uniform_Data* uniform = command->first_uniform;
+				while (uniform) {
+					switch (uniform->type) {
+						case UNIFORM_FLOAT: {
+							glUniform1f(uniform->location, uniform->data.f);
+						} break;
+						case UNIFORM_I32: {
+							glUniform1i(uniform->location, uniform->data.inum);
+						} break;
+						case UNIFORM_VEC2: {
+							glUniform2fv(uniform->location, 1, &uniform->data.vec_2.values[0]);
+						} break;
+						case UNIFORM_VEC3: {
+							glUniform3fv(uniform->location, 1, &uniform->data.vec_3.values[0]);
+						} break;
+						case UNIFORM_VEC4: {
+							glUniform4fv(uniform->location, 1, &uniform->data.vec_4.values[0]);
+						} break;
+						case UNIFORM_MATRIX4_4: {
+							glUniformMatrix4fv(uniform->location, 1, GL_FALSE, &uniform->data.matrix[0][0]);
+						} break;
+					}
+					uniform = uniform->next;
+				}
+				
+				Texture_Data* texture = command->first_texture;
+				while (texture) {
+					glActiveTexture(GL_TEXTURE0 + texture->shader_idx);
+					glBindTexture(GL_TEXTURE_2D, texture->texture_id);
+					texture = texture->next;
+				}
+				
+				int stride = sizeof(Vertex);
+				
+				glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
+				glBufferData(GL_ARRAY_BUFFER, 4 * stride, quad, GL_STATIC_DRAW);
+				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+			} break;
+		}
+		command = command->next;
+	}
+	buffer->first = NULL;
+	reset_arena(&buffer->memory);
+}
+
 static void init_shader(Shader* shader) {
 	glUseProgram(shader->program);
 	
@@ -1242,15 +1385,13 @@ static void init_shader(Shader* shader) {
 		glGetActiveAttrib(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
 		int loc = glGetAttribLocation(shader->program, name_buffer);
 		assert(loc >= 0);
-		printf("loc[%d] name: %s\n", loc, name_buffer);
+		DEBUG_MSG("loc[%d] name: %s\n", loc, name_buffer);
 		if (strcmp(name_buffer, "position") == 0) {
 			shader->position_loc = loc;
 		} else if (strcmp(name_buffer, "texture") == 0) {
 			shader->texture_loc = loc;
-		} else if (strcmp(name_buffer, "in_color") == 0) {
-			shader->in_color_loc = loc;
 		}
-	}
+ 	}
 	
 	int sampler_idx = 0;
 	int active_uniforms = 0;
@@ -1260,7 +1401,7 @@ static void init_shader(Shader* shader) {
 		glGetActiveUniform(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
 		int loc = glGetUniformLocation(shader->program, name_buffer);
 		assert(loc >= 0);
-		printf("loc[%d] name: %s\n", loc, name_buffer);
+		DEBUG_MSG("loc[%d] name: %s\n", loc, name_buffer);
 		if (strcmp(name_buffer, "position_offset") == 0) {
 			shader->position_offset_loc = loc;
 		} else if (strcmp(name_buffer, "ortho") == 0) {
@@ -1270,8 +1411,6 @@ static void init_shader(Shader* shader) {
 			shader->font_sampler_idx = sampler_idx;
 		} else if (strcmp(name_buffer, "settings") == 0) {
 			shader->settings_loc = loc;
-		} else if (strcmp(name_buffer, "alphaFactor") == 0) {
-			shader->alpha_factor_loc = loc;
 		}
 		
 		if (attr_type == GL_SAMPLER_2D) {
@@ -1287,10 +1426,10 @@ static void check_shader(File_Resource* resource, GLuint shader) {
 		int info_len = 0;
 		char buffer[1024] = {0};
 		glGetShaderInfoLog(shader, 1024, &info_len, &buffer[0]);
-		printf("Error in shader %s:\n%s\n", resource->filename, buffer);
-		printf("\n======= shader source: ====== \n");
-		printf("%s", resource->contents);
-		printf("\n======= END OF SOURCE  ====== \n");
+		DEBUG_MSG("Error in shader %s:\n%s\n", resource->filename, buffer);
+		DEBUG_MSG("\n======= shader source: ====== \n");
+		DEBUG_MSG("%s", resource->contents);
+		DEBUG_MSG("\n======= END OF SOURCE  ====== \n");
 	}
 	assert(status == GL_TRUE);
 }
@@ -1307,7 +1446,7 @@ static void check_program_info(GLuint program, GLenum param) {
 			case GL_LINK_STATUS: { desc="GL_LINK_STATUS"; } break;
 			case GL_VALIDATE_STATUS: { desc="GL_VALIDATE_STATUS"; } break;
 		}
-		printf("Error in program (%s):\n%s\n", desc, buffer);
+		DEBUG_MSG("Error in program (%s):\n%s\n", desc, buffer);
 	}
 	assert(status == GL_TRUE);
 }
@@ -1322,10 +1461,10 @@ static void check_program_valid(GLuint program) {
 }
 
 static void init_gl(void) {
-	printf("gl version: %s\n", glGetString(GL_VERSION));
-	printf("gl shading language version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	DEBUG_MSG("gl version: %s\n", glGetString(GL_VERSION));
+	DEBUG_MSG("gl shading language version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	GLuint program_id = glCreateProgram();
-	printf("program_id: %d\n", program_id);
+	DEBUG_MSG("program_id: %d\n", program_id);
 	
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 	
@@ -1353,13 +1492,11 @@ static void init_gl(void) {
 	
 	update_ortho_matrix();
 	
-	Shader shader = {0};
-	shader.program = program_id;
-	init_shader(&shader);
+	Shader* shader = push_shader(&game_window->quad_shader_id);
+	shader->program = program_id;
+	init_shader(shader);
 	
-	game_window->shader = shader;
-	
-	int stride = 9 * sizeof(GLfloat);
+	int stride = sizeof(Vertex);
 	
 	glGenVertexArrays(1, &game_window->vao);
 	glBindVertexArray(game_window->vao);
@@ -1368,14 +1505,12 @@ static void init_gl(void) {
 	glGenBuffers(1, &game_window->ebo);
 	
 	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, 4 * stride, NULL, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, NUM_VERTICES * stride, NULL, GL_STATIC_DRAW);
 	
-	glEnableVertexAttribArray(game_window->shader.position_loc);
-	glVertexAttribPointer(game_window->shader.position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL);
-	glEnableVertexAttribArray(game_window->shader.texture_loc);
-	glVertexAttribPointer(game_window->shader.texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(3*sizeof(GLfloat)));
-	glEnableVertexAttribArray(game_window->shader.in_color_loc);
-	glVertexAttribPointer(game_window->shader.in_color_loc, 4, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(5*sizeof(GLfloat)));
+	glEnableVertexAttribArray(shader->position_loc);
+	glVertexAttribPointer(shader->position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL);
+	glEnableVertexAttribArray(shader->texture_loc);
+	glVertexAttribPointer(shader->texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(sizeof(vec3)));
 	
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->ebo);
 	GLuint indexData[] = { 0, 1, 2, 2, 3, 0 };
@@ -1390,7 +1525,8 @@ static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
 	memset(game_window, 0, sizeof(Game_Window));
 	game_window->command_buffer.memory = new_memory(MB(8));
-	game_window->debug_file = fopen("summoning_debug_log.txt", "w");
+	debug_file = fopen("summoning_debug_log.txt", "w");
+	setvbuf(debug_file, NULL, _IONBF, 0);
 	game_window->window_width = DEFAULT_WINDOW_WIDTH;
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
@@ -1587,49 +1723,61 @@ static void title_screen_do_animation(void) {
 	update_challenge_alpha(&game_window->title_challenge, game_window->dt);
 }
 
-static void center_rect_horizontally(SDL_Rect* rect) {
-	rect->x = (game_window->window_width / 2) - (rect->w / 2);
+static void center_rect_horizontally(rectangle2* rect) {
+	float width = rect_width(rect);
+	float x_offset = ((float)game_window->window_width / 2.0f) - (width / 2.0f);
+	rect->min.x = x_offset;
+	rect->max.x = x_offset + width;
 }
 
-static void center_rect_vertically(SDL_Rect* rect) {
-	rect->y = (game_window->window_height / 2) - (rect->h / 2);
+static void center_rect_vertically(rectangle2* rect) {
+	float height = rect_height(rect);
+	float y_offset = ((float)game_window->window_height / 2.0f) - (height / 2.0f);
+	rect->min.y = y_offset;
+	rect->max.y = y_offset + height;
 }
 
-#if 0
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
-	int x = 0;
+	vec3 position = {0.0f, 0.0f, 0.4f};
+	Command_Buffer* buffer = &game_window->command_buffer;
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[challenge->font_cache_id];
+	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
 	for (int i = 0; i < challenge->text.length; i++) {
 		char character = challenge->text.str[i];
 		assert((character >= 32) && (character <= 126));
-		Glyph* glyph = &challenge->font->glyph_cache.glyphs[GLYPH_INDEX(character)];
-		SDL_Texture* texture = glyph->texture;
-		int alpha = challenge->alpha * 255;
-		SDL_SetTextureAlphaMod(texture, alpha);
+		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
+		rectangle2 glyph_bounding_box;
+		Quad glyph_quad = {0};
+		character_to_quad(&glyph_quad, &glyph_bounding_box, challenge->font_cache_id, character, &position);
+		
+		Color color = white;
 		if (challenge->position > i) {
 			if (challenge->typed_correctly[i]) { // correct
-				texture_color_mod(texture, green);
+				color = green;
 			} else { // incorrect
-				texture_color_mod(texture, red);
+				color = red;
 			}
 		} else if (challenge->position == i) {
-			SDL_Rect cursor_rect = challenge->cursor_rects[i];
-			cursor_rect.x += challenge->bounding_box.x;
-			cursor_rect.y += challenge->bounding_box.y;
-			fill_rounded_rect(game_window->renderer, cursor_rect, amber, cursor_rect.w/4);
-			texture_color_mod(texture, very_dark_blue);
-		} else {
-			// untyped character - so keep original color
-			texture_color_mod(texture, white);
+			color = very_dark_blue;
+			
+			Color cursor_color = amber;
+			cursor_color.a = challenge->alpha;
+			float radius = rect_width(&glyph_bounding_box)/4.0f;
+			fill_rounded_rect(buffer, shader, glyph_bounding_box, cursor_color, radius);
 		}
-		SDL_Rect pos = glyph->bounding_box;
-		pos.x += challenge->bounding_box.x + x;
-		pos.y += challenge->bounding_box.y;
 		
-		SDL_RenderCopy(game_window->renderer, texture, NULL, &pos);
-		x += glyph->advance;
+		Render_Command* command = push_render_command(buffer);
+		command->type = COMMAND_QUAD;
+		command->program_id = shader->program;
+		command->render_settings = RENDER_ALPHA_BLENDED;
+		color.a = challenge->alpha;
+		PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
+		PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, challenge->bounding_box.min);
+		memcpy(&command->data.quad, &glyph_quad, sizeof(Quad));
 	}
 }
 
+#if 0
 static void render_win() {
 	center_rect_horizontally(&game_window->win_text.rect);
 	center_rect_vertically(&game_window->win_text.rect);
@@ -1642,12 +1790,6 @@ static void render_lose() {
 	SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
 }
 
-static void render_menu(void) {
-	center_rect_horizontally(&game_window->title_challenge.bounding_box);
-	center_rect_vertically(&game_window->title_challenge.bounding_box);
-	render_challenge(game_window, &game_window->title_challenge);
-}
-
 static void render_game(void) {
 	Type_Challenge* challenge = &game_window->level_data.challenges[game_window->level_data.current_challenge];
 	update_challenge_alpha(challenge, game_window->dt);
@@ -1657,14 +1799,23 @@ static void render_game(void) {
 }
 #endif
 
+static void render_menu(void) {
+	center_rect_horizontally(&game_window->title_challenge.bounding_box);
+	center_rect_vertically(&game_window->title_challenge.bounding_box);
+	render_challenge(game_window, &game_window->title_challenge);
+}
+
 static void update_and_render(void) {
 	//render_draw_color(game_window->renderer, very_dark_blue);
+	Render_Command* clear = push_render_command(&game_window->command_buffer);
+	clear->type = COMMAND_CLEAR;
+	clear->data.clear_command.clear_color = true;
+	clear->data.clear_command.color = very_dark_blue;
 	//SDL_RenderClear(game_window->renderer);
 	
 	title_screen_do_animation();
-	render_gl_test();
+	//render_gl_test();
 	
-#if 0
 	switch (game_window->state) {
 		case STATE_MENU: {
 			//SDL_Rect dest_rect;
@@ -1676,18 +1827,18 @@ static void update_and_render(void) {
 		} break;
 		case STATE_PLAY: {
 			play_screen_do_animation();
-			render_game();
+			//render_game();
 		} break;
 		case STATE_WIN: {
-			render_win();
+			//render_win();
 		} break;
 		case STATE_LOSE: {
-			render_lose();
+			//render_lose();
 		} break;
 		default: {}
 	}
-#endif
 	
+	exec_command_buffer();
 	SDL_GL_SwapWindow(game_window->window);
 	//SDL_RenderPresent(game_window->renderer);
 }
@@ -1729,9 +1880,7 @@ int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
-	printf("size of Vertex: %zu\n", sizeof(Vertex));
-	printf("size of 3+2+4 floats: %zu\n", (3+2+4)*sizeof(float));
-	assert(sizeof(Vertex) == (3+2+4)*sizeof(float)); // checking for no padding
+	assert(sizeof(Vertex) == (sizeof(vec3)+sizeof(vec2))); // checking for no padding
 	
 	init_global_file_resources();
 	init_the_game();
@@ -1743,7 +1892,7 @@ int main(int argc, char** argv) {
 	while (true) { main_loop(); }
     #endif
 	
-	fclose(game_window->debug_file);
+	fclose(debug_file);
 #ifdef UNIX
     printf("\n");
 #endif
