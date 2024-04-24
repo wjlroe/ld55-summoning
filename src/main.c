@@ -225,11 +225,6 @@ typedef enum Render_Setting {
 typedef struct Quad_Group {
 	Quad* quads;
 	int num_quads;
-	rectangle2 bounding_box;
-	u32 shader_settings;
-	u32 render_settings;
-	vec2 position_offset;
-	int texture_id;
 } Quad_Group;
 
 typedef enum Render_Command_Type {
@@ -772,14 +767,6 @@ static Shader* push_shader(u32* shader_id) {
 	return &game_window->shaders[game_window->num_shaders++];
 }
 
-static void center_quad_group_horizontally(Quad_Group* group) {
-	group->position_offset.x = (game_window->window_width / 2) - (rect_width(&group->bounding_box) / 2);
-}
-
-static void center_quad_group_vertically(Quad_Group* group) {
-	group->position_offset.y = (game_window->window_height / 2) - (rect_height(&group->bounding_box) / 2);
-}
-
 static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String text) {
 	challenge->text_group.text = text;
 	challenge->text_group.font_cache_id = font_cache_id;
@@ -1178,37 +1165,6 @@ static void update_ortho_matrix(void) {
 	//game_window->ortho_matrix.values = ortho_matrix;
 	// NOTE: do we have to memcpy from one multi-dimensional array to another?
 	memcpy(&game_window->ortho_matrix.values, ortho_matrix, 4*4*sizeof(GLfloat));
-}
-
-static void render_quad_group(Quad_Group* group) {
-	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
-	glUniform3fv(shader->position_offset_loc, 1, group->position_offset.values);
-	
-	glUniform1i(shader->settings_loc, group->shader_settings);
-	
-	if (group->shader_settings & SHADER_SAMPLE_TEXTURE) {
-		glUniform1i(shader->font_texture_loc, shader->font_sampler_idx);
-		glActiveTexture(GL_TEXTURE0 + shader->font_sampler_idx);
-		glBindTexture(GL_TEXTURE_2D, group->texture_id);
-	}
-	
-	if (group->render_settings & RENDER_ALPHA_BLENDED) {
-		glEnable(GL_BLEND);
-		if (group->render_settings & RENDER_BLEND_REVERSE) {
-			glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ZERO);
-		} else {
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		}
-	}
-	
-	int stride = sizeof(Vertex);
-	
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-	glBufferData(GL_ARRAY_BUFFER, group->num_quads * 4 * stride, group->quads, GL_STATIC_DRAW);
-	for (int i = 0; i < group->num_quads; i++) {
-		// TODO: undo using the element buffer - too complex for now
-		glDrawElementsBaseVertex(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL, i*4);
-	}
 }
 
 static void exec_command_buffer() {
