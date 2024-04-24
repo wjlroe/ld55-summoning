@@ -531,17 +531,13 @@ typedef struct Text_Group {
 typedef struct Type_Challenge {
 	Text_Group text_group;
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
-	SDL_Rect* cursor_rects;
 	int position;
 	float alpha;
 	float alpha_fade_speed;
-	Quad_Group quad_group;
-	Quad_Group cursor_quad;
 } Type_Challenge;
 
 static void free_challenge(Type_Challenge* challenge) {
 	free(challenge->typed_correctly);
-	free(challenge->cursor_rects);
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
@@ -731,7 +727,6 @@ static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String
 	setup_text_group(&challenge->text_group);
 	
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
-	challenge->cursor_rects = calloc(text.length, sizeof(SDL_Rect));
 }
 
 static void setup_level(Level_Data* level, int font_cache_id) {
