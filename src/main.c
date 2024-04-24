@@ -242,6 +242,7 @@ typedef struct Quad_Group {
 typedef enum Render_Command_Type {
 	COMMAND_NONE,
 	COMMAND_QUAD,
+	COMMAND_QUAD_GROUP,
 	COMMAND_CLEAR,
 } Render_Command_Type;
 
@@ -292,6 +293,7 @@ struct Render_Command {
 	
 	union {
 		Quad quad;
+		Quad_Group quad_group;
 		Clear_Command clear_command;
 	} data;
 	
@@ -1321,8 +1323,17 @@ static void exec_command_buffer() {
 					glClear(GL_COLOR_BUFFER_BIT);
 				}
 			} break;
+			case COMMAND_QUAD_GROUP:
 			case COMMAND_QUAD: {
-				Quad* quad = &command->data.quad;
+				int num_quads = 0;
+				Quad* quads;
+				if (command->type == COMMAND_QUAD) {
+					num_quads = 1;
+					quads = &command->data.quad;
+				} else {
+					num_quads = command->data.quad_group.num_quads;
+					quads = command->data.quad_group.quads;
+				}
 				assert(command->program_id > 0);
 				glUseProgram(command->program_id);
 				glBindVertexArray(game_window->vao); // TODO: move into Command?
@@ -1348,6 +1359,9 @@ static void exec_command_buffer() {
 						case UNIFORM_MATRIX4_4: {
 							glUniformMatrix4fv(uniform->location, 1, GL_FALSE, &uniform->data.matrix.values[0][0]);
 						} break;
+						case UNIFORM_NONE: {
+							abort();
+						} break;
 					}
 					uniform = uniform->next;
 				}
@@ -1362,8 +1376,15 @@ static void exec_command_buffer() {
 				int stride = sizeof(Vertex);
 				
 				glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
-				glBufferData(GL_ARRAY_BUFFER, 4 * stride, quad, GL_STATIC_DRAW);
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+				while (num_quads > 0) {
+					glBufferData(GL_ARRAY_BUFFER, 4 * stride, quads, GL_STATIC_DRAW);
+					glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
+					quads++;
+					num_quads--;
+				}
+			} break;
+			case COMMAND_NONE: {
+				abort();
 			} break;
 		}
 		command = command->next;
@@ -1581,13 +1602,16 @@ static void init_the_game(void) {
 	
 	game_window->win_text_group.text = win;
 	game_window->win_text_group.font_cache_id = game_window->title_font_cache_id;
+	setup_text_group(&game_window->win_text_group);
 	game_window->lose_text_group.text = lost;
 	game_window->lose_text_group.font_cache_id = game_window->title_font_cache_id;
+	setup_text_group(&game_window->lose_text_group);
 	//render_text_into_texture(game_window->renderer, &game_window->win_text, game_window->title_font.font, win);
 	//render_text_into_texture(game_window->renderer, &game_window->lose_text, game_window->title_font.font, lost);
 	
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
+	
 #if 0
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
@@ -1610,8 +1634,10 @@ static void game_handle_input(void) {
 				if (is_level_done(&game_window->level_data)) {
 					if (game_window->level_data.points < game_window->level_data.num_challenges) {
 						game_window->state = STATE_LOSE;
+						DEBUG_MSG("Lose state!\n");
 					} else {
 						game_window->state = STATE_WIN;
+						DEBUG_MSG("Win state!\n");
 					}
 				}
 			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
@@ -1742,6 +1768,25 @@ static void center_rect_vertically(rectangle2* rect) {
 	rect->max.y = y_offset + height;
 }
 
+static void render_text_group(Text_Group* group) {
+	Command_Buffer* buffer = &game_window->command_buffer;
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[group->font_cache_id];
+	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
+	Render_Command* command = push_render_command(buffer);
+	command->type = COMMAND_QUAD_GROUP;
+	command->program_id = shader->program;
+	command->render_settings = RENDER_ALPHA_BLENDED;
+	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
+	PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
+	Color color = white;
+	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
+	PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, group->bounding_box.min);
+	PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
+	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
+	command->data.quad_group.num_quads = group->num_quads;
+	command->data.quad_group.quads = group->quads;
+}
+
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
 	vec3 position = {0.0f, 0.0f, 0.4f};
 	Command_Buffer* buffer = &game_window->command_buffer;
@@ -1803,6 +1848,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 static void render_win() {
 	center_rect_horizontally(&game_window->win_text_group.bounding_box);
 	center_rect_vertically(&game_window->win_text_group.bounding_box);
+	render_text_group(&game_window->win_text_group);
 	// TODO: render_text_group !!!
 	//SDL_RenderCopy(game_window->renderer, game_window->win_text_group.texture, NULL, &game_window->win_text.rect);
 }
@@ -1810,6 +1856,7 @@ static void render_win() {
 static void render_lose() {
 	center_rect_horizontally(&game_window->lose_text_group.bounding_box);
 	center_rect_vertically(&game_window->lose_text_group.bounding_box);
+	render_text_group(&game_window->lose_text_group);
 	//SDL_RenderCopy(game_window->renderer, game_window->lose_text.texture, NULL, &game_window->lose_text.rect);
 }
 
