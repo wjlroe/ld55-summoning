@@ -178,6 +178,10 @@ typedef struct matrix4_4 {
 typedef struct Shader {
 	int program;
 	
+	GLuint vao;
+	GLuint vbo;
+	GLuint ebo;
+	
 	// attributes
 	int position_loc;
 	int texture_loc;
@@ -276,7 +280,7 @@ typedef struct Clear_Command {
 typedef struct Render_Command Render_Command;
 struct Render_Command {
 	Render_Command_Type type;
-	u32 program_id;
+	u32 shader_id;
 	u32 render_settings;
 	
 	union {
@@ -392,18 +396,6 @@ Color red = RGBA(255, 10, 10, 255);
 Color very_dark_blue = RGBA(4, 8, 13, 255);
 Color green = RGBA(10, 255, 10, 255);
 Color amber = RGBA(255, 191, 0, 255);
-
-static Render_Command* fill_rounded_rect(Command_Buffer* buffer, Shader* shader, rectangle2 rect, Color color, float z, float radius) {
-	Render_Command* command = push_render_command(buffer);
-	command->type = COMMAND_QUAD;
-	command->program_id = shader->program;
-	command->render_settings = RENDER_ALPHA_BLENDED;
-	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
-	// TODO: implement rounded rects in quad shader
-	setup_textured_quad(&command->data.quad, rect, z, (rectangle2){0});
-	
-	return command;
-}
 
 typedef enum Game_State {
 	STATE_MENU,
@@ -667,9 +659,6 @@ typedef struct Game_Window {
 	Shader shaders[MAX_SHADERS];
 	u32 num_shaders;
 	u32 quad_shader_id;
-	GLuint vao;
-	GLuint vbo;
-	GLuint ebo;
 	matrix4_4 ortho_matrix;
 	Font font;
 	int title_font_cache_id;
@@ -696,6 +685,19 @@ typedef struct Game_Window {
 } Game_Window;
 
 static Game_Window* game_window = NULL;
+
+static Render_Command* fill_rounded_rect(Command_Buffer* buffer, u32 shader_id, rectangle2 rect, Color color, float z, float radius) {
+	Shader* shader = &game_window->shaders[shader_id];
+	Render_Command* command = push_render_command(buffer);
+	command->type = COMMAND_QUAD;
+	command->shader_id = shader_id;
+	command->render_settings = RENDER_ALPHA_BLENDED;
+	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
+	// TODO: implement rounded rects in quad shader
+	setup_textured_quad(&command->data.quad, rect, z, (rectangle2){0});
+	
+	return command;
+}
 
 static void setup_text_group(Text_Group* group) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[group->font_cache_id];
@@ -1123,6 +1125,7 @@ static void update_ortho_matrix(void) {
 static void exec_command_buffer() {
 	Command_Buffer* buffer = &game_window->command_buffer;
 	Render_Command* command = buffer->first;
+	Shader* shader = &game_window->shaders[command->shader_id];
 	while (command) {
 		if (command->render_settings & RENDER_ALPHA_BLENDED) {
 			glEnable(GL_BLEND);
@@ -1153,9 +1156,9 @@ static void exec_command_buffer() {
 					num_quads = command->data.quad_group.num_quads;
 					quads = command->data.quad_group.quads;
 				}
-				assert(command->program_id > 0);
-				glUseProgram(command->program_id);
-				glBindVertexArray(game_window->vao); // TODO: move into Command?
+				assert(shader->program > 0);
+				glUseProgram(shader->program);
+				glBindVertexArray(shader->vao);
 				
 				Uniform_Data* uniform = command->first_uniform;
 				while (uniform) {
@@ -1194,7 +1197,7 @@ static void exec_command_buffer() {
 				
 				int stride = sizeof(Vertex);
 				
-				glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo);
+				glBindBuffer(GL_ARRAY_BUFFER, shader->vbo);
 				while (num_quads > 0) {
 					glBufferData(GL_ARRAY_BUFFER, 4 * stride, quads, GL_STATIC_DRAW);
 					glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, NULL);
@@ -1342,13 +1345,13 @@ static void init_gl(void) {
 	
 	int stride = sizeof(Vertex);
 	
-	glGenVertexArrays(1, &game_window->vao); ShowGLError();
-	glBindVertexArray(game_window->vao); ShowGLError();
+	glGenVertexArrays(1, &shader->vao); ShowGLError();
+	glBindVertexArray(shader->vao); ShowGLError();
 	
-	glGenBuffers(1, &game_window->vbo);
-	glGenBuffers(1, &game_window->ebo);
+	glGenBuffers(1, &shader->vbo);
+	glGenBuffers(1, &shader->ebo);
 	
-	glBindBuffer(GL_ARRAY_BUFFER, game_window->vbo); ShowGLError();
+	glBindBuffer(GL_ARRAY_BUFFER, shader->vbo); ShowGLError();
 	glBufferData(GL_ARRAY_BUFFER, NUM_VERTICES * stride, NULL, GL_STATIC_DRAW); ShowGLError();
 	
 	glEnableVertexAttribArray(shader->position_loc); ShowGLError();
@@ -1356,7 +1359,7 @@ static void init_gl(void) {
 	glEnableVertexAttribArray(shader->texture_loc); ShowGLError();
 	glVertexAttribPointer(shader->texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(sizeof(vec3))); ShowGLError();
 	
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, game_window->ebo);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shader->ebo);
 	GLuint indexData[] = { 0, 1, 2, 2, 3, 0 };
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
 	
@@ -1588,10 +1591,11 @@ static void center_rect_vertically(rectangle2* rect) {
 static void render_text_group(Text_Group* group) {
 	Command_Buffer* buffer = &game_window->command_buffer;
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[group->font_cache_id];
-	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
+	u32 shader_id = game_window->quad_shader_id;
+	Shader* shader = &game_window->shaders[shader_id];
 	Render_Command* command = push_render_command(buffer);
 	command->type = COMMAND_QUAD_GROUP;
-	command->program_id = shader->program;
+	command->shader_id = shader_id;
 	command->render_settings = RENDER_ALPHA_BLENDED;
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
@@ -1608,7 +1612,8 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 	vec3 position = {0.0f, 0.0f, 0.4f};
 	Command_Buffer* buffer = &game_window->command_buffer;
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[challenge->text_group.font_cache_id];
-	Shader* shader = &game_window->shaders[game_window->quad_shader_id];
+	u32 shader_id = game_window->quad_shader_id;
+	Shader* shader = &game_window->shaders[shader_id];
 	float cursor_height = font_cache->ascent + font_cache->descent;
 	for (int i = 0; i < challenge->text_group.text.length; i++) {
 		char character = challenge->text_group.text.str[i];
@@ -1640,7 +1645,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			float c_y1 = c_y0 + cursor_height;
 			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
-			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader, cursor_rect, cursor_color, 0.3f, radius);
+			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
 			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_NONE);
 			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->text_group.bounding_box.min);
 			PUSH_UNIFORM_MATRIX(&buffer->memory, cursor_cmd, shader->ortho_loc, game_window->ortho_matrix);
@@ -1648,7 +1653,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		
 		Render_Command* command = push_render_command(buffer);
 		command->type = COMMAND_QUAD;
-		command->program_id = shader->program;
+		command->shader_id = shader_id;
 		command->render_settings = RENDER_ALPHA_BLENDED;
 		color.a = challenge->alpha;
 		PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
