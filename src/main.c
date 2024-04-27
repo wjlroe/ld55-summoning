@@ -142,6 +142,11 @@ typedef union vec2 {
 	float values[2];
 } vec2;
 
+static vec2_add(vec2* a, vec2 b) {
+	a->x += b.x;
+	a->y += b.y;
+}
+
 typedef union vec3 {
 	struct { float x, y, z; };
 	struct { vec2 xy; float _z; };
@@ -1659,6 +1664,8 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			float c_y1 = c_y0 + cursor_height;
 			vec2 dimensions = {glyph_width, cursor_height};
 			vec2 origin = {c_x0 + glyph_width / 2.0f, c_y0 + cursor_height / 2.0f};
+			vec2_add(&origin, challenge->text_group.bounding_box.min);
+			// origin += challenge->text_group.bounding_box.min;
 			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
