@@ -1655,7 +1655,6 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
 			float radius = rect_width(&glyph_bounding_box)/4.0f;
-			// float radius_radians = radius * (M_PI/180.0f);
 			rectangle2 glyph_box = {.min={.x=glyph->x0,.y=glyph->y0},.max={.x=glyph->x1,.y=glyph->y1}};
 			float glyph_width = rect_width(&glyph_box);
 			float c_x0 = glyph_bounding_box.min.x;
@@ -1665,7 +1664,6 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			vec2 dimensions = {glyph_width, cursor_height};
 			vec2 origin = {c_x0 + glyph_width / 2.0f, c_y0 + cursor_height / 2.0f};
 			vec2_add(&origin, challenge->text_group.bounding_box.min);
-			// origin += challenge->text_group.bounding_box.min;
 			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
