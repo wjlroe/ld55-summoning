@@ -8,8 +8,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
-#include <SDL2_gfxPrimitives.c>
-#include <SDL2_rotozoom.c>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>

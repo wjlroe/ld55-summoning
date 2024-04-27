@@ -30,8 +30,7 @@ set includes=-I. ^
  -I..\vendor\SDL2-2.30.2\include ^
  -I..\vendor\SDL2-2.30.2\include\SDL2 ^
  -I..\vendor\SDL2_image-2.8.2\include ^
- -I..\vendor\SDL2_ttf-2.22.0\include ^
- -I..\vendor\SDL2_gfx
+ -I..\vendor\SDL2_ttf-2.22.0\include
 
 set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.lib ^

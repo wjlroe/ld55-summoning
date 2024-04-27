@@ -7,7 +7,7 @@ host_os="$(uname -s)"
 echo "Building natively"
 pushd build
 
-compile_flags="-I. -I../vendor/stb -I../vendor/SDL2_gfx $(pkg-config --cflags --libs sdl2,SDL2_image,SDL2_ttf) -DUNIX"
+compile_flags="-I. -I../vendor/stb $(pkg-config --cflags --libs sdl2,SDL2_image,SDL2_ttf) -DUNIX"
 
 if [[ "${host_os}" == "Darwin" ]]; then
 	rosetta_pids="$(fuser /usr/libexec/rosetta/runtime 2>/dev/null | xargs -n1)"
