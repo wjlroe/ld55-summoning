@@ -29,6 +29,9 @@
 
 // TODO
 // * Render a rounded rect (cursor) where the position is (if it's within a String)
+//    * https://www.rfleury.com/p/ui-part-6-rendering
+//    * https://www.youtube.com/watch?v=3KShhwQSlTo [Mr 4th: Signed Distance Function for Rounded Rectangles]
+//    * https://iquilezles.org/articles/distfunctions2d/ (https://www.youtube.com/watch?v=s5NGeUV2EyU)
 // * Switch to glDrawElements->glDrawArrays so we only have 1 vertex buffer
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
@@ -191,6 +194,9 @@ typedef struct Shader {
 	int color_loc;
 	int ortho_loc;
 	int settings_loc;
+	int radius_loc;
+	int dimensions_loc;
+	int origin_loc;
 	
 	// textures
 	int font_texture_loc;
@@ -1259,6 +1265,12 @@ static void init_shader(Shader* shader) {
 			shader->settings_loc = loc;
 		} else if (strcmp(name_buffer, "color") == 0) {
 			shader->color_loc = loc;
+		} else if (strcmp(name_buffer, "radius") == 0) {
+			shader->radius_loc = loc;
+		} else if (strcmp(name_buffer, "dimensions") == 0) {
+			shader->dimensions_loc = loc;
+		} else if (strcmp(name_buffer, "origin") == 0) {
+			shader->origin_loc = loc;
 		}
 		
 		if (attr_type == GL_SAMPLER_2D) {
@@ -1638,18 +1650,24 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
 			float radius = rect_width(&glyph_bounding_box)/4.0f;
+			// float radius_radians = radius * (M_PI/180.0f);
 			rectangle2 glyph_box = {.min={.x=glyph->x0,.y=glyph->y0},.max={.x=glyph->x1,.y=glyph->y1}};
 			float glyph_width = rect_width(&glyph_box);
 			float c_x0 = glyph_bounding_box.min.x;
 			float c_y0 = 0.0f;
 			float c_x1 = c_x0 + glyph_width;
 			float c_y1 = c_y0 + cursor_height;
+			vec2 dimensions = {glyph_width, cursor_height};
+			vec2 origin = {c_x0 + glyph_width / 2.0f, c_y0 + cursor_height / 2.0f};
 			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
-			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_NONE);
+			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_ROUNDED_RECT);
 			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->text_group.bounding_box.min);
 			PUSH_UNIFORM_MATRIX(&buffer->memory, cursor_cmd, shader->ortho_loc, game_window->ortho_matrix);
+			PUSH_UNIFORM_FLOAT(&buffer->memory, cursor_cmd, shader->radius_loc, radius);
+			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->dimensions_loc, dimensions);
+			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->origin_loc, origin);
 		}
 		
 		Render_Command* command = push_render_command(buffer);
