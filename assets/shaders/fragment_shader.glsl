@@ -1,8 +1,6 @@
 #version 150 core
 
 in vec2 TexCoords;
-in vec2 screen_coords;
-in vec4 gl_FragCoord;
 
 out vec4 OutColor;
 
@@ -39,11 +37,10 @@ void main() {
 		float edge_softness = 1.0f;
 		vec2 softness_padding = vec2(max(0.0f, edge_softness * 2.0f - 1.0f),
 									 max(0.0f, edge_softness * 2.0f - 1.0f));
-		//vec2 coord = gl_FragCoord.xy;
-		vec2 coord = screen_coords;
-		float dist = rounded_box_sdf(coord, 
-									 origin, 
-									 dimensions / 2.0f - softness_padding, 
+		vec2 coord = gl_FragCoord.xy;
+		float dist = rounded_box_sdf(coord,
+									 origin,
+									 dimensions / 2.0f - softness_padding,
 									 radius);
 		float sdf_factor = 1.0f - smoothstep(0.0f, 2.0f * edge_softness, dist);
 		output_color.a *= sdf_factor;
