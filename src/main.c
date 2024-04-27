@@ -7,7 +7,6 @@
 #include <sys/stat.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
-#include <SDL2/SDL_ttf.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
@@ -1400,7 +1399,6 @@ static void init_the_game(void) {
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
 	SDL_Init(SDL_INIT_EVERYTHING);
-	TTF_Init();
 	game_window->window = SDL_CreateWindow("Ludum Dare 55: Summoning",
 										   SDL_WINDOWPOS_UNDEFINED,
 										   SDL_WINDOWPOS_UNDEFINED,
