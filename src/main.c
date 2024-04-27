@@ -138,7 +138,7 @@ typedef union vec2 {
 	float values[2];
 } vec2;
 
-static vec2_add(vec2* a, vec2 b) {
+static void vec2_add(vec2* a, vec2 b) {
 	a->x += b.x;
 	a->y += b.y;
 }
