@@ -218,6 +218,7 @@ static void setup_textured_quad(Quad* quad, rectangle2 pos, float z, rectangle2 
 typedef enum Shader_Setting {
 	SHADER_NONE           = 0,
 	SHADER_SAMPLE_TEXTURE = (1 << 0),
+	SHADER_ROUNDED_RECT   = (1 << 1),
 } Shader_Setting;
 
 typedef enum Render_Setting {
