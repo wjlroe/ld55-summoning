@@ -6,7 +6,6 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>

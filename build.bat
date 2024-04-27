@@ -20,18 +20,15 @@ pushd %build_dir%
 rm *.pdb *.obj *.ilk
 
 cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
-cp ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.dll .
 mv ..\resources.res .
 cvtres -machine:x64 -out:resources.obj resources.res
 
 set includes=-I. ^
  -I..\vendor\stb ^
  -I..\vendor\SDL2-2.30.2\include ^
- -I..\vendor\SDL2-2.30.2\include\SDL2 ^
- -I..\vendor\SDL2_image-2.8.2\include
+ -I..\vendor\SDL2-2.30.2\include\SDL2
 
 set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
- ..\vendor\SDL2_image-2.8.2\lib\x64\SDL2_image.lib ^
  glu32.lib user32.lib gdi32.lib
 
 echo Generate resources
