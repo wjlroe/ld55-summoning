@@ -24,11 +24,9 @@
 #endif
 
 // TODO
-// * Render a rounded rect (cursor) where the position is (if it's within a String)
-//    * https://www.rfleury.com/p/ui-part-6-rendering
-//    * https://www.youtube.com/watch?v=3KShhwQSlTo [Mr 4th: Signed Distance Function for Rounded Rectangles]
-//    * https://iquilezles.org/articles/distfunctions2d/ (https://www.youtube.com/watch?v=s5NGeUV2EyU)
 // * Switch to glDrawElements->glDrawArrays so we only have 1 vertex buffer
+// * Remove SDL2 entirely
+// * Port demonic sign rendering code to OpenGL and/or rendering to texture/file
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 #define MIN(x,y) (x < y ? x : y)
