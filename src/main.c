@@ -1654,8 +1654,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			color = very_dark_blue;
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
-			rectangle2 glyph_box = {.min={.x=glyph->x0,.y=glyph->y0},.max={.x=glyph->x1,.y=glyph->y1}};
-			float glyph_width = rect_width(&glyph_box);
+			float glyph_width = glyph->width;
 			float c_x0 = glyph_bounding_box->min.x;
 			float c_y0 = 0.0f;
 			float c_x1 = c_x0 + glyph_width;
