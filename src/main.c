@@ -31,8 +31,8 @@
 // * Switch to glDrawElements->glDrawArrays so we only have 1 vertex buffer
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
-#define MY_MIN(x,y) (x < y ? x : y)
-#define MY_MAX(x, y) (x > y ? x : y) // TODO: There's a MAX in SDL_rotozoom.c
+#define MIN(x,y) (x < y ? x : y)
+#define MAX(x, y) (x > y ? x : y)
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -732,7 +732,6 @@ static Render_Command* fill_rounded_rect(Command_Buffer* buffer, u32 shader_id, 
 	command->shader_id = shader_id;
 	command->render_settings = RENDER_ALPHA_BLENDED;
 	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
-	// TODO: implement rounded rects in quad shader
 	setup_textured_quad(&command->data.quad, rect, z, (rectangle2){0});
 	
 	return command;
