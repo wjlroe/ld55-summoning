@@ -170,6 +170,13 @@ static float rect_height(rectangle2* rect) {
 	return (rect->max.y - rect->min.y);
 }
 
+static void debug_rect(char* prefix, rectangle2* rect) {
+	DEBUG_MSG("%s: {{%8.4f, %8.4f}} -> {{%8.4f, %8.4f}}\n", 
+			  prefix,
+			  rect->min.x, rect->min.y,
+			  rect->max.x, rect->max.y);
+}
+
 typedef vec4 Color;
 
 typedef struct matrix4_4 {
