@@ -441,6 +441,12 @@ typedef enum Game_State {
 	STATE_LOSE,
 } Game_State;
 
+typedef enum Modifier {
+	MODIFIER_NONE = 0,
+	MODIFIER_ALT  = (1 << 0),
+	MODIFIER_CTRL = (1 << 1),
+} Modifier;
+
 typedef enum Key {
 	KEY_NONE,
 	KEY_LEFT,
@@ -449,13 +455,16 @@ typedef enum Key {
 	KEY_DOWN,
 	KEY_ESCAPE,
 	KEY_RETURN,
-	KEY_SPACE
+	KEY_SPACE,
+	KEY_F,
+	KEY_Q,
 } Key;
 
 // TODO: This can only handle one key pressed at a time!
 typedef struct Keyboard_Input {
 	bool is_down, was_down, repeat;
 	Key key;
+	u32 mods_held;
 } Keyboard_Input;
 
 typedef struct Mouse_Input {
@@ -784,8 +793,10 @@ static bool key_first_down() {
 	return (game_window->input.kbd_input.is_down) && !(game_window->input.kbd_input.was_down);
 }
 
-static bool key_is_down(Key key) {
-	return (game_window->input.kbd_input.key == key) && (game_window->input.kbd_input.is_down);
+static bool key_is_down(Key key, u32 mods) {
+	return (game_window->input.kbd_input.key == key) 
+		&& (game_window->input.kbd_input.is_down)
+		&& (game_window->input.kbd_input.mods_held == mods);
 }
 
 static bool key_repeat() {
@@ -1432,6 +1443,10 @@ static void init_the_game(void) {
 										   game_window->window_width, 
 										   game_window->window_height, 
 										   SDL_WINDOW_OPENGL);
+										   //SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
+	// TODO: start up in fullscreen on the steam deck
+	//SDL_DisplayMode* display_mode = {0};
+	//SDL_GetWindowDisplayMode(game_window->window, &display_mode);
 	//game_window->renderer = SDL_CreateRenderer(game_window->window,
 	//-1, // initialize the first one supporting the requested flags
 	//SDL_RENDERER_PRESENTVSYNC);
@@ -1488,6 +1503,15 @@ static void init_the_game(void) {
 }
 
 static void game_handle_input(void) {
+	if (key_is_down(KEY_F, MODIFIER_CTRL)) {
+		//game_window->window_mode++;
+		//SDL_SetWindowFullscreen(game_window->window, game_window.window_mode);
+		return;
+	}
+	if (key_is_down(KEY_Q, MODIFIER_CTRL)) {
+		game_window->quit = true;
+	}
+	
 	switch(game_window->state) {
 		case STATE_PLAY: {
 			if (game_window->input.character != 0) {
@@ -1501,17 +1525,17 @@ static void game_handle_input(void) {
 						DEBUG_MSG("Win state!\n");
 					}
 				}
-			} else if (key_is_down(KEY_ESCAPE) && key_first_down()) {
+			} else if (key_is_down(KEY_ESCAPE, MODIFIER_NONE) && key_first_down()) {
 				reset_level(&game_window->level_data);
 			}
 		} break;
 		case STATE_PAUSE: {
-			if (key_is_down(KEY_ESCAPE) && key_first_down()) {
+			if (key_is_down(KEY_ESCAPE, MODIFIER_NONE) && key_first_down()) {
 				game_window->state = STATE_PLAY;
 			}
 		} break;
 		case STATE_MENU: {
-			//if (key_is_down(KEY_SPACE) && key_first_down()) {
+			//if (key_is_down(KEY_SPACE, MODIFIER_NONE) && key_first_down()) {
 			//game_window->demonic_word_i++;
 			//game_window->demonic_word_i %= ARRAY_LEN(words);
 			//return;
@@ -1590,6 +1614,12 @@ static void handle_inputs(void) {
 					case SDL_SCANCODE_SPACE: {
 						game_window->input.kbd_input.key = KEY_SPACE;
 					} break;
+					case SDL_SCANCODE_F: {
+						game_window->input.kbd_input.key = KEY_F;
+					} break;
+					case SDL_SCANCODE_Q: {
+						game_window->input.kbd_input.key = KEY_Q;
+					} break;
 					default: {
 						return;
 					} break;
@@ -1597,6 +1627,15 @@ static void handle_inputs(void) {
 				game_window->input.kbd_input.was_down = (event.type == SDL_KEYUP);
 				game_window->input.kbd_input.is_down = (event.type == SDL_KEYDOWN);
 				game_window->input.kbd_input.repeat = event.key.repeat;
+				game_window->input.kbd_input.mods_held = 0;
+				int num_sdl_keys = 0;
+				const u8* sdl_keys = SDL_GetKeyboardState(&num_sdl_keys);
+				if (sdl_keys[SDL_SCANCODE_LCTRL]) {
+					game_window->input.kbd_input.mods_held |= MODIFIER_CTRL;
+				}
+				if (sdl_keys[SDL_SCANCODE_LALT]) {
+					game_window->input.kbd_input.mods_held |= MODIFIER_ALT;
+				}
 			} break;
 			case SDL_TEXTINPUT: {
 				if (SDL_IsTextInputActive()) {
@@ -1808,7 +1847,7 @@ int main(int argc, char** argv) {
 	emscripten_set_main_loop(main_loop, 0, 1);
 #else
 	fps_cap_in_ms = 1000.0f / fps_cap;
-	while (true) { main_loop(); }
+	while (!game_window->quit) { main_loop(); }
 #endif
 	
 #if defined(DEBUG) && !defined(DEBUG_STDOUT)
