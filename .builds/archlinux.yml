@@ -1,6 +1,7 @@
 image: archlinux
 packages:
   - clang
+  - sdl2
 sources:
   - https://git.sr.ht/~willroe/ld55-summoning
 tasks:
