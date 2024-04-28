@@ -1436,9 +1436,9 @@ static void init_the_game(void) {
 	
 	game_window->window_width = DEFAULT_WINDOW_WIDTH;
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
-	game_window->fullscreen = true;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
 	SDL_Init(SDL_INIT_EVERYTHING);
+	game_window->fullscreen = false;
 	int window_flags = SDL_WINDOW_OPENGL;
 	int num_displays = SDL_GetNumVideoDisplays();
 	if (num_displays == 1) {
@@ -1446,6 +1446,7 @@ static void init_the_game(void) {
 		SDL_GetCurrentDisplayMode(0, &display_mode);
 		if ((display_mode.w == DEFAULT_WINDOW_WIDTH)
 			&& (display_mode.h == DEFAULT_WINDOW_HEIGHT)) {
+			game_window->fullscreen = true;
 			window_flags |= SDL_WINDOW_FULLSCREEN;
 		}
 	}
