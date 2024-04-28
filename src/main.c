@@ -530,8 +530,9 @@ typedef struct Text_Group {
 	u32 font_cache_id;
 	
 	// calculated from the above
+	u32 num_glyphs;
 	Quad* quads;
-	u32 num_quads;
+	rectangle2* glyph_bounding_boxes;
 	rectangle2 bounding_box;
 } Text_Group;
 
@@ -719,14 +720,15 @@ static void setup_text_group(Text_Group* group) {
 	vec3 position = {0};
 	group->bounding_box = (rectangle2){0};
 	group->bounding_box.max.y = font_cache->ascent + font_cache->descent;
-	rectangle2 glyph_bounding_box = {0};
-	group->quads = (Quad*)calloc(group->text.length, sizeof(Quad));
-	group->num_quads = group->text.length;
+	group->num_glyphs = group->text.length;
+	group->quads = (Quad*)calloc(group->num_glyphs, sizeof(Quad));
+	group->glyph_bounding_boxes = (rectangle2*)calloc(group->num_glyphs, sizeof(rectangle2));
 	for (int i = 0; i < group->text.length; i++) {
 		char character = group->text.str[i];
 		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
 		Quad* quad = &group->quads[i];
-		glyph_to_quad(quad, glyph, font_cache, &glyph_bounding_box, &position);
+		rectangle2* glyph_bounding_box = &group->glyph_bounding_boxes[i];
+		glyph_to_quad(quad, glyph, font_cache, glyph_bounding_box, &position);
 		group->bounding_box.max.x += glyph->width;
 	}
 }
@@ -1623,7 +1625,7 @@ static void render_text_group(Text_Group* group) {
 	PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, group->bounding_box.min);
 	PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
 	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
-	command->data.quad_group.num_quads = group->num_quads;
+	command->data.quad_group.num_quads = group->num_glyphs;
 	command->data.quad_group.quads = group->quads;
 }
 
@@ -1635,13 +1637,11 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 	Shader* shader = &game_window->shaders[shader_id];
 	float cursor_height = font_cache->ascent + font_cache->descent;
 	for (int i = 0; i < challenge->text_group.text.length; i++) {
+		Quad* quad = &challenge->text_group.quads[i];
+		rectangle2* glyph_bounding_box = &challenge->text_group.glyph_bounding_boxes[i];
 		char character = challenge->text_group.text.str[i];
 		assert((character >= 32) && (character <= 126));
 		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
-		rectangle2 glyph_bounding_box;
-		Quad glyph_quad = {0};
-		// FIXME: this has already been calculated and saved on Text_Group.quads!!!
-		glyph_to_quad(&glyph_quad, glyph, font_cache, &glyph_bounding_box, &position);
 		
 		Color color = white;
 		if (challenge->position > i) {
@@ -1652,19 +1652,18 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			}
 		} else if (challenge->position == i) {
 			color = very_dark_blue;
-			
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
-			float radius = rect_width(&glyph_bounding_box)/4.0f;
 			rectangle2 glyph_box = {.min={.x=glyph->x0,.y=glyph->y0},.max={.x=glyph->x1,.y=glyph->y1}};
 			float glyph_width = rect_width(&glyph_box);
-			float c_x0 = glyph_bounding_box.min.x;
+			float c_x0 = glyph_bounding_box->min.x;
 			float c_y0 = 0.0f;
 			float c_x1 = c_x0 + glyph_width;
 			float c_y1 = c_y0 + cursor_height;
 			vec2 dimensions = {glyph_width, cursor_height};
 			vec2 origin = {c_x0 + glyph_width / 2.0f, c_y0 + cursor_height / 2.0f};
 			vec2_add(&origin, challenge->text_group.bounding_box.min);
+			float radius = glyph_width / 4.0f;
 			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
@@ -1687,7 +1686,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, challenge->text_group.bounding_box.min);
 		PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
 		PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
-		memcpy(&command->data.quad, &glyph_quad, sizeof(Quad));
+		memcpy(&command->data.quad, quad, sizeof(Quad));
 	}
 }
 
