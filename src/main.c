@@ -49,7 +49,7 @@ static FILE* debug_file;
 #define DEBUG_MSG(...) fprintf(debug_file, __VA_ARGS__)
 #else
 // TODO: what about release mode - where do we get logs if that goes wrong?
-#define DEBUG_MSG
+#define DEBUG_MSG(...) do { printf(__VA_ARGS__); } while (0)
 #endif
 
 typedef struct Free_Entry Free_Entry;
