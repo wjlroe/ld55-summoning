@@ -8,3 +8,6 @@ tasks:
   - build: |
       cd ld55-summoning
       ./build.sh
+artifacts:
+  - ld55-summoning/build/summoning
+  - ld55-summoning/build/summoning_debug
