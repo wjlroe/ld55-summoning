@@ -1,7 +1,7 @@
 image: ubuntu/oldlts
 packages:
   - clang
-  - sdl2
+  - libsdl2-dev
 sources:
   - https://git.sr.ht/~willroe/ld55-summoning
 tasks:
