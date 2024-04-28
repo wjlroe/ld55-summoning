@@ -170,6 +170,29 @@ static float rect_height(rectangle2* rect) {
 	return (rect->max.y - rect->min.y);
 }
 
+static vec2 rect_centre(rectangle2* rect) {
+	return (vec2){
+		rect->min.x + rect_width(rect) / 2.0f,
+		rect->min.y + rect_height(rect) / 2.0f
+	};
+}
+
+static rectangle2 rect_min_dim(vec2 min, vec2 dim) {
+	vec2 max = min;
+	vec2_add(&max, dim);
+	return (rectangle2){
+		min,
+		max
+	};
+}
+
+static void rect_add_vec2(rectangle2* rect, vec2 offset) {
+	rect->min.x += offset.x;
+	rect->max.x += offset.x;
+	rect->min.y += offset.y;
+	rect->max.y += offset.y;
+}
+
 static void debug_rect(char* prefix, rectangle2* rect) {
 	DEBUG_MSG("%s: {{%8.4f, %8.4f}} -> {{%8.4f, %8.4f}}\n", 
 			  prefix,
@@ -1655,16 +1678,12 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			Color cursor_color = amber;
 			cursor_color.a = challenge->alpha;
 			float glyph_width = glyph->width;
-			float c_x0 = glyph_bounding_box->min.x;
-			float c_y0 = 0.0f;
-			float c_x1 = c_x0 + glyph_width;
-			float c_y1 = c_y0 + cursor_height;
 			vec2 dimensions = {glyph_width, cursor_height};
-			vec2 origin = {c_x0 + glyph_width / 2.0f, c_y0 + cursor_height / 2.0f};
+			rectangle2 cursor_rect = rect_min_dim((vec2){glyph_bounding_box->min.x, 0.0f}, dimensions);
+			vec2 origin = rect_centre(&cursor_rect);
 			vec2_add(&origin, challenge->text_group.bounding_box.min);
-			float radius = glyph_width / 4.0f;
-			rectangle2 cursor_rect = {.min={.x=c_x0, .y=c_y0}, .max={.x=c_x1, .y=c_y1}};
 			
+			float radius = glyph_width / 4.0f;
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
 			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_ROUNDED_RECT);
 			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->position_offset_loc, challenge->text_group.bounding_box.min);
