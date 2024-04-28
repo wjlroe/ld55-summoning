@@ -1439,18 +1439,22 @@ static void init_the_game(void) {
 	game_window->fullscreen = true;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
 	SDL_Init(SDL_INIT_EVERYTHING);
+	int window_flags = SDL_WINDOW_OPENGL;
+	int num_displays = SDL_GetNumVideoDisplays();
+	if (num_displays == 1) {
+		SDL_DisplayMode display_mode = {0};
+		SDL_GetCurrentDisplayMode(0, &display_mode);
+		if ((display_mode.w == DEFAULT_WINDOW_WIDTH)
+			&& (display_mode.h == DEFAULT_WINDOW_HEIGHT)) {
+			window_flags |= SDL_WINDOW_FULLSCREEN;
+		}
+	}
 	game_window->window = SDL_CreateWindow("Ludum Dare 55: Summoning",
 										   SDL_WINDOWPOS_UNDEFINED,
 										   SDL_WINDOWPOS_UNDEFINED,
 										   game_window->window_width, 
 										   game_window->window_height, 
-										   SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
-	// TODO: start up in fullscreen on the steam deck
-	//SDL_DisplayMode* display_mode = {0};
-	//SDL_GetWindowDisplayMode(game_window->window, &display_mode);
-	//game_window->renderer = SDL_CreateRenderer(game_window->window,
-	//-1, // initialize the first one supporting the requested flags
-	//SDL_RENDERER_PRESENTVSYNC);
+										   window_flags);
 	
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
