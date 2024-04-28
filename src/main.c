@@ -717,6 +717,8 @@ static Render_Command* fill_rounded_rect(Command_Buffer* buffer, u32 shader_id, 
 static void setup_text_group(Text_Group* group) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[group->font_cache_id];
 	vec3 position = {0};
+	group->bounding_box = (rectangle2){0};
+	group->bounding_box.max.y = font_cache->ascent + font_cache->descent;
 	rectangle2 glyph_bounding_box = {0};
 	group->quads = (Quad*)calloc(group->text.length, sizeof(Quad));
 	group->num_quads = group->text.length;
@@ -725,10 +727,7 @@ static void setup_text_group(Text_Group* group) {
 		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
 		Quad* quad = &group->quads[i];
 		glyph_to_quad(quad, glyph, font_cache, &glyph_bounding_box, &position);
-		group->bounding_box.min.x = MY_MIN(group->bounding_box.min.x, glyph_bounding_box.min.x);
-		group->bounding_box.max.x = MY_MAX(group->bounding_box.max.x, glyph_bounding_box.max.x);
-		group->bounding_box.min.y = MY_MIN(group->bounding_box.min.y, glyph_bounding_box.min.y);
-		group->bounding_box.max.y = MY_MAX(group->bounding_box.max.y, glyph_bounding_box.max.y);
+		group->bounding_box.max.x += glyph->width;
 	}
 }
 
