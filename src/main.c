@@ -645,7 +645,6 @@ static void reset_challenge(Type_Challenge* challenge) {
 
 typedef struct Level_Data {
 	Type_Challenge challenges[MAX_NUM_CHALLENGES];
-	SDL_Rect positions[MAX_NUM_CHALLENGES];
 	int num_challenges;
 	int current_challenge;
 	int level_number;
@@ -697,7 +696,6 @@ typedef struct Game_Window {
 	int window_width, window_height;
 	bool fullscreen;
 	SDL_Window* window;
-	//SDL_Renderer* renderer;
 	SDL_GLContext gl_context;
 	Shader shaders[MAX_SHADERS];
 	u32 num_shaders;
