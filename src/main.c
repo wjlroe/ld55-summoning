@@ -494,19 +494,9 @@ typedef struct Glyph {
 	float tex_x1;
 	float tex_y0;
 	float tex_y1;
-	
-	// FIXME: SDL stuff, obsolete
-	SDL_Rect bounding_box;
-	int minx;
-	int maxx;
-	int miny;
-	int maxy;
-	//int advance;
-	SDL_Texture* texture;
-	// FIXME: end of SDL stuff
 } Glyph;
 
-#define NUM_GLYPHS 95 //126-32 (inclusive)
+#define NUM_GLYPHS 95 // 126-32 (inclusive)
 #define GLYPH_INDEX(c) c-32
 
 typedef struct Glyph_Cache {
@@ -566,6 +556,11 @@ typedef struct Text_Group {
 	rectangle2 bounding_box;
 } Text_Group;
 
+static void free_text_group(Text_Group* group) {
+	free(group->quads);
+	free(group->glyph_bounding_boxes);
+}
+
 typedef struct Type_Challenge {
 	Text_Group text_group;
 	bool* typed_correctly; // This could be tighter packed, but we don't care right now :)
@@ -576,6 +571,7 @@ typedef struct Type_Challenge {
 
 static void free_challenge(Type_Challenge* challenge) {
 	free(challenge->typed_correctly);
+	free_text_group(&challenge->text_group);
 }
 
 static bool is_challenge_done(Type_Challenge* challenge) {
