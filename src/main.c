@@ -250,10 +250,18 @@ static void setup_textured_quad(Quad* quad, rectangle2 pos, float z, rectangle2 
 	quad->vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={tex.max.x, tex.min.y}}; // top-right
 }
 
+static void setup_textured_quad_full_texture(Quad* quad, rectangle2 pos, float z) {
+	quad->vertices[0] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={1.0, 1.0}}; // top-right
+	quad->vertices[1] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={1.0, 0.0}}; // bottom-right
+	quad->vertices[2] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={0.0, 0.0}}; // bottom-left
+	quad->vertices[3] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={0.0, 1.0}}; // top-left
+}
+
 typedef enum Shader_Setting {
-	SHADER_NONE           = 0,
-	SHADER_SAMPLE_TEXTURE = (1 << 0),
-	SHADER_ROUNDED_RECT   = (1 << 1),
+	SHADER_NONE                  = 0,
+	SHADER_SAMPLE_FONT_TEXTURE   = (1 << 0),
+	SHADER_ROUNDED_RECT          = (1 << 1),
+	SHADER_SAMPLE_BITMAP_TEXTURE = (1 << 2),
 } Shader_Setting;
 
 typedef enum Render_Setting {
@@ -723,6 +731,7 @@ typedef struct Game_Window {
 	
 	Text_Group win_text_group;
 	Text_Group lose_text_group;
+	GLuint summoning_sign_tex_id;
 } Game_Window;
 
 static Game_Window* game_window = NULL;
@@ -872,6 +881,7 @@ static int push_font_size(Font* font, float font_size) {
 	glBindTexture(GL_TEXTURE_2D, cache->texture_id);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, cache->texture_dim, cache->texture_dim, 0, GL_RED, GL_UNSIGNED_BYTE, cache->texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
 	
 	i32 x0, y0, x1, y1, advance, lsb = 0;
 	for (char character = cache->first_glyph; character <= cache->last_glyph; character++) {
@@ -1021,15 +1031,21 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 static bool rendered_sign = false;
 #endif
 
-#if 0
-static SDL_Texture* render_demonic_sign_to_texture(String word, SDL_Rect* area) {
+static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	area->w = area->h = 256;
-	SDL_Surface* surface = SDL_CreateRGBSurface(0, 256, 256, 32, 0xff000000, 0x00ff0000, 0x000000ff00, 0x000000ff);
-	assert(surface->format->BitsPerPixel == 32);
-	u32 my_green = 0x00ff00ff;
-	draw_circle(surface->pixels, 127, my_green);
+	u8* pixels = (u8*)malloc(sizeof(u8) * area->w * area->h * 4); // 4 channels (r,g,b,a)
+	for (int p = 0; p < 256*256; p++) {
+		pixels[p] = 0;
+	}
+	u32 my_green = 0xff00ff00;
+	draw_circle(pixels, 127, my_green);
 	int inner_radius = 95;
-	draw_circle(surface->pixels, inner_radius, my_green);
+	draw_circle(pixels, inner_radius, my_green);
+	u32 my_red = 0xff0000ff;
+	u32* my_pixels = (u32*)pixels;
+	my_pixels[10] = my_red; //top-left
+	
+#if 0
 	char first_char = toupper(word.str[0]);
 	SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, first_char, green);
 	SDL_Rect char_rect = {0};
@@ -1113,17 +1129,29 @@ static SDL_Texture* render_demonic_sign_to_texture(String word, SDL_Rect* area) 
 	}
 	free(output_points);
 	free(input_points);
+#endif
 	
-	SDL_Texture* texture = SDL_CreateTextureFromSurface(game_window->renderer, surface);
-	assert(texture != NULL);
+	GLuint texture_id;
+	glGenTextures(1, &texture_id);
+	glBindTexture(GL_TEXTURE_2D, texture_id);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, area->w, area->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	
+	free(pixels); // can we free this now?
+	glBindTexture(GL_TEXTURE_2D, 0);
+	
+#if 0
 	if (!rendered_sign) {
 		SDL_SaveBMP(surface, "output.bmp");
 		rendered_sign = true;
 	}
-	SDL_FreeSurface(surface);
-	return texture;
-}
 #endif
+	
+	return texture_id;
+}
 
 #if 0
 static void render_text_into_texture(SDL_Renderer* renderer, Sized_Texture* sized_texture, TTF_Font *font, String text) {
@@ -1490,6 +1518,8 @@ static void init_the_game(void) {
 	
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
 	
+	SDL_Rect summoning_sign_rect = {0};
+	game_window->summoning_sign_tex_id = render_demonic_sign_to_texture(title, &summoning_sign_rect);
 #if 0
 	game_window->demonic_word_textures = calloc(ARRAY_LEN(words), sizeof(Sized_Texture));
 	for (int i = 0; i < ARRAY_LEN(words); i++) {
@@ -1681,15 +1711,33 @@ static void render_text_group(Text_Group* group) {
 	command->type = COMMAND_QUAD_GROUP;
 	command->shader_id = shader_id;
 	command->render_settings = RENDER_ALPHA_BLENDED;
-	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
+	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_FONT_TEXTURE);
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
+	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
 	Color color = white;
 	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
 	PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, group->bounding_box.min);
 	PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
-	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, font_cache->texture_id);
 	command->data.quad_group.num_quads = group->num_glyphs;
 	command->data.quad_group.quads = group->quads;
+}
+
+static void render_summoning_sign(vec2 pos_offset) {
+	Command_Buffer* buffer = &game_window->command_buffer;
+	Glyph_Cache* font_cache = &game_window->font.glyph_caches[game_window->demonic_font_cache_id];
+	u32 shader_id = game_window->quad_shader_id;
+	Shader* shader = &game_window->shaders[shader_id];
+	Render_Command* command = push_render_command(buffer);
+	command->type = COMMAND_QUAD;
+	command->shader_id = shader_id;
+	command->render_settings = RENDER_ALPHA_BLENDED;
+	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_BITMAP_TEXTURE);
+	PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
+	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, game_window->summoning_sign_tex_id);
+	PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, pos_offset);
+	PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
+	rectangle2 pos = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){256.0f, 256.0f});
+	setup_textured_quad_full_texture(&command->data.quad, pos, 0.3);
 }
 
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
@@ -1738,7 +1786,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		command->shader_id = shader_id;
 		command->render_settings = RENDER_ALPHA_BLENDED;
 		color.a = challenge->alpha;
-		PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_TEXTURE);
+		PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_FONT_TEXTURE);
 		PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
 		PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
 		PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, challenge->text_group.bounding_box.min);
@@ -1773,6 +1821,10 @@ static void render_menu(void) {
 	center_rect_horizontally(&game_window->title_challenge.text_group.bounding_box);
 	center_rect_vertically(&game_window->title_challenge.text_group.bounding_box);
 	render_challenge(game_window, &game_window->title_challenge);
+	rectangle2 sign_rect = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){256.0f, 256.0f});
+	center_rect_horizontally(&sign_rect);
+	rect_add_vec2(&sign_rect, (vec2){0.5f, game_window->title_challenge.text_group.bounding_box.max.y + 10.5f});
+	render_summoning_sign(sign_rect.min);
 }
 
 static void update_and_render(void) {
