@@ -1,4 +1,5 @@
 /* date = April 15th 2024 5:36 pm */
+// vim: tabstop=4 shiftwidth=4 noexpandtab
 
 #ifndef RESOURCES_H
 

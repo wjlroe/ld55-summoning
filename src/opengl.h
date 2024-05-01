@@ -1,4 +1,5 @@
 /* date = April 17th 2024 0:52 pm */
+// vim: tabstop=4 shiftwidth=4 noexpandtab
 
 #ifndef OPENGL_H
 #define OPENGL_H

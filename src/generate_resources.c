@@ -1,3 +1,4 @@
+// vim: tabstop=4 shiftwidth=4 noexpandtab
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
