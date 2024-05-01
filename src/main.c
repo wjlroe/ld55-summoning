@@ -1385,6 +1385,17 @@ static void check_program_valid(GLuint program) {
 	check_program_info(program, GL_VALIDATE_STATUS);
 }
 
+static void report_resource(File_Resource* resource) {
+	printf("Resource:\n");
+	printf("  filename: %s\n", resource->filename);
+	printf("  size: %d\n", resource->size);
+	printf("  loaded: %s\n", resource->loaded ? "yes": "no");
+	printf("  3 bytes: %#04x %#04x %#04x\n",
+		   resource->contents[0],
+		   resource->contents[1],
+		   resource->contents[2]);
+}
+
 static void init_gl(void) {
 	DEBUG_MSG("gl version: %s\n", glGetString(GL_VERSION));
 	DEBUG_MSG("gl shading language version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
@@ -1394,12 +1405,14 @@ static void init_gl(void) {
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
 	
 	File_Resource* vertex_shader_src = &global_file_resources[RES_ID(VERTEX_SHADER_SOURCE)];
+	report_resource(vertex_shader_src);
 	glShaderSource(vertex_shader, 1, (const char**)&vertex_shader_src->contents, NULL);
 	glCompileShader(vertex_shader);
 	check_shader(vertex_shader_src, vertex_shader);
 	
 	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
 	File_Resource* fragment_shader_src = &global_file_resources[RES_ID(FRAGMENT_SHADER_SOURCE)];
+	report_resource(fragment_shader_src);
 	glShaderSource(fragment_shader, 1, (const char**)&fragment_shader_src->contents, NULL);
 	glCompileShader(fragment_shader);
 	check_shader(fragment_shader_src, fragment_shader);
