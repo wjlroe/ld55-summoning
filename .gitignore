@@ -53,3 +53,6 @@ Brewfile.lock.json
 assets/*.h
 
 *debug_log.txt
+
+# core dumps
+*.core
