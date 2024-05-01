@@ -1735,7 +1735,7 @@ static void render_summoning_sign(vec2 pos_offset) {
 	Render_Command* command = push_render_command(buffer);
 	command->type = COMMAND_QUAD;
 	command->shader_id = shader_id;
-	command->render_settings = RENDER_ALPHA_BLENDED;
+	//command->render_settings = RENDER_ALPHA_BLENDED;
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_BITMAP_TEXTURE);
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
 	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, game_window->summoning_sign_tex_id);
