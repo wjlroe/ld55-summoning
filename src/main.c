@@ -1488,6 +1488,8 @@ static void init_the_game(void) {
 		printf("failed to create GL context: %s\n", sdl_error);
 	}
 	assert(game_window->gl_context != NULL);
+	int win_width, win_height = 0;
+	SDL_GL_GetDrawableSize(game_window->window, &win_width, &win_height);
 	if (SDL_GL_SetSwapInterval(1) != 0) {
 		printf("Can't set VSync on GL context: %s\n", SDL_GetError());
 		//abort();
@@ -1498,6 +1500,7 @@ static void init_the_game(void) {
 	}
 	load_gl_funcs();
 	init_gl();
+	glViewport(0, 0, win_width, win_height);
 	
 	game_window->font.resource = &global_file_resources[RES_ID(IM_FELL_FONT_ID)];
 	init_font(&game_window->font);

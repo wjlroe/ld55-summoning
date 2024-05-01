@@ -162,6 +162,7 @@ GLE(void,   glUseProgram,       GLuint program) \
 GLE(void,   glValidateProgram,      GLuint program) \
 GLE(void,   glVertexAttribIPointer, GLuint index, GLint size, GLenum type, GLsizei stride, const GLvoid* pointer) \
 GLE(void,   glVertexAttribPointer,  GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid* pointer) \
+GLE(void,   glViewport,         GLint x, GLint y, GLsizei width, GLsizei height) \
 
 
 #define GLE(ret, name, ...) typedef ret GLDECL name##proc(__VA_ARGS__); static name##proc * name;
