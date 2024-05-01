@@ -251,10 +251,10 @@ static void setup_textured_quad(Quad* quad, rectangle2 pos, float z, rectangle2 
 }
 
 static void setup_textured_quad_full_texture(Quad* quad, rectangle2 pos, float z) {
-	quad->vertices[0] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={1.0, 1.0}}; // top-right
-	quad->vertices[1] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={1.0, 0.0}}; // bottom-right
-	quad->vertices[2] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={0.0, 0.0}}; // bottom-left
-	quad->vertices[3] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={0.0, 1.0}}; // top-left
+	quad->vertices[0] = (Vertex){.position={pos.min.x, pos.min.y, z}, .texture={1.0, 1.0}}; // top-right
+	quad->vertices[1] = (Vertex){.position={pos.min.x, pos.max.y, z}, .texture={1.0, 0.0}}; // bottom-right
+	quad->vertices[2] = (Vertex){.position={pos.max.x, pos.max.y, z}, .texture={0.0, 0.0}}; // bottom-left
+	quad->vertices[3] = (Vertex){.position={pos.max.x, pos.min.y, z}, .texture={0.0, 1.0}}; // top-left
 }
 
 typedef enum Shader_Setting {
