@@ -1505,6 +1505,7 @@ static void init_the_game(void) {
 	glViewport(0, 0, win_width, win_height);
 	
 	game_window->font.resource = &global_file_resources[RES_ID(IM_FELL_FONT_ID)];
+	report_resource(game_window->font.resource);
 	init_font(&game_window->font);
 	
 	game_window->title_font_cache_id = push_font_size(&game_window->font, 120.0);

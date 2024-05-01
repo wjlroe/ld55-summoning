@@ -60,6 +60,7 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 			File_Contents file = {.filename=&filename_buffer[0]};
 			load_file_contents(&file);
 			fprintf(output, "    global_file_resources[RES_ID(%s)].size = %d;\n", line->name_id, file.size);
+			fprintf(output, "    printf(\"Loading %s\\n\");\n", line->name_id);
 			fprintf(output, "    uint8_t contents[] = {");
 			for (int i = 0; i < file.size; i++) {
 				if (((i % 12) == 0)) { fprintf(output, "\n      "); }
@@ -71,6 +72,7 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 			fprintf(output, "    global_file_resources[RES_ID(%s)].contents = contents;\n", line->name_id);
 #endif
 			fprintf(output, "    global_file_resources[RES_ID(%s)].filename = %s;\n", line->name_id, line->filepath);
+			fprintf(output, "    global_file_resources[RES_ID(%s)].loaded = true;\n", line->name_id);
 			fprintf(output, "  }\n");
 		} // skip the icon, Windows does this automatically
 		
@@ -173,7 +175,7 @@ int main(int argc, char** argv) {
 	fprintf(output, "#define NUM_RESOURCES %d\n", num_resources);
 	fprintf(output, "#define RES_ID(n) (n - ID_BASE)\n");
 	fprintf(output, "static File_Resource global_file_resources[NUM_RESOURCES];\n");
-	fprintf(output, "static void init_global_file_resources(void) {\n");
+	fprintf(output, "void init_global_file_resources(void) {\n");
 #ifdef _WIN32
 	fprintf(output, "  HMODULE handle = GetModuleHandle(NULL);\n");
 #endif
