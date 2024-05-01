@@ -25,7 +25,7 @@ set -x
 clang -std=c11 -g -O0 -o generate_resources ../src/generate_resources.c
 ./generate_resources
 clang -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG
-clang -std=c11 -O3 -o summoning ../src/main.c ${compile_flags} -lm
+clang -std=c11 -g -O3 -o summoning ../src/main.c ${compile_flags} -lm
 set +x
 
 if [[ "${host_os}" == "Darwin" ]]; then
