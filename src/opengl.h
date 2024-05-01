@@ -128,6 +128,7 @@ GLE(void,   glCompileShader,    GLuint shader) \
 GLE(GLuint, glCreateProgram,    void) \
 GLE(GLuint, glCreateShader,     GLenum type) \
 GLE(void,   glDeleteShader,     GLuint shader) \
+GLE(void,   glDisable,          GLenum cap) \
 GLE(void,   glDisableVertexAttribArray, GLuint index) \
 GLE(void,   glDrawElements,           GLenum mode, GLsizei count, GLenum type, const GLvoid* indices) \
 GLE(void,   glDrawElementsBaseVertex, GLenum mode, GLsizei count, GLenum type, GLvoid* indices, GLint basevertex) \

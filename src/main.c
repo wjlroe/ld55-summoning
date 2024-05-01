@@ -1204,6 +1204,8 @@ static void exec_command_buffer() {
 			} else {
 				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 			}
+		} else {
+			glDisable(GL_BLEND);
 		}
 		
 		switch (command->type) {
