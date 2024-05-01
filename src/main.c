@@ -1742,7 +1742,8 @@ static void render_summoning_sign(vec2 pos_offset) {
 	PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, pos_offset);
 	PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
 	rectangle2 pos = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){256.0f, 256.0f});
-	setup_textured_quad_full_texture(&command->data.quad, pos, 0.3);
+	rectangle2 tex = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){1.0f, 1.0f}); 
+	setup_textured_quad(&command->data.quad, pos, 0.0f, tex);
 }
 
 static void render_challenge(Game_Window* game_window, Type_Challenge* challenge) {
