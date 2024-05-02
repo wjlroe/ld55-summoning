@@ -27,7 +27,12 @@
 // TODO
 // * Switch to glDrawElements->glDrawArrays so we only have 1 vertex buffer
 // * Remove SDL2 entirely
+//   * Win32 main
+//   * Unix main
 // * Port demonic sign rendering code to OpenGL and/or rendering to texture/file
+// * Build resources into binary in release mode only
+// * Debug-mode resources are read from filesystem at runtime
+// * Debug-mode resources are monitored for changes and can be reloaded without restarting
 
 #define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
 #define MIN(x,y) (x < y ? x : y)
