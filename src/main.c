@@ -1755,7 +1755,7 @@ static void render_summoning_sign(vec2 pos_offset) {
 	Render_Command* command = push_render_command(buffer);
 	command->type = COMMAND_QUAD;
 	command->shader_id = shader_id;
-	//command->render_settings = RENDER_ALPHA_BLENDED;
+	command->render_settings = RENDER_ALPHA_BLENDED;
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->settings_loc, SHADER_SAMPLE_BITMAP_TEXTURE);
 	PUSH_UNIFORM_I32(&buffer->memory, command, shader->font_texture_loc, shader->font_sampler_idx);
 	PUSH_TEXTURE(&buffer->memory, command, shader->font_sampler_idx, game_window->summoning_sign_tex_id);
@@ -1847,9 +1847,10 @@ static void render_menu(void) {
 	center_rect_horizontally(&game_window->title_challenge.text_group.bounding_box);
 	center_rect_vertically(&game_window->title_challenge.text_group.bounding_box);
 	render_challenge(game_window, &game_window->title_challenge);
+	
 	rectangle2 sign_rect = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){256.0f, 256.0f});
 	center_rect_horizontally(&sign_rect);
-	rect_add_vec2(&sign_rect, (vec2){0.5f, game_window->title_challenge.text_group.bounding_box.max.y + 10.5f});
+	rect_add_vec2(&sign_rect, (vec2){0.0f, ceilf(game_window->title_challenge.text_group.bounding_box.max.y) + 10.0f});
 	render_summoning_sign(sign_rect.min);
 }
 
