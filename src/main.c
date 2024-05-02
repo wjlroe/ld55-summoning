@@ -30,6 +30,7 @@
 //   * Win32 main
 //   * Unix main
 // * Port demonic sign rendering code to OpenGL and/or rendering to texture/file
+//   * Render characters of demonic word into demonic sign
 // * Build resources into binary in release mode only
 // * Debug-mode resources are read from filesystem at runtime
 // * Debug-mode resources are monitored for changes and can be reloaded without restarting
