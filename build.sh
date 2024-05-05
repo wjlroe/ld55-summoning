@@ -22,16 +22,17 @@ if [[ "${host_os}" == "Darwin" ]]; then
 fi
 
 set -x
-clang -std=c11 -g -O0 -o generate_resources ../src/generate_resources.c
+cc -std=c11 -g -O0 -o generate_resources ../src/generate_resources.c
 ./generate_resources
-clang -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG
-clang -std=c11 -g -O3 -o summoning ../src/main.c ${compile_flags} -lm
+cc -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG
+cc -std=c11 -g -O3 -o summoning ../src/main.c ${compile_flags} -lm -static
 set +x
 
-if [[ "${host_os}" == "Darwin" ]]; then
-	otool -L ./summoning
-else
-  ldd ./summoning
-fi
+# Static compiling the release binary means we can't/don't have to check this
+# if [[ "${host_os}" == "Darwin" ]]; then
+# 	otool -L ./summoning
+# else
+#   ldd ./summoning
+# fi
 
 popd
