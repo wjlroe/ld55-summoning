@@ -31,12 +31,13 @@ set includes=-I. ^
 set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  glu32.lib user32.lib gdi32.lib
 
-echo Generate resources
-cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG ^
+echo Compile generate resources
+cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG /DDEBUG_STDOUT ^
  -Fe:generate_resources.exe ..\src\generate_resources.c ^
  /link /DEBUG:FULL -INCREMENTAL:NO ^
  /subsystem:console || goto :error
 
+echo Generate resources
 .\generate_resources.exe || goto :error
 
 echo Debug build

@@ -15,9 +15,10 @@
 #include <windows.h>
 #endif
 
+#include "utils.h"
 #include "opengl.h"
 #include "resource_ids.h"
-#include "resources.h"
+#include "file_resource.c"
 #include "generated_resources.h"
 
 #ifdef __EMSCRIPTEN__
@@ -34,30 +35,6 @@
 // * Build resources into binary in release mode only
 // * Debug-mode resources are read from filesystem at runtime
 // * Debug-mode resources are monitored for changes and can be reloaded without restarting
-
-#define ARRAY_LEN(a) (sizeof(a)/sizeof(a[0]))
-#define MIN(x,y) (x < y ? x : y)
-#define MAX(x, y) (x > y ? x : y)
-
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t  u8;
-typedef int64_t  i64;
-typedef int32_t  i32;
-typedef int16_t  i16;
-typedef int8_t   i8;
-
-#define KB(x) ((size_t) (x) << 10)
-#define MB(x) ((size_t) (x) << 20)
-
-#ifdef DEBUG
-static FILE* debug_file;
-#define DEBUG_MSG(...) fprintf(debug_file, __VA_ARGS__)
-#else
-// TODO: what about release mode - where do we get logs if that goes wrong?
-#define DEBUG_MSG(...) do { printf(__VA_ARGS__); } while (0)
-#endif
 
 typedef struct Free_Entry Free_Entry;
 struct Free_Entry {
@@ -1470,14 +1447,6 @@ static void init_the_game(void) {
 	game_window = (Game_Window*)malloc(sizeof(Game_Window));
 	memset(game_window, 0, sizeof(Game_Window));
 	game_window->command_buffer.memory = new_memory(MB(8));
-	
-#if defined(DEBUG) && defined(DEBUG_STDOUT)
-	debug_file = stdout;
-#elif defined(DEBUG)
-	debug_file = fopen("summoning_debug_log.txt", "w");
-	setvbuf(debug_file, NULL, _IONBF, 0);
-#endif
-	
 	game_window->window_width = DEFAULT_WINDOW_WIDTH;
 	game_window->window_height = DEFAULT_WINDOW_HEIGHT;
 	game_window->last_frame_perf_counter = SDL_GetPerformanceCounter();
@@ -1923,6 +1892,13 @@ int main(int argc, char** argv) {
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
 	assert(sizeof(Vertex) == (sizeof(vec3)+sizeof(vec2))); // checking for no padding
+	
+#if defined(DEBUG) && defined(DEBUG_STDOUT)
+	debug_file = stdout;
+#elif defined(DEBUG)
+	debug_file = fopen("summoning_debug_log.txt", "w");
+	setvbuf(debug_file, NULL, _IONBF, 0);
+#endif
 	
 	init_global_file_resources();
 	init_the_game();

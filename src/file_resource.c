@@ -1,8 +1,6 @@
 /* date = April 15th 2024 5:36 pm */
 // vim: tabstop=4 shiftwidth=4 noexpandtab
 
-#ifndef RESOURCES_H
-
 typedef struct File_Resource {
 	char* filename;
 	uint8_t* contents;
@@ -24,8 +22,7 @@ static void load_file_resource(File_Resource* resource) {
 	resource->contents = malloc(resource->size);
 	assert(resource->contents != NULL);
 	fread(resource->contents, 1, resource->size, fopen(resource->filename, "rb"));
+	DEBUG_MSG("Loaded file %s\n", resource->filename);
+	resource->loaded = true;
 }
 
-#define RESOURCES_H
-
-#endif //RESOURCES_H

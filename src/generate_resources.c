@@ -7,7 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "resources.h"
+#include "utils.h"
+#include "file_resource.c"
 #include "resource_ids.h"
 
 typedef struct Resource_Line Resource_Line;
@@ -23,7 +24,9 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 	while (line != NULL) {
 		if (strcmp(line->filepath, "\"icon.ico\"") != 0) {
 			fprintf(output, "  {\n");
+			fprintf(output, "    global_file_resources[RES_ID(%s)].filename = %s;\n", line->name_id, line->filepath);
 #ifdef _WIN32
+			fprintf(output, "#ifndef DEBUG\n");
 			fprintf(output, "    HRSRC rc = FindResource(handle, MAKEINTRESOURCE(%s), MAKEINTRESOURCE(%s));\n", line->name_id, line->type_id);
 			fprintf(output, "    HGLOBAL rc_data = LoadResource(handle, rc);\n");
 			fprintf(output, "    assert(rc_data != NULL);\n");
@@ -32,14 +35,16 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 			fprintf(output, "    global_file_resources[RES_ID(%s)].size = size;\n", line->name_id);
 			fprintf(output, "    global_file_resources[RES_ID(%s)].contents = rc_data;\n", line->name_id);
 			fprintf(output, "    global_file_resources[RES_ID(%s)].loaded = true;\n", line->name_id);
+			fprintf(output, "#else\n");
 #else
+			fprintf(output, "#ifndef DEBUG\n");
 			char filename_buffer[1024] = {0};
 			sprintf(&filename_buffer[0], "../%s", &line->filepath[1]); // remove first quote
 			int filename_len = strlen(&filename_buffer[0]);
 			filename_buffer[filename_len -1 ] = 0; // remove last quote
 			printf("read file: %s\n", &filename_buffer[0]);
-			File_Contents file = {.filename=&filename_buffer[0]};
-			load_file_contents(&file);
+			File_Resource file = {.filename=&filename_buffer[0]};
+			load_file_resource(&file);
 			fprintf(output, "    global_file_resources[RES_ID(%s)].size = %d;\n", line->name_id, file.size);
 			fprintf(output, "    printf(\"Loading %s\\n\");\n", line->name_id);
 			fprintf(output, "    uint8_t contents[] = {");
@@ -51,9 +56,11 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 			}
 			fprintf(output, "    };\n");
 			fprintf(output, "    global_file_resources[RES_ID(%s)].contents = contents;\n", line->name_id);
-#endif
-			fprintf(output, "    global_file_resources[RES_ID(%s)].filename = %s;\n", line->name_id, line->filepath);
 			fprintf(output, "    global_file_resources[RES_ID(%s)].loaded = true;\n", line->name_id);
+			fprintf(output, "#else\n");
+#endif
+			fprintf(output, "    load_file_resource(&global_file_resources[RES_ID(%s)]);\n", line->name_id);
+			fprintf(output, "#endif\n");
 			fprintf(output, "  }\n");
 		} // skip the icon, Windows does this automatically
 
@@ -142,6 +149,7 @@ static Resource_Line* parse_resources_file(File_Resource* resources_file, int* n
 }
 
 int main(int argc, char** argv) {
+	debug_file = stdout;
 	File_Resource resources_file = {.filename="../resources.rc"};
 	load_file_resource(&resources_file);
 	int num_resources = 0;
@@ -158,7 +166,9 @@ int main(int argc, char** argv) {
 	fprintf(output, "static File_Resource global_file_resources[NUM_RESOURCES];\n");
 	fprintf(output, "void init_global_file_resources(void) {\n");
 #ifdef _WIN32
+	fprintf(output, "#ifndef DEBUG\n");
 	fprintf(output, "  HMODULE handle = GetModuleHandle(NULL);\n");
+	fprintf(output, "#endif\n");
 #endif
 	write_resources_to_output(output, line);
 	fprintf(output, "}\n");
