@@ -10,6 +10,22 @@ typedef struct File_Resource {
 	bool loaded;
 } File_Resource;
 
+static void load_file_resource(File_Resource* resource) {
+#ifdef _WIN32
+	struct __stat64 file_stats;
+	_stat64(resource->filename, &file_stats);
+#else
+	struct stat file_stats;
+	stat(resource->filename, &file_stats);
+#endif
+
+	resource->size = file_stats.st_size;
+	assert(resource->size > 0);
+	resource->contents = malloc(resource->size);
+	assert(resource->contents != NULL);
+	fread(resource->contents, 1, resource->size, fopen(resource->filename, "rb"));
+}
+
 #define RESOURCES_H
 
 #endif //RESOURCES_H

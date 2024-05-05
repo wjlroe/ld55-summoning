@@ -2,33 +2,13 @@
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "resources.h"
 #include "resource_ids.h"
-
-typedef struct File_Contents {
-	int size;
-	uint8_t* contents;
-	char* filename;
-} File_Contents;
-
-static void load_file_contents(File_Contents* file) {
-#ifdef _WIN32
-	struct __stat64 file_stats;
-	_stat64(file->filename, &file_stats);
-#else
-	struct stat file_stats;
-	stat(file->filename, &file_stats);
-#endif
-	
-	file->size = file_stats.st_size;
-	assert(file->size > 0);
-	file->contents = malloc(file->size);
-	assert(file->contents != NULL);
-	fread(file->contents, 1, file->size, fopen(file->filename, "rb"));
-}
 
 typedef struct Resource_Line Resource_Line;
 typedef struct Resource_Line {
@@ -76,7 +56,7 @@ static void write_resources_to_output(FILE* output, Resource_Line* line) {
 			fprintf(output, "    global_file_resources[RES_ID(%s)].loaded = true;\n", line->name_id);
 			fprintf(output, "  }\n");
 		} // skip the icon, Windows does this automatically
-		
+
 		line = line->next;
 	}
 }
@@ -121,7 +101,7 @@ static Resource_Line* consume_buffer(Resource_Line* line, Resource_Token current
 	return line;
 }
 
-static Resource_Line* parse_resources_file(File_Contents* resources_file, int* num_resources) {
+static Resource_Line* parse_resources_file(File_Resource* resources_file, int* num_resources) {
 	char buffer[1024] = {0};
 	int buffer_i = 0;
 	*num_resources = 0;
@@ -162,8 +142,8 @@ static Resource_Line* parse_resources_file(File_Contents* resources_file, int* n
 }
 
 int main(int argc, char** argv) {
-	File_Contents resources_file = {.filename="../resources.rc"};
-	load_file_contents(&resources_file);
+	File_Resource resources_file = {.filename="../resources.rc"};
+	load_file_resource(&resources_file);
 	int num_resources = 0;
 	Resource_Line *line = parse_resources_file(&resources_file, &num_resources);
 	FILE* output = fopen("generated_resources.h", "w");
