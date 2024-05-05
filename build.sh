@@ -22,9 +22,9 @@ if [[ "${host_os}" == "Darwin" ]]; then
 fi
 
 set -x
-cc -std=c11 -g -O0 -o generate_resources ../src/generate_resources.c
+cc -std=c11 -g -O0 -o generate_resources ../src/generate_resources.c -DDEBUG -DDEBUG_STDOUT
 ./generate_resources
-cc -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG
+cc -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG -DDEBUG_STDOUT
 cc -std=c11 -g -O3 -o summoning ../src/main.c ${compile_flags} -lm -static
 set +x
 
