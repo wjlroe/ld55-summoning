@@ -15,14 +15,14 @@ set build_dir="build"
 IF NOT EXIST %build_dir% mkdir %build_dir%
 pushd %build_dir%
 
-rm *.pdb *.obj *.ilk *.res
+del -q *.pdb *.obj *.ilk *.res
 
 cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 
-rc /nologo /r /fo icon.res ../icon.rc
+rc -nologo -r -fo icon.res ..\icon.rc
 cvtres -nologo -machine:x64 -out:icon.obj icon.res
 
-rc /nologo /r /fo resources.res ../resources.rc
+rc -nologo -r -fo resources.res ..\resources.rc
 cvtres -nologo -machine:x64 -out:resources.obj resources.res
 
 set includes=-I. ^
@@ -34,27 +34,27 @@ set links=..\vendor\SDL2-2.30.2\lib\x64\SDL2.lib ^
  glu32.lib user32.lib gdi32.lib
 
 echo Compile generate resources
-cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG /DDEBUG_STDOUT ^
+cl -std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret -nologo -DDEBUG -DDEBUG_STDOUT ^
  -Fe:generate_resources.exe ..\src\generate_resources.c ^
- /link /DEBUG:FULL -INCREMENTAL:NO ^
- /subsystem:console || goto :error
+ -link -DEBUG:FULL -INCREMENTAL:NO ^
+ -subsystem:console || goto :error
 
 echo Generate resources
 .\generate_resources.exe || goto :error
 
 echo Debug build
-cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG /DDEBUG_STDOUT ^
+cl -std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret -nologo -DDEBUG -DDEBUG_STDOUT ^
  -Fe:summoning_debug.exe ..\src\main.c icon.obj ^
  %includes% ^
- /link /DEBUG:FULL -INCREMENTAL:NO %links% ^
- /subsystem:console || goto :error
+ -link -DEBUG:FULL -INCREMENTAL:NO %links% ^
+ -subsystem:console || goto :error
 
 echo Release build
-cl /std:c11 -Gm- -FC -Zc:strictStrings -diagnostics:caret /nologo ^
+cl -std:c11 -Gm- -FC -Zc:strictStrings -diagnostics:caret -nologo ^
  -Fe:summoning.exe ..\src\main.c resources.obj ^
  %includes% ^
- /link -INCREMENTAL:NO %links% ^
- /subsystem:windows || goto :error
+ -link -INCREMENTAL:NO %links% ^
+ -subsystem:windows || goto :error
 
 popd
 
