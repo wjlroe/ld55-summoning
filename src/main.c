@@ -1025,9 +1025,6 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	draw_circle(pixels, 127, my_green);
 	int inner_radius = 95;
 	draw_circle(pixels, inner_radius, my_green);
-	u32 my_red = 0xff0000ff;
-	u32* my_pixels = (u32*)pixels;
-	my_pixels[10] = my_red; //top-left
 	
 #if 0
 	char first_char = toupper(word.str[0]);
