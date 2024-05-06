@@ -11,17 +11,19 @@ set build_message=BUILD_PATH is %BUILD_PATH%
 echo %build_message%
 cd %BUILD_PATH%
 
-rc /r resources.rc
-
 set build_dir="build"
 IF NOT EXIST %build_dir% mkdir %build_dir%
 pushd %build_dir%
 
-rm *.pdb *.obj *.ilk
+rm *.pdb *.obj *.ilk *.res
 
 cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
-mv ..\resources.res .
-cvtres -machine:x64 -out:resources.obj resources.res
+
+rc /nologo /r /fo icon.res ../icon.rc
+cvtres -nologo -machine:x64 -out:icon.obj icon.res
+
+rc /nologo /r /fo resources.res ../resources.rc
+cvtres -nologo -machine:x64 -out:resources.obj resources.res
 
 set includes=-I. ^
  -I..\vendor\stb ^
@@ -42,7 +44,7 @@ echo Generate resources
 
 echo Debug build
 cl /std:c11 -Gm- -FC -Zc:strictStrings -Zi -diagnostics:caret /nologo /DDEBUG /DDEBUG_STDOUT ^
- -Fe:summoning_debug.exe ..\src\main.c resources.obj ^
+ -Fe:summoning_debug.exe ..\src\main.c icon.obj ^
  %includes% ^
  /link /DEBUG:FULL -INCREMENTAL:NO %links% ^
  /subsystem:console || goto :error
