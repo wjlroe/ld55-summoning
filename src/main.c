@@ -1405,10 +1405,6 @@ static void init_gl(void) {
 	glDeleteShader(vertex_shader);
 	glDeleteShader(fragment_shader);
 	
-	// TODO: macOS may break if we validate linking before binding a VAO
-	check_program_linking(program_id);
-	check_program_valid(program_id);
-	
 	update_ortho_matrix();
 	
 	Shader* shader = push_shader(&game_window->quad_shader_id);
@@ -1434,6 +1430,10 @@ static void init_gl(void) {
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shader->ebo);
 	GLuint indexData[] = { 0, 1, 2, 2, 3, 0 };
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
+	//
+	// TODO: macOS may break if we validate linking before binding a VAO
+	check_program_linking(program_id);
+	check_program_valid(program_id);
 	
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
