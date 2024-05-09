@@ -5,7 +5,7 @@ set BUILD_PATH=%~dp0
 
 SET /A errno=0
 
-call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
 
 set build_message=BUILD_PATH is %BUILD_PATH%
 echo %build_message%
@@ -17,7 +17,7 @@ pushd %build_dir%
 
 del -q *.pdb *.obj *.ilk *.res
 
-cp ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
+copy ..\vendor\SDL2-2.30.2\lib\x64\SDL2.dll .
 
 rc -nologo -r -fo icon.res ..\icon.rc
 cvtres -nologo -machine:x64 -out:icon.obj icon.res
