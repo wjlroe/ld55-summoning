@@ -7,6 +7,16 @@ Started with base code from: https://git.sr.ht/~willroe/base-code-c-webasm
 * Xiaolin Wu's line algorithm from https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
 * Circle drawing algorithm from: Efficient DDA Circle Outlines https://www.computerenhance.com/p/efficient-dda-circle-outlines
 
+## Setup
+
+### Windows
+
+Setup the symlink that VSCode will need to open the workspace file:
+
+```
+ cmd /c mklink /d odin-source C:\dev\odin\dev-master
+```
+
 ## WebASM docs
 
 * https://blog.logrocket.com/first-game-in-webassembly/
