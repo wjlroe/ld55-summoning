@@ -2,8 +2,11 @@ package main
 
 import rl "vendor:raylib"
 
+DEFAULT_WINDOW_WIDTH  :: 1280
+DEFAULT_WINDOW_HEIGHT :: 800
+
 main :: proc() {
-    rl.InitWindow(800, 450, "raylib [core] example - basic window")
+    rl.InitWindow(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, "Ludum Dare 55: Summoning")
 
     for !rl.WindowShouldClose() {
         rl.BeginDrawing()
