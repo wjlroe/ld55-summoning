@@ -13,7 +13,7 @@ set build_dir="build"
 IF NOT EXIST %build_dir% mkdir %build_dir%
 
 pushd build
-del -q *.pdb *.obj *.ilk *.res
+del *.pdb *.obj *.ilk *.res
 popd
 
 REM Debug build
