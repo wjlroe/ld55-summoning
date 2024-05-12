@@ -32,19 +32,39 @@ Game_State :: enum {
     STATE_LOSE,
 }
 
+Text_Group :: struct {
+	text: string,
+	glyph_rects: []rl.Rectangle,
+	rect: rl.Rectangle,
+}
+
+new_text_group :: proc(text: string) ->Text_Group {
+	group := Text_Group {
+		text = text,
+		glyph_rects = make([]rl.Rectangle, len(text)),
+	}
+
+
+	for c, i in text {
+		// group.glyph_rects = rl.GetGlyph,
+	}
+
+	return group
+}
+
 DEFAULT_CHALLENGE_FADE_SPEED :: 5.5
 
 Type_Challenge :: struct {
-    word: string,
+    word: Text_Group,
     typed_correctly: []b32,
     position: u32,
     alpha: f32,
     alpha_fade_speed: f32,
 }
 
-type_challenge :: #force_inline proc(word: string) -> Type_Challenge {
+type_challenge :: #force_inline proc(word: string, font_size: f32) -> Type_Challenge {
     return Type_Challenge{
-        word = word,
+        word = new_text_group(word, font_size),
         typed_correctly = make([]b32, len(word)),
         alpha_fade_speed = DEFAULT_CHALLENGE_FADE_SPEED,
     }
