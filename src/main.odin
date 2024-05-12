@@ -72,6 +72,7 @@ challenge_has_mistakes :: proc(challenge: ^Type_Challenge) -> b32 {
     return  false
 }
 
+// TODO: LERP?
 update_challenge_alpha :: proc(challenge: ^Type_Challenge, dt: f32) {
     using challenge
     if alpha < 1.0 {
@@ -80,9 +81,7 @@ update_challenge_alpha :: proc(challenge: ^Type_Challenge, dt: f32) {
         } else {
             alpha += dt / alpha_fade_speed
         }
-        if alpha > 1.0 {
-            alpha = 1.0
-        }
+        alpha = clamp(0.0, 1.0, alpha)
     }
 }
 
