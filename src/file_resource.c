@@ -19,9 +19,10 @@ static void load_file_resource(File_Resource* resource) {
 
 	resource->size = file_stats.st_size;
 	assert(resource->size > 0);
-	resource->contents = malloc(resource->size);
+	resource->contents = malloc(resource->size+1); // allow for NULL termination
 	assert(resource->contents != NULL);
 	fread(resource->contents, 1, resource->size, fopen(resource->filename, "rb"));
+	resource->contents[resource->size] = 0; // NULL termination
 	DEBUG_MSG("Loaded file %s\n", resource->filename);
 	resource->loaded = true;
 }
