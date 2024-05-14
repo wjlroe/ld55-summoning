@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:math/linalg"
 import "core:log"
 import "core:os"
+import "core:unicode"
 import rl "vendor:raylib"
 
 im_fell_font := #load("../assets/fonts/im_fell_roman.ttf")
@@ -231,10 +232,13 @@ Game_Window :: struct {
 
     title_font: Font,
     challenge_font: Font,
+    demonic_font: Font,
 
     dt: f32,
     frame_number: u64,
     dim: rl.Vector2,
+
+    demonic_sign_texture: rl.RenderTexture2D,
 }
 
 @(require)
@@ -283,6 +287,9 @@ render_menu :: proc() {
     rl.ClearBackground(VERY_DARK_BLUE)
 
     render_challenge(&game_window.title_challenge)
+
+    demonic_pos := rl.Vector2{}
+    rl.DrawTextureV(game_window.demonic_sign_texture.texture, demonic_pos, WHITE)
 
     // TODO: render a summoning sign here like main.c does
     rl.EndDrawing()
@@ -405,6 +412,31 @@ FIRST_GLYPH :: 32
 LAST_GLYPH  :: 127
 NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
+render_demonic_sign :: proc(word: string) {
+    game_window.demonic_sign_texture = rl.LoadRenderTexture(256, 256)
+
+    rl.BeginTextureMode(game_window.demonic_sign_texture)
+
+    rl.DrawCircleLines(256/2, 256/2, 127.0, GREEN)
+    rl.DrawCircleLines(256/2, 256/2, 95.0, GREEN)
+
+    single_char := [2]u8{}
+    first_char := unicode.to_upper(rune(word[0]))
+    single_char[0] = u8(first_char)
+    glyph_rect := rl.GetGlyphAtlasRec(game_window.demonic_font.raylib_font, first_char)
+    pos := rl.Vector2{256.0 / 2.0 - glyph_rect.width / 2.0, 0.0}
+    rl.DrawTextEx(
+        game_window.demonic_font.raylib_font,
+        cstring(&single_char[0]),
+        pos,
+        f32(game_window.demonic_font.raylib_font.baseSize),
+        0.0,
+        GREEN
+    )
+
+    rl.EndTextureMode()
+}
+
 init_game :: proc() -> b32 {
     update_window_dim()
     if !init_font(&game_window.title_font, im_fell_font, 120.0) {
@@ -415,7 +447,12 @@ init_game :: proc() -> b32 {
         log.error("Failed to init the challenge font!")
         return false
     }
+    if !init_font(&game_window.demonic_font, im_fell_font, 24.0) {
+        log.error("Failed to init the demonic font!")
+        return false
+    }
     setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
+    render_demonic_sign(title)
     return true
 }
 
