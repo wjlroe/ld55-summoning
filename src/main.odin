@@ -265,6 +265,18 @@ render_menu :: proc() {
 
 render_game :: proc() {
     challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
+    char := rl.GetCharPressed()
+    for char != 0 {
+        level_type_character(&game_window.level_data, char)
+        if is_level_done(&game_window.level_data) {
+            if game_window.level_data.points < game_window.level_data.num_challenges {
+                game_window.game_state = .STATE_LOSE
+            } else {
+                game_window.game_state = .STATE_WIN
+            }
+        }
+        char = rl.GetCharPressed()
+    }
     update_challenge_alpha(challenge, game_window.dt)
     center_horizontally(
         &challenge.origin,
@@ -285,8 +297,75 @@ render_game :: proc() {
     rl.EndDrawing()
 }
 
-render_win :: proc() {}
-render_lose :: proc() {}
+render_win :: proc() {
+    rl.BeginDrawing()
+    rl.ClearBackground(VERY_DARK_BLUE)
+
+    text := fmt.ctprintf("%s", win)
+    text_size := rl.MeasureTextEx(
+        game_window.title_font.raylib_font,
+        text,
+        f32(game_window.title_font.raylib_font.baseSize),
+        0.0,
+    )
+    position := rl.Vector2{}
+    center_horizontally(
+        &position,
+        text_size,
+        game_window.dim,
+    )
+    center_vertically(
+        &position,
+        text_size,
+        game_window.dim,
+    )
+    rl.DrawTextEx(
+        game_window.title_font.raylib_font,
+        text,
+        position,
+        f32(game_window.title_font.raylib_font.baseSize),
+        0.0,
+        WHITE,
+    )
+
+    // TODO: render a summoning sign here like main.c does
+    rl.EndDrawing()
+}
+
+render_lose :: proc() {
+    rl.BeginDrawing()
+    rl.ClearBackground(VERY_DARK_BLUE)
+
+    text := fmt.ctprintf("%s", lost)
+    text_size := rl.MeasureTextEx(
+        game_window.title_font.raylib_font,
+        text,
+        f32(game_window.title_font.raylib_font.baseSize),
+        0.0,
+    )
+    position := rl.Vector2{}
+    center_horizontally(
+        &position,
+        text_size,
+        game_window.dim,
+    )
+    center_vertically(
+        &position,
+        text_size,
+        game_window.dim,
+    )
+    rl.DrawTextEx(
+        game_window.title_font.raylib_font,
+        text,
+        position,
+        f32(game_window.title_font.raylib_font.baseSize),
+        0.0,
+        WHITE,
+    )
+
+    // TODO: render a summoning sign here like main.c does
+    rl.EndDrawing()
+}
 
 update_and_render :: proc() {
     #partial switch game_window.game_state {
