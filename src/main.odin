@@ -227,6 +227,7 @@ init_game :: proc() {
     game_window.title_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), 120, nil, -1)
     assert(rl.IsFontReady(game_window.title_font))
     game_window.challenge_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), 48, nil, -1)
+    assert(rl.IsFontReady(game_window.challenge_font))
     game_window.title_challenge = type_challenge(title, game_window.title_font)
 }
 
