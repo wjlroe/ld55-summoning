@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:math/linalg"
 import "core:log"
 import "core:os"
 import rl "vendor:raylib"
@@ -37,28 +38,58 @@ Game_State :: enum {
     STATE_LOSE,
 }
 
-DEFAULT_CHALLENGE_FADE_SPEED :: 5.5
+TITLE_CHALLENGE_FADE_TIME :: 10.0 // seconds
+
+Animation :: struct {
+    start: f32,
+    end: f32,
+    duration: f32,
+}
+
+start_animation :: proc(duration: f32) -> Animation {
+    now := f32(rl.GetTime())
+    end := now + duration
+    return Animation {
+        start = now,
+        end = end,
+        duration = duration,
+    }
+}
+
+animate :: proc(animation: ^Animation) -> f32 {
+    using animation
+
+    t := (f32(rl.GetTime()) - start) / duration
+    t = clamp(t, 0.0, 1.0)
+    return linalg.lerp(f32(0.0), f32(1.0), t)
+}
+
+shorten_animation :: proc(animation: ^Animation, new_time: f32) {
+    using animation
+    duration = new_time
+    end = start + new_time
+}
 
 Type_Challenge :: struct {
     word: string,
     font: ^Font,
     dim: rl.Vector2,
-    origin: rl.Vector2, // TODO: center this or whatever!
+    origin: rl.Vector2,
     typed_correctly: []b32,
     position: u32,
     alpha: f32,
-    alpha_fade_speed: f32,
+    alpha_animation: Animation,
 }
 
-setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_speed: f32) {
+setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
     challenge.word = word
     challenge.font = font
     challenge.typed_correctly = make([]b32, len(word))
-    challenge.alpha_fade_speed = fade_speed
     c_str := fmt.ctprintf("%s", challenge.word)
     spacing : f32 = 0.0
     challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
     challenge.dim.y = font.ascent + font.descent
+    challenge.alpha_animation = start_animation(fade_time)
 }
 
 is_challenge_done :: proc(challenge: ^Type_Challenge) -> b32 {
@@ -70,6 +101,9 @@ has_typing_started :: proc(challenge: ^Type_Challenge) -> b32 {
 }
 
 enter_challenge_character :: proc(challenge: ^Type_Challenge, character: rune) {
+    if challenge.position == 0 {
+        shorten_animation(&challenge.alpha_animation, challenge.alpha_animation.duration / 3.0)
+    }
     if !is_challenge_done(challenge) {
         challenge.typed_correctly[challenge.position] = character == rune(challenge.word[challenge.position])
         challenge.position += 1
@@ -83,17 +117,8 @@ challenge_has_mistakes :: proc(challenge: ^Type_Challenge) -> b32 {
     return  false
 }
 
-// TODO: LERP?
-update_challenge_alpha :: proc(challenge: ^Type_Challenge, dt: f32) {
-    using challenge
-    if alpha < 1.0 {
-        if has_typing_started(challenge) || alpha_fade_speed == 0.0 {
-            alpha += dt
-        } else {
-            alpha += dt / alpha_fade_speed
-        }
-        alpha = clamp(0.0, 1.0, alpha)
-    }
+update_challenge_alpha :: proc(challenge: ^Type_Challenge) {
+    challenge.alpha = animate(&challenge.alpha_animation)
 }
 
 reset_challenge :: proc(challenge: ^Type_Challenge) {
@@ -242,7 +267,7 @@ render_menu :: proc() {
         }
         char = rl.GetCharPressed()
     }
-    update_challenge_alpha(&game_window.title_challenge, game_window.dt)
+    update_challenge_alpha(&game_window.title_challenge)
     center_horizontally(
         &game_window.title_challenge.origin,
         game_window.title_challenge.dim,
@@ -277,7 +302,7 @@ render_game :: proc() {
         }
         char = rl.GetCharPressed()
     }
-    update_challenge_alpha(challenge, game_window.dt)
+    update_challenge_alpha(challenge)
     center_horizontally(
         &challenge.origin,
         challenge.dim,
@@ -390,7 +415,7 @@ init_game :: proc() -> b32 {
         log.error("Failed to init the challenge font!")
         return false
     }
-    setup_challenge(&game_window.title_challenge, title, &game_window.title_font, DEFAULT_CHALLENGE_FADE_SPEED)
+    setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
     return true
 }
 
