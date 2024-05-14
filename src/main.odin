@@ -21,7 +21,7 @@ title :: "Summoning"
 win   :: "You've Won!"
 lost  :: "You've Lost!"
 
-words :: [?]string{
+words := [?]string{
     "summon",
     "incantation",
     "spell",
@@ -41,7 +41,7 @@ DEFAULT_CHALLENGE_FADE_SPEED :: 5.5
 
 Type_Challenge :: struct {
     word: string,
-    font: Font,
+    font: ^Font,
     dim: rl.Vector2,
     origin: rl.Vector2, // TODO: center this or whatever!
     typed_correctly: []b32,
@@ -50,20 +50,15 @@ Type_Challenge :: struct {
     alpha_fade_speed: f32,
 }
 
-type_challenge :: #force_inline proc(word: string, font: Font) -> Type_Challenge {
-    challenge := Type_Challenge{
-        word = word,
-        font = font,
-        typed_correctly = make([]b32, len(word)),
-        alpha_fade_speed = DEFAULT_CHALLENGE_FADE_SPEED,
-    }
-
+setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_speed: f32) {
+    challenge.word = word
+    challenge.font = font
+    challenge.typed_correctly = make([]b32, len(word))
+    challenge.alpha_fade_speed = fade_speed
     c_str := fmt.ctprintf("%s", challenge.word)
     spacing : f32 = 0.0
     challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
     challenge.dim.y = font.ascent + font.descent
-
-    return challenge
 }
 
 is_challenge_done :: proc(challenge: ^Type_Challenge) -> b32 {
@@ -168,6 +163,15 @@ Level_Data :: struct {
     points: int,
 }
 
+setup_level :: proc(level: ^Level_Data) {
+    for _, i in words {
+        if i >= MAX_NUM_CHALLENGES { break }
+        setup_challenge(&level.challenges[i], words[i], &game_window.challenge_font, 1.5)
+        level.num_challenges += 1
+    }
+    level.current_challenge = 0
+}
+
 reset_level :: proc(level: ^Level_Data) {
     for _,i in level.challenges {
         reset_challenge(&level.challenges[i])
@@ -198,6 +202,7 @@ level_type_character :: proc(level: ^Level_Data, character: rune) {
 Game_Window :: struct {
     game_state: Game_State,
     title_challenge: Type_Challenge,
+    level_data: Level_Data,
 
     title_font: Font,
     challenge_font: Font,
@@ -227,6 +232,14 @@ render_menu :: proc() {
     char := rl.GetCharPressed()
     for char != 0 {
         enter_challenge_character(&game_window.title_challenge, char)
+        if is_challenge_done(&game_window.title_challenge) {
+            if challenge_has_mistakes(&game_window.title_challenge) {
+                reset_challenge(&game_window.title_challenge)
+            } else {
+                game_window.game_state = .STATE_PLAY
+                setup_level(&game_window.level_data)
+            }
+        }
         char = rl.GetCharPressed()
     }
     update_challenge_alpha(&game_window.title_challenge, game_window.dt)
@@ -246,12 +259,32 @@ render_menu :: proc() {
 
     render_challenge(&game_window.title_challenge)
 
-    // text_color := rl.ColorAlpha(WHITE, game_window.title_challenge.alpha)
-    // rl.DrawText(title, 190, 200, 20, text_color)
+    // TODO: render a summoning sign here like main.c does
     rl.EndDrawing()
 }
 
-render_game :: proc() {}
+render_game :: proc() {
+    challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
+    update_challenge_alpha(challenge, game_window.dt)
+    center_horizontally(
+        &challenge.origin,
+        challenge.dim,
+        game_window.dim,
+    )
+    center_vertically(
+        &challenge.origin,
+        challenge.dim,
+        game_window.dim,
+    )
+
+    rl.BeginDrawing()
+    rl.ClearBackground(VERY_DARK_BLUE)
+
+    render_challenge(challenge)
+
+    rl.EndDrawing()
+}
+
 render_win :: proc() {}
 render_lose :: proc() {}
 
@@ -278,7 +311,7 @@ init_game :: proc() -> b32 {
         log.error("Failed to init the challenge font!")
         return false
     }
-    game_window.title_challenge = type_challenge(title, game_window.title_font)
+    setup_challenge(&game_window.title_challenge, title, &game_window.title_font, DEFAULT_CHALLENGE_FADE_SPEED)
     return true
 }
 
