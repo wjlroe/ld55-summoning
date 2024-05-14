@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:log"
+import "core:os"
 import rl "vendor:raylib"
 
 im_fell_font := #load("../assets/fonts/im_fell_roman.ttf")
@@ -40,7 +41,7 @@ DEFAULT_CHALLENGE_FADE_SPEED :: 5.5
 
 Type_Challenge :: struct {
     word: string,
-    font: rl.Font,
+    font: Font,
     dim: rl.Vector2,
     origin: rl.Vector2, // TODO: center this or whatever!
     typed_correctly: []b32,
@@ -49,7 +50,7 @@ Type_Challenge :: struct {
     alpha_fade_speed: f32,
 }
 
-type_challenge :: #force_inline proc(word: string, font: rl.Font) -> Type_Challenge {
+type_challenge :: #force_inline proc(word: string, font: Font) -> Type_Challenge {
     challenge := Type_Challenge{
         word = word,
         font = font,
@@ -59,7 +60,8 @@ type_challenge :: #force_inline proc(word: string, font: rl.Font) -> Type_Challe
 
     c_str := fmt.ctprintf("%s", challenge.word)
     spacing : f32 = 0.0
-    challenge.dim = rl.MeasureTextEx(font, c_str, f32(font.baseSize), spacing)
+    challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
+    challenge.dim.y = font.ascent + font.descent
 
     return challenge
 }
@@ -124,18 +126,18 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
             text_color = under_cursor_color
         }
         rl.DrawTextCodepoint(
-            challenge.font,
+            challenge.font.raylib_font,
             c,
             position,
-            f32(challenge.font.baseSize),
+            f32(challenge.font.raylib_font.baseSize),
             text_color,
         )
         c_str := fmt.ctprintf("%c", c)
         spacing : f32 = 0.0
         glyph_size := rl.MeasureTextEx(
-            challenge.font,
+            challenge.font.raylib_font,
             c_str,
-            f32(challenge.font.baseSize),
+            f32(challenge.font.raylib_font.baseSize),
             spacing,
         )
         position.x += glyph_size.x
@@ -183,8 +185,8 @@ Game_Window :: struct {
     game_state: Game_State,
     title_challenge: Type_Challenge,
 
-    title_font: rl.Font,
-    challenge_font: rl.Font,
+    title_font: Font,
+    challenge_font: Font,
 
     dt: f32,
     frame_number: u64,
@@ -247,18 +249,25 @@ FIRST_GLYPH :: 32
 LAST_GLYPH  :: 127
 NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
-init_game :: proc() {
+init_game :: proc() -> b32 {
     update_window_dim()
-    game_window.title_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), 120, nil, -1)
-    assert(rl.IsFontReady(game_window.title_font))
-    game_window.challenge_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), 48, nil, -1)
-    assert(rl.IsFontReady(game_window.challenge_font))
+    if !init_font(&game_window.title_font, im_fell_font, 120.0) {
+        log.error("Failed to init the title font!")
+        return false
+    }
+    if !init_font(&game_window.challenge_font, im_fell_font, 48.0) {
+        log.error("Failed to init the challenge font!")
+        return false
+    }
     game_window.title_challenge = type_challenge(title, game_window.title_font)
+    return true
 }
 
 main :: proc() {
     rl.InitWindow(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, "Ludum Dare 55: Summoning")
-    init_game()
+    if !init_game() {
+        os.exit(1)
+    }
 
     for !rl.WindowShouldClose() {
 		if err := free_all(context.temp_allocator); err != .None {
