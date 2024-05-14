@@ -299,7 +299,6 @@ render_menu :: proc() {
     )
     rl.DrawTextureV(game_window.demonic_sign_texture.texture, demonic_pos, WHITE)
 
-    // TODO: render a summoning sign here like main.c does
     rl.EndDrawing()
 }
 
