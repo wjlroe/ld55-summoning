@@ -110,7 +110,7 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
     wrong_color   := rl.ColorAlpha(RED, challenge.alpha)
     under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
 
-    position := rl.Vector2{}
+    position := challenge.origin
 
     for c, i in challenge.word {
         text_color : rl.Color = neutral_color
@@ -188,13 +188,37 @@ Game_Window :: struct {
 
     dt: f32,
     frame_number: u64,
+    dim: rl.Vector2,
 }
 
 @(require)
 game_window := Game_Window{}
 
+update_window_dim :: proc() {
+    game_window.dim.x = f32(rl.GetRenderWidth())
+    game_window.dim.y = f32(rl.GetRenderHeight())
+}
+
+center_horizontally :: proc(position: ^rl.Vector2, dim: rl.Vector2, within: rl.Vector2) {
+    position.x = (within.x / 2.0) - (dim.x / 2.0)
+}
+
+center_vertically :: proc(position: ^rl.Vector2, dim: rl.Vector2, within: rl.Vector2) {
+    position.y = (within.y / 2.0) - (dim.y / 2.0)
+}
+
 render_menu :: proc() {
     update_challenge_alpha(&game_window.title_challenge, game_window.dt)
+    center_horizontally(
+        &game_window.title_challenge.origin,
+        game_window.title_challenge.dim,
+        game_window.dim,
+    )
+    center_vertically(
+        &game_window.title_challenge.origin,
+        game_window.title_challenge.dim,
+        game_window.dim,
+    )
 
     rl.BeginDrawing()
     rl.ClearBackground(VERY_DARK_BLUE)
@@ -224,6 +248,7 @@ LAST_GLYPH  :: 127
 NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
 init_game :: proc() {
+    update_window_dim()
     game_window.title_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), 120, nil, -1)
     assert(rl.IsFontReady(game_window.title_font))
     game_window.challenge_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), 48, nil, -1)
