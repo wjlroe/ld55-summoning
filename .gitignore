@@ -62,3 +62,5 @@ assets/*.h
 
 # Ignore the computer-dependant symlink to the odin source code
 odin-source
+
+*.rdbg
