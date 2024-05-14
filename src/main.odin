@@ -111,10 +111,20 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
     correct_color := rl.ColorAlpha(GREEN, challenge.alpha)
     wrong_color   := rl.ColorAlpha(RED, challenge.alpha)
     under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
+    cursor_color       := rl.ColorAlpha(AMBER, challenge.alpha)
 
     position := challenge.origin
 
     for c, i in challenge.word {
+        c_str := fmt.ctprintf("%c", c)
+        spacing : f32 = 0.0
+        glyph_size := rl.MeasureTextEx(
+            challenge.font.raylib_font,
+            c_str,
+            f32(challenge.font.raylib_font.baseSize),
+            spacing,
+        )
+
         text_color : rl.Color = neutral_color
         if challenge.position > u32(i) {
             if challenge.typed_correctly[i] {
@@ -123,6 +133,18 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
                 text_color = wrong_color
             }
         } else if challenge.position == u32(i) {
+            cursor_rect := rl.Rectangle{
+                x = position.x,
+                y = position.y,
+                width = glyph_size.x,
+                height = challenge.font.ascent + challenge.font.descent,
+            }
+            rl.DrawRectangleRounded(
+                cursor_rect,
+                0.5, // roundness
+                0, // segments
+                cursor_color,
+            )
             text_color = under_cursor_color
         }
         rl.DrawTextCodepoint(
@@ -131,14 +153,6 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
             position,
             f32(challenge.font.raylib_font.baseSize),
             text_color,
-        )
-        c_str := fmt.ctprintf("%c", c)
-        spacing : f32 = 0.0
-        glyph_size := rl.MeasureTextEx(
-            challenge.font.raylib_font,
-            c_str,
-            f32(challenge.font.raylib_font.baseSize),
-            spacing,
         )
         position.x += glyph_size.x
     }
