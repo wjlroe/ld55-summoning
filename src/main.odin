@@ -367,7 +367,6 @@ render_win :: proc() {
         WHITE,
     )
 
-    // TODO: render a summoning sign here like main.c does
     rl.EndDrawing()
 }
 
@@ -402,7 +401,6 @@ render_lose :: proc() {
         WHITE,
     )
 
-    // TODO: render a summoning sign here like main.c does
     rl.EndDrawing()
 }
 
@@ -440,6 +438,7 @@ render_demonic_sign :: proc(word: string) {
         0.0,
         GREEN
     )
+    // TODO: render the rest of the characters and the lines
 
     rl.EndTextureMode()
 }
