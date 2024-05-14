@@ -288,7 +288,15 @@ render_menu :: proc() {
 
     render_challenge(&game_window.title_challenge)
 
-    demonic_pos := rl.Vector2{}
+
+    offset_y := game_window.title_challenge.origin.y + game_window.title_challenge.dim.y + 10.0
+    demonic_pos := rl.Vector2{0.0, offset_y}
+    demonic_dim := rl.Vector2{256, 256}
+    center_horizontally(
+        &demonic_pos,
+        demonic_dim,
+        game_window.dim,
+    )
     rl.DrawTextureV(game_window.demonic_sign_texture.texture, demonic_pos, WHITE)
 
     // TODO: render a summoning sign here like main.c does
