@@ -226,7 +226,8 @@ NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
 init_game :: proc() {
     font_size : f32 = 120.0
-    game_window.title_font = rl.LoadFontEx("assets/fonts/im_fell_roman.ttf", i32(font_size), nil, -1)
+    game_window.title_font = load_font_from_memory(".ttf", &im_fell_font[0], i32(len(im_fell_font)), i32(font_size), nil, -1)
+    // game_window.title_font = rl.LoadFontEx("assets/fonts/im_fell_roman.ttf", i32(font_size), nil, -1)
     assert(rl.IsFontReady(game_window.title_font))
     game_window.title_challenge = type_challenge(title, game_window.title_font, font_size)
 }
