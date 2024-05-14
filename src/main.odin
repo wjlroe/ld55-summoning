@@ -224,6 +224,11 @@ center_vertically :: proc(position: ^rl.Vector2, dim: rl.Vector2, within: rl.Vec
 }
 
 render_menu :: proc() {
+    char := rl.GetCharPressed()
+    for char != 0 {
+        enter_challenge_character(&game_window.title_challenge, char)
+        char = rl.GetCharPressed()
+    }
     update_challenge_alpha(&game_window.title_challenge, game_window.dt)
     center_horizontally(
         &game_window.title_challenge.origin,
