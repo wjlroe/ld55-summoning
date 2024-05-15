@@ -288,7 +288,6 @@ render_menu :: proc() {
 
     render_challenge(&game_window.title_challenge)
 
-
     offset_y := game_window.title_challenge.origin.y + game_window.title_challenge.dim.y + 10.0
     demonic_pos := rl.Vector2{0.0, offset_y}
     demonic_dim := rl.Vector2{256, 256}
@@ -297,7 +296,11 @@ render_menu :: proc() {
         demonic_dim,
         game_window.dim,
     )
-    rl.DrawTextureV(game_window.demonic_sign_texture.texture, demonic_pos, WHITE)
+    source_rect := rl.Rectangle{0, 0, 256, -256}
+    dest_rect   := rl.Rectangle{demonic_pos.x, demonic_pos.y, demonic_dim.x, demonic_dim.y}
+    origin      := rl.Vector2{0, 0}
+    rotation    : f32 = 0.0
+    rl.DrawTexturePro(game_window.demonic_sign_texture.texture, source_rect, dest_rect, origin, rotation, WHITE)
 
     rl.EndDrawing()
 }
