@@ -12,7 +12,6 @@ import stbtt "vendor:stb/truetype"
 
 // TODO:
 // * Display scaling - things don't look right on 150% or 200% screens, too small
-// * Size and position of glyphs in demonic sign is off, fix
 
 im_fell_font := #load("../assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf")
 
