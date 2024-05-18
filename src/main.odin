@@ -87,6 +87,7 @@ Type_Challenge :: struct {
     position: u32,
     alpha: f32,
     alpha_animation: Animation,
+    demonic_sign: rl.RenderTexture2D,
 }
 
 setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
@@ -98,6 +99,7 @@ setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, f
     challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
     challenge.dim.y = font.ascent - font.descent
     challenge.alpha_animation = start_animation(fade_time)
+    render_demonic_sign(&challenge.demonic_sign, word)
 }
 
 is_challenge_done :: proc(challenge: ^Type_Challenge) -> b32 {
@@ -184,6 +186,20 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
         )
         position.x += glyph_size.x
     }
+
+    texture_color := rl.ColorAlpha(WHITE, challenge.alpha)
+    demonic_dim := rl.Vector2{256, 256}
+    demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256 - 10}
+    center_horizontally(
+        &demonic_pos,
+        demonic_dim,
+        game_window.dim,
+    )
+    source_rect := rl.Rectangle{0, 0, 256, -256}
+    dest_rect   := rl.Rectangle{demonic_pos.x, demonic_pos.y, demonic_dim.x, demonic_dim.y}
+    origin      := rl.Vector2{0, 0}
+    rotation    : f32 = 0.0
+    rl.DrawTexturePro(challenge.demonic_sign.texture, source_rect, dest_rect, origin, rotation, texture_color)
 }
 
 MAX_NUM_CHALLENGES :: 8
@@ -244,8 +260,6 @@ Game_Window :: struct {
     dt: f32,
     frame_number: u64,
     dim: rl.Vector2,
-
-    demonic_sign_texture: rl.RenderTexture2D,
 }
 
 @(require)
@@ -294,20 +308,6 @@ render_menu :: proc() {
     rl.ClearBackground(VERY_DARK_BLUE)
 
     render_challenge(&game_window.title_challenge)
-
-    offset_y := game_window.title_challenge.origin.y + game_window.title_challenge.dim.y + 10.0
-    demonic_pos := rl.Vector2{0.0, offset_y}
-    demonic_dim := rl.Vector2{256, 256}
-    center_horizontally(
-        &demonic_pos,
-        demonic_dim,
-        game_window.dim,
-    )
-    source_rect := rl.Rectangle{0, 0, 256, -256}
-    dest_rect   := rl.Rectangle{demonic_pos.x, demonic_pos.y, demonic_dim.x, demonic_dim.y}
-    origin      := rl.Vector2{0, 0}
-    rotation    : f32 = 0.0
-    rl.DrawTexturePro(game_window.demonic_sign_texture.texture, source_rect, dest_rect, origin, rotation, WHITE)
 
     rl.EndDrawing()
 }
@@ -427,17 +427,17 @@ FIRST_GLYPH :: 32
 LAST_GLYPH  :: 127
 NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
-render_demonic_sign :: proc(word: string) {
+render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
     using math
     width   : f32 = 256.0
     height  : f32 = 256.0
     area_cx : f32 = width / 2.0
     area_cy : f32 = height / 2.0
     area_center := rl.Vector2{area_cx, area_cy}
-    game_window.demonic_sign_texture = rl.LoadRenderTexture(i32(width), i32(height))
+    texture^ = rl.LoadRenderTexture(i32(width), i32(height))
     scale := game_window.demonic_font.scale
 
-    rl.BeginTextureMode(game_window.demonic_sign_texture)
+    rl.BeginTextureMode(texture^)
 
     rl.DrawCircleLinesV(area_center, 127.0, GREEN)
     inner_radius : f32 = 95.0
@@ -539,7 +539,6 @@ init_game :: proc() -> b32 {
         return false
     }
     setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
-    render_demonic_sign(title)
     return true
 }
 
