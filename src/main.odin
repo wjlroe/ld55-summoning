@@ -439,7 +439,6 @@ render_demonic_sign :: proc(word: string) {
 
     rl.BeginTextureMode(game_window.demonic_sign_texture)
 
-    rl.DrawPixelV(area_center, RED) // nocheckin: debugging
     rl.DrawCircleLinesV(area_center, 127.0, GREEN)
     inner_radius : f32 = 95.0
     rl.DrawCircleLinesV(area_center, inner_radius, GREEN)
@@ -447,11 +446,9 @@ render_demonic_sign :: proc(word: string) {
     single_char := [2]u8{}
     first_char := unicode.to_upper(rune(word[0]))
     single_char[0] = u8(first_char)
-    // glyph_rect := rl.GetGlyphAtlasRec(game_window.demonic_font.raylib_font, first_char)
     x0, x1, y0, y1 : c.int
     stbtt.GetCodepointBox(&game_window.demonic_font.info, rune(word[0]), &x0, &y0, &x1, &y1)
-    glyph_size := rl.Vector2{f32(x1 - x0)*scale, f32(y1 - y0)*scale}
-    // glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
+    glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
     pos := rl.Vector2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0}
     rl.DrawTextEx(
         game_window.demonic_font.raylib_font,
@@ -461,16 +458,14 @@ render_demonic_sign :: proc(word: string) {
         0.0,
         GREEN
     )
-    // TODO: render the rest of the characters and the lines
 	angle_deg := 360.0 / f32(len(word))
 	theta     := angle_deg * (PI / 180.0)
 
     char_cx : f32 = pos.x + glyph_size.x/ 2.0 // center of the space in width
     char_cy : f32 = pos.y + glyph_size.y / 2.0
-    rl.DrawPixel(i32(char_cx), i32(char_cy), RED)
     input_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
     input_points[0].x = char_cx
-    input_points[0].y = char_cy
+    input_points[0].y = area_cy - inner_radius
 
     for i in 1..<len(word) {
         new_cx := cos(theta) * (char_cx - area_cx) - sin(theta) * (char_cy - area_cy) + area_cx
@@ -479,10 +474,8 @@ render_demonic_sign :: proc(word: string) {
         char_cy = new_cy
 
         single_char[0] = word[i]
-        // glyph_rect = rl.GetGlyphAtlasRec(game_window.demonic_font.raylib_font, rune(word[i]))
         stbtt.GetCodepointBox(&game_window.demonic_font.info, rune(word[i]), &x0, &y0, &x1, &y1)
-        glyph_size = rl.Vector2{f32(x1 - x0)*scale, f32(y1 - y0)*scale}
-        // glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
+        glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
         pos.x = char_cx - (glyph_size.x / 2.0)
         pos.y = char_cy - (glyph_size.y / 2.0)
         rl.DrawTextEx(
@@ -493,12 +486,6 @@ render_demonic_sign :: proc(word: string) {
             0.0,
             GREEN
         )
-        rl.DrawRectangleV(
-            pos,
-            glyph_size,
-            BLUE,
-        )
-        rl.DrawPixel(i32(char_cx), i32(char_cy), RED)
 
         vx := char_cx - area_cx
         vy := char_cy - area_cy
@@ -509,6 +496,30 @@ render_demonic_sign :: proc(word: string) {
         input_points[i].y = area_cy + vy * inner_radius
     }
     input_points[len(word)] = input_points[0]
+
+    output_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
+    input_i := 0
+    half_word := len(word) / 2
+    even_word_length := false
+    if len(word) % 2 == 0 {
+        half_word -= 1
+        even_word_length = true
+    }
+    for i in 0..<len(word) {
+        output_points[i] = input_points[input_i]
+        input_i = (input_i + half_word) % len(word)
+    }
+    output_points[len(word)] = input_points[0]
+
+    for i in 0..<len(word) {
+        p0 := output_points[i]
+        p1 := output_points[i+1]
+        if p0.x < p1.x {
+            rl.DrawLineV(p0, p1, GREEN)
+        } else {
+            rl.DrawLineV(p1, p0, GREEN)
+        }
+    }
 
     rl.EndTextureMode()
 }
