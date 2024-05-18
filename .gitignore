@@ -64,3 +64,4 @@ assets/*.h
 odin-source
 
 *.rdbg
+*.res
