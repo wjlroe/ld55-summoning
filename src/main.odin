@@ -95,7 +95,7 @@ setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, f
     c_str := fmt.ctprintf("%s", challenge.word)
     spacing : f32 = 0.0
     challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
-    challenge.dim.y = font.ascent - font.descent
+    challenge.dim.y = font.size
     challenge.alpha_animation = start_animation(fade_time)
     render_demonic_sign(&challenge.demonic_sign, word)
 }
@@ -165,7 +165,7 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
                 x = position.x,
                 y = position.y,
                 width = glyph_size.x,
-                height = challenge.font.ascent - challenge.font.descent,
+                height = challenge.font.size,
             }
             rl.DrawRectangleRounded(
                 cursor_rect,
@@ -433,7 +433,6 @@ render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
     area_cy : f32 = height / 2.0
     area_center := rl.Vector2{area_cx, area_cy}
     texture^ = rl.LoadRenderTexture(i32(width), i32(height))
-    scale := game_window.demonic_font.scale
 
     rl.BeginTextureMode(texture^)
 
