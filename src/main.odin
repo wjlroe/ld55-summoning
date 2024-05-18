@@ -8,7 +8,6 @@ import "core:log"
 import "core:os"
 import "core:unicode"
 import rl "vendor:raylib"
-import stbtt "vendor:stb/truetype"
 
 // TODO:
 // * Display scaling - things don't look right on 150% or 200% screens, too small
@@ -445,8 +444,6 @@ render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
     single_char := [2]u8{}
     first_char := unicode.to_upper(rune(word[0]))
     single_char[0] = u8(first_char)
-    x0, x1, y0, y1 : c.int
-    stbtt.GetCodepointBox(&game_window.demonic_font.info, rune(word[0]), &x0, &y0, &x1, &y1)
     glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
     pos := rl.Vector2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0}
     rl.DrawTextEx(
@@ -473,7 +470,6 @@ render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
         char_cy = new_cy
 
         single_char[0] = word[i]
-        stbtt.GetCodepointBox(&game_window.demonic_font.info, rune(word[i]), &x0, &y0, &x1, &y1)
         glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
         pos.x = char_cx - (glyph_size.x / 2.0)
         pos.y = char_cy - (glyph_size.y / 2.0)
