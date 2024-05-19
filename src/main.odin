@@ -10,7 +10,7 @@ import "core:unicode"
 import rl "vendor:raylib"
 
 // TODO:
-// * Display scaling - things don't look right on 150% or 200% screens, too small
+// * Newer IM Font doesn't render at the correct scale
 
 im_fell_font := #load("../assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf")
 
