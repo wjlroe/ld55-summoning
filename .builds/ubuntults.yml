@@ -1,10 +1,23 @@
-image: ubuntu/oldlts
+image: ubuntu/lts
 packages:
-  - clang
+  - clang-14
+  - llvm-14
   - libsdl2-dev
+environment:
+  odin_version: dev-2024-05
+  odin_cmd: /opt/odin/dev-2024-05/odin
 sources:
   - https://git.sr.ht/~willroe/ld55-summoning
 tasks:
+  - setup: |
+      sudo ln -s /usr/bin/clang-14 /usr/local/bin/clang
+      sudo ln -s /usr/bin/clang++-14 /usr/local/bin/clang++
+  - install_odin: |
+      sudo mkdir -p /opt/odin/${odin_version}
+      wget -nv https://github.com/odin-lang/Odin/releases/download/${odin_version}/odin-ubuntu-amd64-${odin_version}.zip
+      sudo unzip -q odin-ubuntu-amd64-${odin_version}.zip -d /opt/odin/${odin_version}
+      sudo rm odin-ubuntu-amd64-${odin_version}.zip
+      sudo chmod +x /opt/odin/${odin_version}/odin
   - build: |
       cd ld55-summoning
       ./build.sh
