@@ -22,6 +22,8 @@ tasks:
       rm odin-ubuntu-amd64-${odin_version}.zip
       rm dist.zip
       sudo chmod +x /opt/odin/${odin_version}/odin
+      cd /opt/odin/${odin_version}/vendor/stb/src
+      make
   - build: |
       cd ld55-summoning
       ./build.sh
