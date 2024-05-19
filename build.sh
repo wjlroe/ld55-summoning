@@ -62,9 +62,10 @@ if [ "${build_release}" = "yes" ]; then
 		-show-timings
 fi
 
-if [ "${host_os}" = "Darwin" ]; then
-	otool -L ./build/summoning
-else
-	ldd ./build/summoning
-fi
+# We're not building release mode as it doesn't work yet
+# if [ "${host_os}" = "Darwin" ]; then
+# 	otool -L ./build/summoning
+# else
+# 	ldd ./build/summoning
+# fi
 
