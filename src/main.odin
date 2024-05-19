@@ -12,8 +12,6 @@ import rl "vendor:raylib"
 // TODO:
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
-// * Demonic sign textures corrupted on Surface
-//    * try generating those textures on frame 1 and RenderDoc investigating
 
 im_fell_font := #load("../assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf")
 
