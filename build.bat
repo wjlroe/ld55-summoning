@@ -14,6 +14,8 @@ IF NOT EXIST %build_dir% mkdir %build_dir%
 
 pushd build
 del *.pdb *.obj *.ilk *.res
+
+copy C:\dev\odin\dev-master\vendor\raylib\windows\*.dll .
 popd
 
 set build_debug=yes
@@ -47,6 +49,7 @@ if "%build_release%"=="yes" (
         -out:build/summoning.exe ^
         -build-mode:exe ^
         -subsystem:windows ^
+        -define:RAYLIB_SHARED=false ^
         -o:speed ^
         -disable-assert ^
         -resource:resources.rc ^
