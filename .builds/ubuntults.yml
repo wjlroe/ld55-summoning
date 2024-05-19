@@ -16,8 +16,11 @@ tasks:
   - install_odin: |
       sudo mkdir -p /opt/odin/${odin_version}
       wget -nv https://github.com/odin-lang/Odin/releases/download/${odin_version}/odin-ubuntu-amd64-${odin_version}.zip
-      sudo unzip -q odin-ubuntu-amd64-${odin_version}.zip -d /opt/odin/${odin_version}
-      sudo rm odin-ubuntu-amd64-${odin_version}.zip
+      unzip -q odin-ubuntu-amd64-${odin_version}.zip
+      unzip -q dist.zip
+      sudo mv dist/* /opt/odin/${odin_version}/
+      rm odin-ubuntu-amd64-${odin_version}.zip
+      rm dist.zip
       sudo chmod +x /opt/odin/${odin_version}/odin
   - build: |
       cd ld55-summoning
