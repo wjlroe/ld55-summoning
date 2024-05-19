@@ -13,7 +13,10 @@ import rl "vendor:raylib"
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
 
+// Google Fonts
 im_fell_font := #load("../assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf")
+// Dafont version
+im_fell_dafont_font := #load("../assets/fonts/im_fell_roman.ttf")
 
 DEFAULT_WINDOW_WIDTH  :: 1280
 DEFAULT_WINDOW_HEIGHT :: 800
@@ -253,6 +256,7 @@ Game_Window :: struct {
     level_data: Level_Data,
 
     title_font: Font,
+    dafont_title_font: Font,
     challenge_font: Font,
     demonic_font: Font,
 
@@ -523,6 +527,10 @@ init_game :: proc() -> b32 {
     update_window_dim()
     if !init_font(&game_window.title_font, im_fell_font, 120.0) {
         log.error("Failed to init the title font!")
+        return false
+    }
+    if !init_font(&game_window.dafont_title_font, im_fell_dafont_font, 120.0) {
+        log.error("Failed to init the dafont title font!")
         return false
     }
     if !init_font(&game_window.challenge_font, im_fell_font, 48.0) {
