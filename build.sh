@@ -5,9 +5,6 @@ set -eu
 host_os="$(uname -s)"
 
 echo "Building natively"
-cd build
-
-compile_flags="-I. -I../vendor/stb -I/usr/local/include $(pkg-config --cflags --libs sdl2) -DUNIX"
 
 is_mac_rosetta() {
 	if [ "${host_os}" = "Darwin" ]; then
@@ -27,18 +24,41 @@ if [ "$(is_mac_rosetta)" = "yes" ]; then
 	compile_flags="${compile_flags} --target=arm64-apple-macos11"
 fi
 
-set -x
-cc -std=c11 -g -O0 -o generate_resources ../src/generate_resources.c -DDEBUG -DDEBUG_STDOUT
-./generate_resources
-cc -std=c11 -g -O0 -o summoning_debug ../src/main.c ${compile_flags} -lm -DDEBUG -DDEBUG_STDOUT
-cc -std=c11 -g -O3 -o summoning ../src/main.c ${compile_flags} -lm -static
-set +x
+build_arg="${1:-debug}"
+build_debug=yes
 
-# Static compiling the release binary means we can't/don't have to check this
-# if [[ "${host_os}" == "Darwin" ]]; then
-# 	otool -L ./summoning
-# else
-#   ldd ./summoning
-# fi
+if [ "${build_arg}" = "release" ]; then
+	build_debug=no
+	build_release=yes
+fi
 
-cd -
+if [ "${build_arg}" = "all" ]; then
+	build_debug=yes
+	build_release=yes
+fi
+
+if [ "${build_debug}" = "yes" ]; then
+	/opt/odin/dev-master/odin build src \
+		-out:build/summoning_debug \
+		-build-mode:exe \
+		-define:RAYLIB_SHARED=true \
+		-debug \
+		-show-timings
+fi
+
+if [ "${build_release}" = "yes" ]; then
+	/opt/odin/dev-master/odin build src \
+		-out:build/summoning \
+		-build-mode:exe \
+		-define:RAYLIB_SHARED=false \
+		-o:speed \
+		-disable-assert \
+		-show-timings
+fi
+
+if [ "${host_os}" = "Darwin" ]; then
+	otool -L ./build/summoning
+else
+	ldd ./build/summoning
+fi
+
