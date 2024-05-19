@@ -37,8 +37,10 @@ if [ "${build_arg}" = "all" ]; then
 	build_release=yes
 fi
 
+odin="${odin_cmd:-/opt/odin/dev-master/odin}"
+
 if [ "${build_debug}" = "yes" ]; then
-	/opt/odin/dev-master/odin build src \
+	"${odin}" build src \
 		-out:build/summoning_debug \
 		-build-mode:exe \
 		-define:RAYLIB_SHARED=true \
@@ -47,7 +49,7 @@ if [ "${build_debug}" = "yes" ]; then
 fi
 
 if [ "${build_release}" = "yes" ]; then
-	/opt/odin/dev-master/odin build src \
+	"${odin}" build src \
 		-out:build/summoning \
 		-build-mode:exe \
 		-define:RAYLIB_SHARED=false \
