@@ -56,3 +56,6 @@ assets/*.h
 
 # core dumps
 *.core
+
+# compiled resources file
+*.res
