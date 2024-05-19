@@ -1,24 +1,30 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -eu
 
 host_os="$(uname -s)"
 
 echo "Building natively"
-pushd build
+cd build
 
 compile_flags="-I. -I../vendor/stb -I/usr/local/include $(pkg-config --cflags --libs sdl2) -DUNIX"
 
-if [[ "${host_os}" == "Darwin" ]]; then
-	rosetta_pids="$(fuser /usr/libexec/rosetta/runtime 2>/dev/null | xargs -n1)"
-	my_pid=$$
-	while read pid; do
-		if [[ "${pid}" == "${my_pid}" ]]; then
-			>&2 echo "Running under Rosetta, so we are on an M1 Mac"
-			compile_flags="${compile_flags} --target=arm64-apple-macos11"
-			break
-		fi
-	done <<<"${rosetta_pids}"
+is_mac_rosetta() {
+	if [ "${host_os}" = "Darwin" ]; then
+		my_pid=$$
+		fuser /usr/libexec/rosetta/runtime 2>/dev/null | xargs -n1 | while read -r pid; do
+			if [ "${pid}" = "${my_pid}" ]; then
+				echo "yes"
+				return
+			fi
+		done
+	fi
+	echo "no"
+}
+
+if [ "$(is_mac_rosetta)" = "yes" ]; then
+	>&2 echo "Running under Rosetta, so we are on an M1 Mac"
+	compile_flags="${compile_flags} --target=arm64-apple-macos11"
 fi
 
 set -x
@@ -35,4 +41,4 @@ set +x
 #   ldd ./summoning
 # fi
 
-popd
+cd -
