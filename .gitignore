@@ -65,3 +65,6 @@ odin-source
 
 *.rdbg
 *.res
+
+# Linux DLLs need to be here for some reason
+linux/

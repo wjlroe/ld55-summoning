@@ -26,6 +26,7 @@ fi
 
 build_arg="${1:-debug}"
 build_debug=yes
+build_release=no
 
 if [ "${build_arg}" = "release" ]; then
 	build_debug=no
@@ -38,6 +39,9 @@ if [ "${build_arg}" = "all" ]; then
 fi
 
 odin="${odin_cmd:-/opt/odin/dev-master/odin}"
+
+odin_dir="$(dirname ${odin})"
+cp -r "${odin_dir}/vendor/raylib/linux" ./
 
 if [ "${build_debug}" = "yes" ]; then
 	"${odin}" build src \
