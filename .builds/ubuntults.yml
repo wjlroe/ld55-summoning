@@ -1,5 +1,6 @@
 image: ubuntu/lts
 packages:
+  - unzip
   - clang-14
   - llvm-14
   - libsdl2-dev
