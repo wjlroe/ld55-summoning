@@ -179,7 +179,7 @@ static void rect_add_vec2(rectangle2* rect, vec2 offset) {
 }
 
 static void debug_rect(char* prefix, rectangle2* rect) {
-	DEBUG_MSG("%s: {{%8.4f, %8.4f}} -> {{%8.4f, %8.4f}}\n", 
+	DEBUG_MSG("%s: {{%8.4f, %8.4f}} -> {{%8.4f, %8.4f}}\n",
 			  prefix,
 			  rect->min.x, rect->min.y,
 			  rect->max.x, rect->max.y);
@@ -192,19 +192,19 @@ typedef struct matrix4_4 {
 } matrix4_4;
 
 #define COLOR(v) (float)v/255.0f
-#define RGBA(r,g,b,a) {COLOR(r),COLOR(g),COLOR(b),COLOR(a)} 
+#define RGBA(r,g,b,a) {COLOR(r),COLOR(g),COLOR(b),COLOR(a)}
 
 typedef struct Shader {
 	int program;
-	
+
 	GLuint vao;
 	GLuint vbo;
 	GLuint ebo;
-	
+
 	// attributes
 	int position_loc;
 	int texture_loc;
-	
+
 	// uniforms
 	int position_offset_loc;
 	int color_loc;
@@ -213,7 +213,7 @@ typedef struct Shader {
 	int radius_loc;
 	int dimensions_loc;
 	int origin_loc;
-	
+
 	// textures
 	int font_texture_loc;
 	int font_sampler_idx;
@@ -291,7 +291,7 @@ struct Uniform_Data {
 		vec4 vec_4;
 		matrix4_4 matrix;
 	} data;
-	
+
 	Uniform_Data* next;
 };
 
@@ -299,7 +299,7 @@ typedef struct Texture_Data Texture_Data;
 struct Texture_Data {
 	u32 shader_idx;
 	u32 texture_id;
-	
+
 	Texture_Data* next;
 };
 
@@ -313,18 +313,18 @@ struct Render_Command {
 	Render_Command_Type type;
 	u32 shader_id;
 	u32 render_settings;
-	
+
 	union {
 		Quad quad;
 		Quad_Group quad_group;
 		Clear_Command clear_command;
 	} data;
-	
+
 	Uniform_Data* first_uniform;
 	Uniform_Data* last_uniform;
 	Texture_Data* first_texture;
 	Texture_Data* last_texture;
-	
+
 	Render_Command* next;
 };
 
@@ -484,7 +484,7 @@ typedef struct Glyph {
 	float height;
 	float advance;
 	float lsb;
-	
+
 	float tex_x0;
 	float tex_x1;
 	float tex_y0;
@@ -535,7 +535,7 @@ static void glyph_to_quad(Quad* quad, Glyph* glyph, Glyph_Cache* font_cache, rec
 	rectangle2 pos = {.min={g_x0, g_y0}, .max={g_x1, g_y1}};
 	rectangle2 tex = {.min={glyph->tex_x0, glyph->tex_y0}, .max={glyph->tex_x1, glyph->tex_y1}};
 	*bounding_box = pos;
-	
+
 	starting_pos->x += (float)glyph->advance;
 	setup_textured_quad(quad, pos, starting_pos->z, tex);
 }
@@ -543,7 +543,7 @@ static void glyph_to_quad(Quad* quad, Glyph* glyph, Glyph_Cache* font_cache, rec
 typedef struct Text_Group {
 	String text;
 	u32 font_cache_id;
-	
+
 	// calculated from the above
 	u32 num_glyphs;
 	Quad* quads;
@@ -703,19 +703,19 @@ typedef struct Game_Window {
 	uint64_t last_frame_perf_counter;
 	float dt;
 	int frame_number;
-	
+
 	Command_Buffer command_buffer;
-	
+
 	Game_State state;
 	Type_Challenge title_challenge; // initial title page challenge
-	
+
 	Input input;
-	
+
 	Level_Data level_data;
-	
+
 	Sized_Texture* demonic_word_textures;
 	int demonic_word_i;
-	
+
 	Text_Group win_text_group;
 	Text_Group lose_text_group;
 	GLuint summoning_sign_tex_id;
@@ -731,7 +731,7 @@ static Render_Command* fill_rounded_rect(Command_Buffer* buffer, u32 shader_id, 
 	command->render_settings = RENDER_ALPHA_BLENDED;
 	PUSH_UNIFORM_VEC4(&buffer->memory, command, shader->color_loc, color);
 	setup_textured_quad(&command->data.quad, rect, z, (rectangle2){0});
-	
+
 	return command;
 }
 
@@ -763,7 +763,7 @@ static void setup_challenge(Type_Challenge* challenge, int font_cache_id, String
 	challenge->text_group.text = text;
 	challenge->text_group.font_cache_id = font_cache_id;
 	setup_text_group(&challenge->text_group);
-	
+
 	challenge->typed_correctly = calloc(text.length, sizeof(bool));
 }
 
@@ -785,7 +785,7 @@ static bool key_first_down() {
 }
 
 static bool key_is_down(Key key, u32 mods) {
-	return (game_window->input.kbd_input.key == key) 
+	return (game_window->input.kbd_input.key == key)
 		&& (game_window->input.kbd_input.is_down)
 		&& (game_window->input.kbd_input.mods_held == mods);
 }
@@ -831,7 +831,7 @@ static void init_font(Font* font) {
 static int push_font_size(Font* font, float font_size) {
 	int font_size_i = font->num_glyph_caches;
 	assert(font_size_i < NUM_GLYPH_CACHES);
-	
+
 	Glyph_Cache* cache = &font->glyph_caches[font_size_i];
 	int font_index = 0;
 	cache->font_size = font_size;
@@ -863,13 +863,13 @@ static int push_font_size(Font* font, float font_size) {
 			break; // we're done!
 		}
 	}
-	
+
 	glGenTextures(1, &cache->texture_id);
 	glBindTexture(GL_TEXTURE_2D, cache->texture_id);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, cache->texture_dim, cache->texture_dim, 0, GL_RED, GL_UNSIGNED_BYTE, cache->texture);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	
+
 	i32 x0, y0, x1, y1, advance, lsb = 0;
 	for (char character = cache->first_glyph; character <= cache->last_glyph; character++) {
 		int idx = character - cache->first_glyph;
@@ -892,7 +892,7 @@ static int push_font_size(Font* font, float font_size) {
 		cache->glyphs[idx].tex_y0 = (float)packed_char.y0 / (float)cache->texture_dim;
 		cache->glyphs[idx].tex_y1 = (float)packed_char.y1 / (float)cache->texture_dim;
 	}
-	
+
 	font->num_glyph_caches++;
 	return font_size_i;
 }
@@ -905,13 +905,13 @@ static void draw_circle(void* pixel_data, int radius, u32 color) {
 	int R = radius;
 	{
 		int R2 = R+R;
-		
+
 		int X = R;
 		int Y = 0;
 		int dY = -2;
 		int dX = R2+R2 - 4;
 		int D = R2 - 1;
-		
+
 		while (Y <= X) {
 			pixels[Cy - Y][Cx - X] = color;
 			pixels[Cy - Y][Cx + X] = color;
@@ -921,11 +921,11 @@ static void draw_circle(void* pixel_data, int radius, u32 color) {
 			pixels[Cy - X][Cx + Y] = color;
 			pixels[Cy + X][Cx - Y] = color;
 			pixels[Cy + X][Cx + Y] = color;
-			
+
 			D += dY;
 			dY -= 4;
 			++Y;
-			
+
 			int Mask = (D >> 31);
 			D += dX & Mask;
 			dX -= 4 & Mask;
@@ -952,7 +952,7 @@ static float rfpart(float x) {
 static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, u32 color) {
 	u32 (*pixels)[256] = pixel_data;
 	bool steep = fabsf(y1 - y0) > fabsf(x1 - x0);
-	
+
 	if (steep) {
 		SWAP(x0, y0, float);
 		SWAP(x1, y1, float);
@@ -961,17 +961,17 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 		SWAP(x0, x1, float);
 		SWAP(y0, y1, float);
 	}
-	
+
 	float dx = x1 - x0;
 	float dy = y1 - y0;
-	
+
 	float gradient;
 	if (dx == 0.0) {
 		gradient = 1.0f;
 	} else {
 		gradient = dy / dx;
 	}
-	
+
 	float xend = round(x0);
 	float yend = y0 + gradient * (xend - x0);
 	float xgap = rfpart(x0 + 0.5f);
@@ -985,7 +985,7 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 		pixels[ypxl1+1][xpxl1] = color;
 	}
 	float intery = yend + gradient;
-	
+
 	xend = round(x1);
 	yend = y1 + gradient * (xend - x1);
 	xgap = fpart(x1 + 0.5);
@@ -998,7 +998,7 @@ static void draw_line(void* pixel_data, float x0, float y0, float x1, float y1, 
 		pixels[ypxl2][xpxl2] = color;
 		pixels[ypxl2+1][xpxl2] = color;
 	}
-	
+
 	if (steep) {
 		for (int x = (xpxl1 + 1); x < (xpxl2 - 1); x++) {
 			pixels[x][ipart(intery)] = color;
@@ -1028,7 +1028,7 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	draw_circle(pixels, 127, my_green);
 	int inner_radius = 95;
 	draw_circle(pixels, inner_radius, my_green);
-	
+
 #if 0
 	char first_char = toupper(word.str[0]);
 	SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, first_char, green);
@@ -1055,7 +1055,7 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	SDL_Point* restore_points = input_points;
 	*input_points = (SDL_Point){char_cx, area_cy - inner_radius};
 	input_points++;
-	
+
 	for (int i = 1; i < word.length; i++) {
 		SDL_Surface* char_surface = TTF_RenderGlyph_Solid(game_window->demonic_font.font, word.str[i], green);
 		SDL_Rect char_rect = {0};
@@ -1071,7 +1071,7 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 		SDL_BlitSurface(char_surface, &char_rect,
 						surface, &dst_rect);
 		SDL_FreeSurface(char_surface);
-		
+
 		float vx = (float)char_cx - (float)area_cx;
 		float vy = (float)char_cy - (float)area_cy;
 		float magnitude = sqrt(vx*vx + vy*vy);
@@ -1101,7 +1101,7 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 		input_i = (input_i + half_word) % word.length;
 	}
 	output_points[word.length] = input_points[0];
-	
+
 	for (int i = 0; i < word.length; i++) {
 		SDL_Point p0 = output_points[i];
 		SDL_Point p1 = output_points[i+1];
@@ -1114,7 +1114,7 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	free(output_points);
 	free(input_points);
 #endif
-	
+
 	GLuint texture_id;
 	glGenTextures(1, &texture_id);
 	glBindTexture(GL_TEXTURE_2D, texture_id);
@@ -1123,17 +1123,17 @@ static GLuint render_demonic_sign_to_texture(String word, SDL_Rect* area) {
 	//glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, area->w, area->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	
+
 	free(pixels); // can we free this now?
 	glBindTexture(GL_TEXTURE_2D, 0);
-	
+
 #if 0
 	if (!rendered_sign) {
 		SDL_SaveBMP(surface, "output.bmp");
 		rendered_sign = true;
 	}
 #endif
-	
+
 	return texture_id;
 }
 
@@ -1153,11 +1153,11 @@ static void update_ortho_matrix(void) {
 	float miny = (float)game_window->window_height; // swapped?
 	float minz = -1.0f; // TODO: hard-coded Z
 	float maxz = 1.0f;  // TODO: hard-coded Z
-	
+
 	float xdiff = maxx - minx;
 	float ydiff = maxy - miny;
 	float zdiff = maxz - minz;
-	
+
 	float ortho_matrix[4][4] = {
 		{2.0f / xdiff,         0.0f,                 0.0f,                 0.0f},
 		{0.0f,                 2.0f / ydiff,         0.0f,                 0.0f},
@@ -1191,7 +1191,7 @@ static void exec_command_buffer() {
 		} else {
 			glDisable(GL_BLEND);
 		}
-		
+
 		switch (command->type) {
 			case COMMAND_CLEAR: {
 				Clear_Command clear = command->data.clear_command;
@@ -1215,7 +1215,7 @@ static void exec_command_buffer() {
 				assert(shader->program > 0);
 				glUseProgram(shader->program);
 				glBindVertexArray(shader->vao);
-				
+
 				Uniform_Data* uniform = command->first_uniform;
 				while (uniform) {
 					switch (uniform->type) {
@@ -1243,16 +1243,16 @@ static void exec_command_buffer() {
 					}
 					uniform = uniform->next;
 				}
-				
+
 				Texture_Data* texture = command->first_texture;
 				while (texture) {
 					glActiveTexture(GL_TEXTURE0 + texture->shader_idx);
 					glBindTexture(GL_TEXTURE_2D, texture->texture_id);
 					texture = texture->next;
 				}
-				
+
 				int stride = sizeof(Vertex);
-				
+
 				glBindBuffer(GL_ARRAY_BUFFER, shader->vbo);
 				while (num_quads > 0) {
 					glBufferData(GL_ARRAY_BUFFER, 4 * stride, quads, GL_STATIC_DRAW);
@@ -1273,15 +1273,15 @@ static void exec_command_buffer() {
 
 static void init_shader(Shader* shader) {
 	glUseProgram(shader->program);
-	
+
 	char name_buffer[1024] = {0};
 	GLsizei name_size = 0;
 	GLsizei attr_size = 0;
 	GLuint attr_type = 0;
-	
+
 	int active_attributes = 0;
 	glGetProgramiv(shader->program, GL_ACTIVE_ATTRIBUTES, &active_attributes);
-	
+
 	for (int i = 0; i < active_attributes; i++) {
 		glGetActiveAttrib(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
 		int loc = glGetAttribLocation(shader->program, name_buffer);
@@ -1293,11 +1293,11 @@ static void init_shader(Shader* shader) {
 			shader->texture_loc = loc;
 		}
  	}
-	
+
 	int sampler_idx = 0;
 	int active_uniforms = 0;
 	glGetProgramiv(shader->program, GL_ACTIVE_UNIFORMS, &active_uniforms);
-	
+
 	for (int i = 0; i < active_uniforms; i++) {
 		glGetActiveUniform(shader->program, i, 1024, &name_size, &attr_size, &attr_type, &name_buffer[0]);
 		int loc = glGetUniformLocation(shader->program, name_buffer);
@@ -1321,11 +1321,11 @@ static void init_shader(Shader* shader) {
 		} else if (strcmp(name_buffer, "origin") == 0) {
 			shader->origin_loc = loc;
 		}
-		
+
 		if (attr_type == GL_SAMPLER_2D) {
 			sampler_idx++;
 		}
-	}	
+	}
 }
 
 static void check_shader(File_Resource* resource, GLuint shader) {
@@ -1385,51 +1385,51 @@ static void init_gl(void) {
 	DEBUG_MSG("gl shading language version: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 	GLuint program_id = glCreateProgram();
 	DEBUG_MSG("program_id: %d\n", program_id);
-	
+
 	GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-	
+
 	File_Resource* vertex_shader_src = &global_file_resources[RES_ID(VERTEX_SHADER_SOURCE)];
 	report_resource(vertex_shader_src);
 	glShaderSource(vertex_shader, 1, (const char**)&vertex_shader_src->contents, NULL);
 	glCompileShader(vertex_shader);
 	check_shader(vertex_shader_src, vertex_shader);
-	
+
 	GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
 	File_Resource* fragment_shader_src = &global_file_resources[RES_ID(FRAGMENT_SHADER_SOURCE)];
 	report_resource(fragment_shader_src);
 	glShaderSource(fragment_shader, 1, (const char**)&fragment_shader_src->contents, NULL);
 	glCompileShader(fragment_shader);
 	check_shader(fragment_shader_src, fragment_shader);
-	
+
 	glAttachShader(program_id, vertex_shader);
 	glAttachShader(program_id, fragment_shader);
 	glLinkProgram(program_id);
-	
+
 	glDeleteShader(vertex_shader);
 	glDeleteShader(fragment_shader);
-	
+
 	update_ortho_matrix();
-	
+
 	Shader* shader = push_shader(&game_window->quad_shader_id);
 	shader->program = program_id;
 	init_shader(shader);
-	
+
 	int stride = sizeof(Vertex);
-	
+
 	glGenVertexArrays(1, &shader->vao); ShowGLError();
 	glBindVertexArray(shader->vao); ShowGLError();
-	
+
 	glGenBuffers(1, &shader->vbo);
 	glGenBuffers(1, &shader->ebo);
-	
+
 	glBindBuffer(GL_ARRAY_BUFFER, shader->vbo); ShowGLError();
 	glBufferData(GL_ARRAY_BUFFER, NUM_VERTICES * stride, NULL, GL_STATIC_DRAW); ShowGLError();
-	
+
 	glEnableVertexAttribArray(shader->position_loc); ShowGLError();
 	glVertexAttribPointer(shader->position_loc, 3, GL_FLOAT, GL_FALSE, stride, NULL); ShowGLError();
 	glEnableVertexAttribArray(shader->texture_loc); ShowGLError();
 	glVertexAttribPointer(shader->texture_loc, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(sizeof(vec3))); ShowGLError();
-	
+
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, shader->ebo);
 	GLuint indexData[] = { 0, 1, 2, 2, 3, 0 };
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(GLuint), indexData, GL_STATIC_DRAW);
@@ -1437,7 +1437,7 @@ static void init_gl(void) {
 	// TODO: macOS may break if we validate linking before binding a VAO
 	check_program_linking(program_id);
 	check_program_valid(program_id);
-	
+
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -1466,10 +1466,10 @@ static void init_the_game(void) {
 	game_window->window = SDL_CreateWindow("Ludum Dare 55: Summoning",
 										   SDL_WINDOWPOS_UNDEFINED,
 										   SDL_WINDOWPOS_UNDEFINED,
-										   game_window->window_width, 
-										   game_window->window_height, 
+										   game_window->window_width,
+										   game_window->window_height,
 										   window_flags);
-	
+
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -1492,27 +1492,27 @@ static void init_the_game(void) {
 	load_gl_funcs();
 	init_gl();
 	glViewport(0, 0, win_width, win_height);
-	
+
 	game_window->font.resource = &global_file_resources[RES_ID(IM_FELL_FONT_ID)];
 	report_resource(game_window->font.resource);
 	init_font(&game_window->font);
-	
+
 	game_window->title_font_cache_id = push_font_size(&game_window->font, 120.0);
 	game_window->challenge_font_cache_id = push_font_size(&game_window->font, 48.0);
 	game_window->demonic_font_cache_id = push_font_size(&game_window->font, 24.0);
-	
+
 	game_window->win_text_group.text = win;
 	game_window->win_text_group.font_cache_id = game_window->title_font_cache_id;
 	setup_text_group(&game_window->win_text_group);
 	game_window->lose_text_group.text = lost;
 	game_window->lose_text_group.font_cache_id = game_window->title_font_cache_id;
 	setup_text_group(&game_window->lose_text_group);
-	
+
 	game_window->title_challenge.alpha_fade_speed = 10.0f; // slow for the title
 	setup_challenge(&game_window->title_challenge, game_window->title_font_cache_id, title);
-	
+
 	// SDL_StartTextInput(); // so we can type 'into' the initial challenge text
-	
+
 	SDL_Rect summoning_sign_rect = {0};
 	game_window->summoning_sign_tex_id = render_demonic_sign_to_texture(title, &summoning_sign_rect);
 #if 0
@@ -1521,7 +1521,7 @@ static void init_the_game(void) {
 		game_window->demonic_word_textures[i].texture = render_demonic_sign_to_texture(words[i], &(game_window->demonic_word_textures[i].rect));
 	}
 #endif
-	
+
 	//if (SDL_IsTextInputActive()) {
 	//SDL_StopTextInput();
 	//}
@@ -1540,7 +1540,7 @@ static void game_handle_input(void) {
 	if (key_is_down(KEY_Q, MODIFIER_CTRL)) {
 		game_window->quit = true;
 	}
-	
+
 	switch(game_window->state) {
 		case STATE_PLAY: {
 			if (game_window->input.character != 0) {
@@ -1618,7 +1618,7 @@ static void handle_inputs(void) {
 				}
 				return;
 			} break;
-			case SDL_KEYDOWN: 
+			case SDL_KEYDOWN:
 			case SDL_KEYUP: {
 				int scancode = event.key.keysym.scancode;
 				switch (scancode) {
@@ -1678,7 +1678,7 @@ static void handle_inputs(void) {
 				return;
 			} break;
 		}
-		
+
 		game_handle_input();
 	}
 }
@@ -1732,7 +1732,7 @@ static void render_summoning_sign(vec2 pos_offset) {
 	PUSH_UNIFORM_VEC2(&buffer->memory, command, shader->position_offset_loc, pos_offset);
 	PUSH_UNIFORM_MATRIX(&buffer->memory, command, shader->ortho_loc, game_window->ortho_matrix);
 	rectangle2 pos = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){256.0f, 256.0f});
-	rectangle2 tex = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){1.0f, 1.0f}); 
+	rectangle2 tex = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){1.0f, 1.0f});
 	setup_textured_quad(&command->data.quad, pos, 0.0f, tex);
 }
 
@@ -1749,7 +1749,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 		char character = challenge->text_group.text.str[i];
 		assert((character >= 32) && (character <= 126));
 		Glyph* glyph = &font_cache->glyphs[GLYPH_INDEX(character)];
-		
+
 		Color color = white;
 		if (challenge->position > i) {
 			if (challenge->typed_correctly[i]) { // correct
@@ -1766,7 +1766,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			rectangle2 cursor_rect = rect_min_dim((vec2){glyph_bounding_box->min.x, 0.0f}, dimensions);
 			vec2 origin = rect_centre(&cursor_rect);
 			vec2_add(&origin, challenge->text_group.bounding_box.min);
-			
+
 			float radius = glyph_width / 4.0f;
 			Render_Command* cursor_cmd = fill_rounded_rect(buffer, shader_id, cursor_rect, cursor_color, 0.3f, radius);
 			PUSH_UNIFORM_I32(&buffer->memory, cursor_cmd, shader->settings_loc, SHADER_ROUNDED_RECT);
@@ -1776,7 +1776,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->dimensions_loc, dimensions);
 			PUSH_UNIFORM_VEC2(&buffer->memory, cursor_cmd, shader->origin_loc, origin);
 		}
-		
+
 		Render_Command* command = push_render_command(buffer);
 		command->type = COMMAND_QUAD;
 		command->shader_id = shader_id;
@@ -1817,7 +1817,7 @@ static void render_menu(void) {
 	center_rect_horizontally(&game_window->title_challenge.text_group.bounding_box);
 	center_rect_vertically(&game_window->title_challenge.text_group.bounding_box);
 	render_challenge(game_window, &game_window->title_challenge);
-	
+
 	rectangle2 sign_rect = rect_min_dim((vec2){0.0f, 0.0f}, (vec2){256.0f, 256.0f});
 	center_rect_horizontally(&sign_rect);
 	rect_add_vec2(&sign_rect, (vec2){0.0f, ceilf(game_window->title_challenge.text_group.bounding_box.max.y) + 10.0f});
@@ -1829,7 +1829,7 @@ static void update_and_render(void) {
 	clear->type = COMMAND_CLEAR;
 	clear->data.clear_command.clear_color = true;
 	clear->data.clear_command.color = very_dark_blue;
-	
+
 	switch (game_window->state) {
 		case STATE_MENU: {
 			//SDL_Rect dest_rect;
@@ -1850,7 +1850,7 @@ static void update_and_render(void) {
 		} break;
 		default: {}
 	}
-	
+
 	exec_command_buffer();
 	SDL_GL_SwapWindow(game_window->window);
 }
@@ -1864,24 +1864,24 @@ static void main_loop(void) {
 		exit(0);
 #endif
 	}
-	
+
 	uint64_t this_frame_perf_counter = SDL_GetPerformanceCounter();
 	game_window->dt = (float)(this_frame_perf_counter - game_window->last_frame_perf_counter)/(float)SDL_GetPerformanceFrequency();
 	//char buffer[1024] = {0};
 	//sprintf(&buffer[0], "Summoning. dt = %.5f | demonic_i = %d", game_window->dt, game_window->demonic_word_i);
 	//SDL_SetWindowTitle(game_window->window, &buffer[0]);
 	game_window->frame_number++;
-	
+
 	handle_inputs();
 	update_and_render();
-	
+
 #ifndef __EMSCRIPTEN__
 	uint64_t delta = game_window->dt * 1000.0f;
 	if (delta < fps_cap_in_ms) {
 		SDL_Delay(fps_cap_in_ms - delta);
 	}
 #endif
-	
+
 	game_window->last_frame_perf_counter = this_frame_perf_counter;
 }
 
@@ -1892,28 +1892,28 @@ int main(int argc, char** argv) {
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
 	assert(sizeof(Vertex) == (sizeof(vec3)+sizeof(vec2))); // checking for no padding
-	
+
 #if defined(DEBUG) && defined(DEBUG_STDOUT)
 	debug_file = stdout;
 #elif defined(DEBUG)
 	debug_file = fopen("summoning_debug_log.txt", "w");
 	setvbuf(debug_file, NULL, _IONBF, 0);
 #endif
-	
+
 	init_global_file_resources();
 	init_the_game();
-	
+
 #ifdef __EMSCRIPTEN__
 	emscripten_set_main_loop(main_loop, 0, 1);
 #else
 	fps_cap_in_ms = 1000.0f / fps_cap;
 	while (!game_window->quit) { main_loop(); }
 #endif
-	
+
 #if defined(DEBUG) && !defined(DEBUG_STDOUT)
 	fclose(debug_file);
 #endif
-	
+
 #ifdef UNIX
     printf("\n");
 #endif
