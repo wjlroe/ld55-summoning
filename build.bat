@@ -14,10 +14,6 @@ IF NOT EXIST %build_dir% mkdir %build_dir%
 
 pushd build
 del *.pdb *.obj *.ilk *.res
-
-@REM copy C:\dev\odin\dev-master\vendor\raylib\windows\*.dll .
-copy ..\vendor\raylib-5.0\Debug.DLL\*.dll .
-copy ..\vendor\raylib-5.0\Debug.DLL\*.pdb .
 popd
 
 set build_debug=yes

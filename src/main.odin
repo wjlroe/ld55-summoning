@@ -561,19 +561,36 @@ init_game :: proc() -> b32 {
     return true
 }
 
-main :: proc() {
-    rl.InitWindow(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, "Ludum Dare 55: Summoning")
-    if !init_game() {
-        os.exit(1)
-    }
+Window :: struct {
+    width: i32,
+    height: i32,
+    title: string,
+    quit: bool,
+}
 
-    for !rl.WindowShouldClose() {
+global_window := Window{}
+
+main :: proc() {
+    global_window.width = DEFAULT_WINDOW_WIDTH
+    global_window.height = DEFAULT_WINDOW_HEIGHT
+    global_window.title = "Ludum Dare 55: Summoning"
+
+    // Platform-specific Window initialization
+    init_window()
+
+    // if !init_game() {
+    //     os.exit(1)
+    // }
+
+    for !global_window.quit {
 		if err := free_all(context.temp_allocator); err != .None {
 			log.errorf("temp_allocator.free_all err == {}", err);
         }
-        game_window.dt = rl.GetFrameTime()
-        update_and_render()
     }
+    // for !rl.WindowShouldClose() {
+    //     game_window.dt = rl.GetFrameTime()
+    //     update_and_render()
+    // }
 
-    rl.CloseWindow()
+    // rl.CloseWindow()
 }
