@@ -10,6 +10,7 @@ import "core:unicode"
 import rl "vendor:raylib"
 
 // TODO:
+// * Remove raylib (i.e. straight Odin port of the C code, without without SDL)
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
 
