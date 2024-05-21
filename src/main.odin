@@ -138,11 +138,27 @@ reset_challenge :: proc(challenge: ^Type_Challenge) {
 }
 
 render_challenge :: proc(challenge: ^Type_Challenge) {
-    neutral_color    := rl.ColorAlpha(WHITE, challenge.alpha)
-    correct_color := rl.ColorAlpha(GREEN, challenge.alpha)
-    wrong_color   := rl.ColorAlpha(RED, challenge.alpha)
+    neutral_color      := rl.ColorAlpha(WHITE, challenge.alpha)
+    correct_color      := rl.ColorAlpha(GREEN, challenge.alpha)
+    wrong_color        := rl.ColorAlpha(RED, challenge.alpha)
     under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
     cursor_color       := rl.ColorAlpha(AMBER, challenge.alpha)
+
+    {
+        debug_origin : rl.Vector2
+        debug_dim := rl.Vector2{challenge.dim.x, f32(challenge.font.raylib_font.baseSize)}
+        center_horizontally(
+            &debug_origin,
+            debug_dim,
+            game_window.dim,
+        )
+        center_vertically(
+            &debug_origin,
+            debug_dim,
+            game_window.dim,
+        )
+        rl.DrawRectangleV(debug_origin, debug_dim, RED)
+    }
 
     position := challenge.origin
 
