@@ -739,7 +739,7 @@ static void setup_text_group(Text_Group* group) {
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[group->font_cache_id];
 	vec3 position = {0};
 	group->bounding_box = (rectangle2){0};
-	group->bounding_box.max.y = font_cache->ascent + font_cache->descent;
+	group->bounding_box.max.y = font_cache->ascent + fabs(font_cache->descent);
 	group->num_glyphs = group->text.length;
 	group->quads = (Quad*)calloc(group->num_glyphs, sizeof(Quad));
 	group->glyph_bounding_boxes = (rectangle2*)calloc(group->num_glyphs, sizeof(rectangle2));
@@ -1742,7 +1742,7 @@ static void render_challenge(Game_Window* game_window, Type_Challenge* challenge
 	Glyph_Cache* font_cache = &game_window->font.glyph_caches[challenge->text_group.font_cache_id];
 	u32 shader_id = game_window->quad_shader_id;
 	Shader* shader = &game_window->shaders[shader_id];
-	float cursor_height = font_cache->ascent + font_cache->descent;
+	float cursor_height = font_cache->ascent + fabs(font_cache->descent);
 	for (int i = 0; i < challenge->text_group.text.length; i++) {
 		Quad* quad = &challenge->text_group.quads[i];
 		rectangle2* glyph_bounding_box = &challenge->text_group.glyph_bounding_boxes[i];
