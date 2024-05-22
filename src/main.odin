@@ -118,7 +118,7 @@ enter_challenge_character :: proc(challenge: ^Type_Challenge, character: rune) {
     }
 }
 
-challenge_has_mistakes :: proc(challenge: ^Type_Challenge) -> b32 {
+challenge_has_mistakes :: proc(challenge: ^Type_Challenge) -> bool {
     for correct in challenge.typed_correctly {
         if !correct { return true }
     }
@@ -230,7 +230,7 @@ reset_level :: proc(level: ^Level_Data) {
     level.points = 0
 }
 
-is_level_done :: proc(level: ^Level_Data) -> b32 {
+is_level_done :: proc(level: ^Level_Data) -> bool {
     if level.current_challenge < level.num_challenges {
         return false
     }
@@ -526,7 +526,7 @@ NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 //     rl.EndTextureMode()
 // }
 
-init_game :: proc() -> b32 {
+init_game :: proc() -> bool {
     update_window_dim()
     if !init_font(&game_window.title_font, im_fell_font, 120.0) {
         log.error("Failed to init the title font!")
