@@ -94,6 +94,8 @@ setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font_id: int, 
     // c_str := fmt.ctprintf("%s", challenge.word)
     // spacing : f32 = 0.0
     // challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
+    scoped_font(challenge.font_id, challenge.font_size)
+    challenge.dim = measure_text(challenge.word)
     challenge.alpha_animation = start_animation(fade_time)
     // render_demonic_sign(&challenge.demonic_sign, word)
 }
