@@ -47,6 +47,9 @@ MAX_SHADER_UNIFORMS   :: 16
 
 Shader :: struct {
 	program_id: u32,
+	vao:        u32,
+	vbo:        u32,
+	ebo:        u32,
 	attributes: small_array.Small_Array(MAX_SHADER_ATTRIBUTES, Shader_Param),
 	uniforms:   small_array.Small_Array(MAX_SHADER_UNIFORMS,   Shader_Param),
 }
@@ -297,10 +300,7 @@ Quad :: struct {
 
 // TODO: split this into specific shaders for text rendering and other things
 Quad_Shader :: struct {
-	program_id: u32,
-	vao:        u32,
-	vbo:        u32,
-	ebo:        u32,
+	shader_id: int,
 
 	// attributes
 	position: u32 `gl_attrib:"position"`,
@@ -330,12 +330,12 @@ init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
 		return
 	}
 
-	global_quad_shader.program_id = shader.program_id
-	gl.UseProgram(global_quad_shader.program_id)
+	global_quad_shader.shader_id = shader_idx
+	gl.UseProgram(shader.program_id)
 
-	location : u32
+	location       : u32
 	attribute_name : string
-	uniform_name : string
+	uniform_name   : string
 
 	ti := runtime.type_info_base(type_info_of(Quad_Shader))
 	if s, ok := ti.variant.(runtime.Type_Info_Struct); ok {
@@ -375,15 +375,15 @@ init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
 	{
 		using global_quad_shader
 
-		gl.GenVertexArrays(1, &vao)
-		gl.BindVertexArray(vao)
+		gl.GenVertexArrays(1, &shader.vao)
+		gl.BindVertexArray(shader.vao)
 
-		gl.GenBuffers(1, &vbo)
-		gl.GenBuffers(1, &ebo)
+		gl.GenBuffers(1, &shader.vbo)
+		gl.GenBuffers(1, &shader.ebo)
 
 		stride := size_of(Quad_Vertex)
 
-		gl.BindBuffer(gl.ARRAY_BUFFER, vbo)
+		gl.BindBuffer(gl.ARRAY_BUFFER, shader.vbo)
 		gl.BufferData(gl.ARRAY_BUFFER, QUAD_NUM_VERTICES * stride, nil, gl.STATIC_DRAW)
 
 		zero : uintptr = 0
@@ -397,15 +397,15 @@ init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
 		quad_indices := [?]u32{
 			0, 1, 2, 2, 3, 0,
 		}
-		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo)
+		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, shader.ebo)
 		gl.BufferData(gl.ELEMENT_ARRAY_BUFFER, size_of(quad_indices), &quad_indices, gl.STATIC_DRAW)
 
 		// TODO: macOS may break here if we do this before binding a VAO
-		ok = check_shader_linking(program_id)
+		ok = check_shader_linking(shader.program_id)
 		if !ok {
 			return
 		}
-		ok = check_shader_program_valid(program_id)
+		ok = check_shader_program_valid(shader.program_id)
 		if !ok {
 			return
 		}
@@ -418,3 +418,44 @@ init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
 	ok = true
 	return
 }
+
+Uniform_Data :: union {
+	f32,
+	u32,
+	i32,
+	v2,
+	v3,
+	v4,
+}
+
+Shader_Uniform :: struct {
+	location: u32,
+	type: Shader_Param_Type,
+	data: Uniform_Data,
+}
+
+Texture_Type :: enum {
+	Texture2D,
+}
+
+Shader_Texture :: struct {
+	id:           u32,
+	type:         Texture_Type,
+	shader_index: u32,
+}
+
+MAX_SHADER_TEXTURES :: 8
+
+Vertex_Element :: struct($N: int, $T: typeid) where N >= 0 {
+	vertices: [N]T,
+}
+
+Shader_Call :: struct($N: int, $T: typeid) where N >= 0 {
+	shader_id: int,
+	uniforms: small_array.Small_Array(MAX_SHADER_UNIFORMS, Shader_Uniform),
+	textures: small_array.Small_Array(MAX_SHADER_TEXTURES, Shader_Texture),
+	vertices: small_array.Small_Array(N,                   T),
+}
+
+Quad_Vertex_Element :: Vertex_Element(4, Quad_Vertex)
+Quad_Shader_Call    :: Shader_Call(1, Quad_Vertex_Element)

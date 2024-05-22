@@ -33,14 +33,15 @@ get_font :: proc() -> Font_Spec {
 
 Render_Command :: enum {
 	Clear,
+	Draw_With_Shader,
 }
 
 Render_Data :: union {
 	Color,
+	Quad_Shader_Call,
 }
 
 Render_Group :: struct {
-	shader_id: int,
 	command: Render_Command,
 	data: Render_Data,
 }
@@ -59,21 +60,36 @@ begin_drawing :: proc() {
 
 end_drawing :: proc() {
 	for group in small_array.slice(&render_stack) {
-		if group.shader_id >= 0 {
-			gl.UseProgram(global_quad_shader.program_id)
-		}
 		switch group.command {
 			case .Clear: {
 				c := group.data.(Color)
 				gl.ClearColor(c.r, c.g, c.b, c.a)
 				gl.Clear(gl.COLOR_BUFFER_BIT)
 			}
+			case .Draw_With_Shader: {
+				#partial switch v in group.data {
+					case Quad_Shader_Call: {
+						shader_call := group.data.(Quad_Shader_Call)
+						shader, ok := small_array.get_safe(global_shaders, shader_call.shader_id)
+						assert(ok)
+						if !ok {
+							return
+						}
+						gl.UseProgram(shader.program_id)
+
+						for texture in small_array.slice(&shader_call.textures) {
+							gl.ActiveTexture(gl.TEXTURE0 + texture.shader_index)
+							gl.BindTexture(gl.TEXTURE_2D, texture.id)
+						}
+					}
+				}
+			}
 		}
 	}
 }
 
 clear_background :: proc(color: Color) {
-	push_render_group(Render_Group{ shader_id = -1, command = .Clear, data = color })
+	push_render_group(Render_Group{ command = .Clear, data = color })
 }
 
 draw_text :: proc(position: v2, text: string, color: Color) -> (size: v2) {
@@ -97,7 +113,11 @@ measure_rune :: proc(c: rune) -> (size: v2) {
 }
 
 draw_rect_filled :: proc(rect: rectangle2, color: Color) {
-
+	group := Render_Group{ command = .Draw_With_Shader }
+	shader_call := Quad_Shader_Call{}
+	shader_call.shader_id = global_quad_shader.shader_id
+	group.data = shader_call
+	push_render_group(group)
 }
 
 draw_rect_outline :: proc(rect: rectangle2, color: Color, thickness: int) {
