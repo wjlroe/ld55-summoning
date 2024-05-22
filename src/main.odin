@@ -7,7 +7,6 @@ import "core:math/linalg"
 import "core:log"
 import "core:os"
 import "core:unicode"
-import rl "vendor:raylib"
 
 // TODO:
 // * Remove raylib (i.e. straight Odin port of the C code, without without SDL)
@@ -21,13 +20,6 @@ im_fell_dafont_font := #load("../assets/fonts/im_fell_roman.ttf")
 
 DEFAULT_WINDOW_WIDTH  :: 1280
 DEFAULT_WINDOW_HEIGHT :: 800
-
-WHITE          :: rl.Color{255, 255, 255, 255}
-BLUE           :: rl.Color{10, 10, 255, 255}
-RED            :: rl.Color{255, 10, 10, 255}
-VERY_DARK_BLUE :: rl.Color{4, 8, 13, 255}
-GREEN          :: rl.Color{10, 255, 10, 255}
-AMBER          :: rl.Color{255, 191, 0, 255}
 
 title :: "Summoning"
 win   :: "You've Won!"
@@ -58,7 +50,7 @@ Animation :: struct {
 }
 
 start_animation :: proc(duration: f32) -> Animation {
-    now := f32(rl.GetTime())
+    now := get_time()
     end := now + duration
     return Animation {
         start = now,
@@ -70,7 +62,7 @@ start_animation :: proc(duration: f32) -> Animation {
 animate :: proc(animation: ^Animation) -> f32 {
     using animation
 
-    t := (f32(rl.GetTime()) - start) / duration
+    t := (get_time() - start) / duration
     t = clamp(t, 0.0, 1.0)
     return linalg.lerp(f32(0.0), f32(1.0), t)
 }
@@ -83,32 +75,34 @@ shorten_animation :: proc(animation: ^Animation, new_time: f32) {
 
 Type_Challenge :: struct {
     word: string,
-    font: ^Font,
-    dim: rl.Vector2,
-    origin: rl.Vector2,
-    typed_correctly: []b32,
+    font_id: int,
+    font_size: f32,
+    dim: v2,
+    origin: v2,
+    typed_correctly: []bool,
     position: u32,
     alpha: f32,
     alpha_animation: Animation,
-    demonic_sign: rl.RenderTexture2D,
+    // demonic_sign: rl.RenderTexture2D,
 }
 
-setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
+setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font_id: int, font_size: f32, fade_time: f32) {
     challenge.word = word
-    challenge.font = font
-    challenge.typed_correctly = make([]b32, len(word))
-    c_str := fmt.ctprintf("%s", challenge.word)
-    spacing : f32 = 0.0
-    challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
+    challenge.font_id = font_id
+    challenge.font_size = font_size
+    challenge.typed_correctly = make([]bool, len(word))
+    // c_str := fmt.ctprintf("%s", challenge.word)
+    // spacing : f32 = 0.0
+    // challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
     challenge.alpha_animation = start_animation(fade_time)
-    render_demonic_sign(&challenge.demonic_sign, word)
+    // render_demonic_sign(&challenge.demonic_sign, word)
 }
 
-is_challenge_done :: proc(challenge: ^Type_Challenge) -> b32 {
+is_challenge_done :: proc(challenge: ^Type_Challenge) -> bool {
     return challenge.position >= u32(len(challenge.word))
 }
 
-has_typing_started :: proc(challenge: ^Type_Challenge) -> b32 {
+has_typing_started :: proc(challenge: ^Type_Challenge) -> bool {
     return challenge.position > 0
 }
 
@@ -139,41 +133,41 @@ reset_challenge :: proc(challenge: ^Type_Challenge) {
 }
 
 render_challenge :: proc(challenge: ^Type_Challenge) {
-    neutral_color      := rl.ColorAlpha(WHITE, challenge.alpha)
-    correct_color      := rl.ColorAlpha(GREEN, challenge.alpha)
-    wrong_color        := rl.ColorAlpha(RED, challenge.alpha)
-    under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
-    cursor_color       := rl.ColorAlpha(AMBER, challenge.alpha)
+    neutral_color      := color_with_alpha(WHITE, challenge.alpha)
+    correct_color      := color_with_alpha(GREEN, challenge.alpha)
+    wrong_color        := color_with_alpha(RED, challenge.alpha)
+    under_cursor_color := color_with_alpha(VERY_DARK_BLUE, challenge.alpha)
+    cursor_color       := color_with_alpha(AMBER, challenge.alpha)
 
-    {
-        debug_origin : rl.Vector2
-        debug_dim := rl.Vector2{challenge.dim.x, f32(challenge.font.raylib_font.baseSize)}
-        center_horizontally(
-            &debug_origin,
-            debug_dim,
-            game_window.dim,
-        )
-        center_vertically(
-            &debug_origin,
-            debug_dim,
-            game_window.dim,
-        )
-        rl.DrawRectangleV(debug_origin, debug_dim, RED)
-    }
+    // if false {
+    //     debug_origin : rl.Vector2
+    //     debug_dim := rl.Vector2{challenge.dim.x, f32(challenge.font.raylib_font.baseSize)}
+    //     center_horizontally(
+    //         &debug_origin,
+    //         debug_dim,
+    //         game_window.dim,
+    //     )
+    //     center_vertically(
+    //         &debug_origin,
+    //         debug_dim,
+    //         game_window.dim,
+    //     )
+    //     rl.DrawRectangleV(debug_origin, debug_dim, RED)
+    // }
 
+    scoped_font(challenge.font_id, challenge.font_size)
     position := challenge.origin
 
     for c, i in challenge.word {
-        c_str := fmt.ctprintf("%c", c)
-        spacing : f32 = 0.0
-        glyph_size := rl.MeasureTextEx(
-            challenge.font.raylib_font,
-            c_str,
-            f32(challenge.font.raylib_font.baseSize),
-            spacing,
-        )
+        // spacing : f32 = 0.0
+        // glyph_size := rl.MeasureTextEx(
+        //     challenge.font.raylib_font,
+        //     c_str,
+        //     f32(challenge.font.raylib_font.baseSize),
+        //     spacing,
+        // )
 
-        text_color : rl.Color = neutral_color
+        text_color := neutral_color
         if challenge.position > u32(i) {
             if challenge.typed_correctly[i] {
                 text_color = correct_color
@@ -181,43 +175,28 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
                 text_color = wrong_color
             }
         } else if challenge.position == u32(i) {
-            cursor_rect := rl.Rectangle{
-                x = position.x,
-                y = position.y,
-                width = glyph_size.x,
-                height = challenge.font.size,
-            }
-            rl.DrawRectangleRounded(
-                cursor_rect,
-                0.5, // roundness
-                0, // segments
-                cursor_color,
-            )
+            glyph_size := measure_rune(c)
+            cursor_rect := rect_min_dim(position, v2{glyph_size.x, challenge.font_size})
+            draw_rect_rounded_filled(cursor_rect, cursor_color, 0.5)
             text_color = under_cursor_color
         }
-        rl.DrawTextCodepoint(
-            challenge.font.raylib_font,
-            c,
-            position,
-            f32(challenge.font.raylib_font.baseSize),
-            text_color,
-        )
-        position.x += glyph_size.x
+        character_size := draw_rune(position, c, text_color)
+        position.x += character_size.x
     }
 
-    texture_color := rl.ColorAlpha(WHITE, challenge.alpha)
-    demonic_dim := rl.Vector2{256, 256}
-    demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256 - 10}
-    center_horizontally(
-        &demonic_pos,
-        demonic_dim,
-        game_window.dim,
-    )
-    source_rect := rl.Rectangle{0, 0, 256, -256}
-    dest_rect   := rl.Rectangle{demonic_pos.x, demonic_pos.y, demonic_dim.x, demonic_dim.y}
-    origin      := rl.Vector2{0, 0}
-    rotation    : f32 = 0.0
-    rl.DrawTexturePro(challenge.demonic_sign.texture, source_rect, dest_rect, origin, rotation, texture_color)
+    // texture_color := rl.ColorAlpha(WHITE, challenge.alpha)
+    // demonic_dim := rl.Vector2{256, 256}
+    // demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256 - 10}
+    // center_horizontally(
+    //     &demonic_pos,
+    //     demonic_dim,
+    //     game_window.dim,
+    // )
+    // source_rect := rl.Rectangle{0, 0, 256, -256}
+    // dest_rect   := rl.Rectangle{demonic_pos.x, demonic_pos.y, demonic_dim.x, demonic_dim.y}
+    // origin      := rl.Vector2{0, 0}
+    // rotation    : f32 = 0.0
+    // rl.DrawTexturePro(challenge.demonic_sign.texture, source_rect, dest_rect, origin, rotation, texture_color)
 }
 
 MAX_NUM_CHALLENGES :: 8
@@ -228,12 +207,14 @@ Level_Data :: struct {
     current_challenge: int,
     level_number: int,
     points: int,
+    font_id: int,
+    font_size: f32,
 }
 
 setup_level :: proc(level: ^Level_Data) {
     for _, i in words {
         if i >= MAX_NUM_CHALLENGES { break }
-        setup_challenge(&level.challenges[i], words[i], &game_window.challenge_font, 1.5)
+        setup_challenge(&level.challenges[i], words[i], level.font_id, level.font_size, 1.5)
         level.num_challenges += 1
     }
     level.current_challenge = 0
@@ -271,6 +252,7 @@ Game_Window :: struct {
     title_challenge: Type_Challenge,
     level_data: Level_Data,
 
+    im_fell_id: int,
     title_font: Font,
     dafont_title_font: Font,
     challenge_font: Font,
@@ -278,27 +260,32 @@ Game_Window :: struct {
 
     dt: f32,
     frame_number: u64,
-    dim: rl.Vector2,
+    dim: v2,
 }
 
 @(require)
 game_window := Game_Window{}
 
 update_window_dim :: proc() {
-    game_window.dim.x = f32(rl.GetRenderWidth())
-    game_window.dim.y = f32(rl.GetRenderHeight())
+    // game_window.dim.x = f32(rl.GetRenderWidth())
+    // game_window.dim.y = f32(rl.GetRenderHeight())
 }
 
-center_horizontally :: proc(position: ^rl.Vector2, dim: rl.Vector2, within: rl.Vector2) {
+center_horizontally :: proc(position: ^v2, dim: v2, within: v2) {
     position.x = (within.x / 2.0) - (dim.x / 2.0)
 }
 
-center_vertically :: proc(position: ^rl.Vector2, dim: rl.Vector2, within: rl.Vector2) {
+center_vertically :: proc(position: ^v2, dim: v2, within: v2) {
     position.y = (within.y / 2.0) - (dim.y / 2.0)
 }
 
+get_char_pressed :: proc() -> (c: rune) {
+    // TODO: hunt through input events for text input
+    return 0
+}
+
 render_menu :: proc() {
-    char := rl.GetCharPressed()
+    char := get_char_pressed()
     for char != 0 {
         enter_challenge_character(&game_window.title_challenge, char)
         if is_challenge_done(&game_window.title_challenge) {
@@ -309,7 +296,7 @@ render_menu :: proc() {
                 setup_level(&game_window.level_data)
             }
         }
-        char = rl.GetCharPressed()
+        char = get_char_pressed()
     }
     update_challenge_alpha(&game_window.title_challenge)
     center_horizontally(
@@ -323,114 +310,112 @@ render_menu :: proc() {
         game_window.dim,
     )
 
-    rl.BeginDrawing()
-    rl.ClearBackground(VERY_DARK_BLUE)
-
+    begin_drawing()
+    clear_background(VERY_DARK_BLUE)
     render_challenge(&game_window.title_challenge)
-
-    rl.EndDrawing()
+    end_drawing()
 }
 
 render_game :: proc() {
-    challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
-    char := rl.GetCharPressed()
-    for char != 0 {
-        level_type_character(&game_window.level_data, char)
-        if is_level_done(&game_window.level_data) {
-            if game_window.level_data.points < game_window.level_data.num_challenges {
-                game_window.game_state = .STATE_LOSE
-            } else {
-                game_window.game_state = .STATE_WIN
-            }
-        }
-        char = rl.GetCharPressed()
-    }
-    update_challenge_alpha(challenge)
-    center_horizontally(
-        &challenge.origin,
-        challenge.dim,
-        game_window.dim,
-    )
-    center_vertically(
-        &challenge.origin,
-        challenge.dim,
-        game_window.dim,
-    )
+    // challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
+    // char := rl.GetCharPressed()
+    // for char != 0 {
+    //     level_type_character(&game_window.level_data, char)
+    //     if is_level_done(&game_window.level_data) {
+    //         if game_window.level_data.points < game_window.level_data.num_challenges {
+    //             game_window.game_state = .STATE_LOSE
+    //         } else {
+    //             game_window.game_state = .STATE_WIN
+    //         }
+    //     }
+    //     char = rl.GetCharPressed()
+    // }
+    // update_challenge_alpha(challenge)
+    // center_horizontally(
+    //     &challenge.origin,
+    //     challenge.dim,
+    //     game_window.dim,
+    // )
+    // center_vertically(
+    //     &challenge.origin,
+    //     challenge.dim,
+    //     game_window.dim,
+    // )
 
-    rl.BeginDrawing()
-    rl.ClearBackground(VERY_DARK_BLUE)
+    // rl.BeginDrawing()
+    // rl.ClearBackground(VERY_DARK_BLUE)
 
-    render_challenge(challenge)
+    // render_challenge(challenge)
 
-    rl.EndDrawing()
+    // rl.EndDrawing()
 }
 
 render_win :: proc() {
-    rl.BeginDrawing()
-    rl.ClearBackground(VERY_DARK_BLUE)
+    // rl.BeginDrawing()
+    // rl.ClearBackground(VERY_DARK_BLUE)
 
-    text := fmt.ctprintf("%s", win)
-    text_size := rl.MeasureTextEx(
-        game_window.title_font.raylib_font,
-        text,
-        f32(game_window.title_font.raylib_font.baseSize),
-        0.0,
-    )
-    position := rl.Vector2{}
-    center_horizontally(
-        &position,
-        text_size,
-        game_window.dim,
-    )
-    center_vertically(
-        &position,
-        text_size,
-        game_window.dim,
-    )
-    rl.DrawTextEx(
-        game_window.title_font.raylib_font,
-        text,
-        position,
-        f32(game_window.title_font.raylib_font.baseSize),
-        0.0,
-        WHITE,
-    )
+    // text := fmt.ctprintf("%s", win)
+    // text_size := rl.MeasureTextEx(
+    //     game_window.title_font.raylib_font,
+    //     text,
+    //     f32(game_window.title_font.raylib_font.baseSize),
+    //     0.0,
+    // )
+    // position := rl.Vector2{}
+    // center_horizontally(
+    //     &position,
+    //     text_size,
+    //     game_window.dim,
+    // )
+    // center_vertically(
+    //     &position,
+    //     text_size,
+    //     game_window.dim,
+    // )
+    // rl.DrawTextEx(
+    //     game_window.title_font.raylib_font,
+    //     text,
+    //     position,
+    //     f32(game_window.title_font.raylib_font.baseSize),
+    //     0.0,
+    //     WHITE,
+    // )
 
-    rl.EndDrawing()
+    // rl.EndDrawing()
 }
 
 render_lose :: proc() {
-    rl.BeginDrawing()
-    rl.ClearBackground(VERY_DARK_BLUE)
+    // rl.BeginDrawing()
+    // rl.ClearBackground(VERY_DARK_BLUE)
 
-    text := fmt.ctprintf("%s", lost)
-    text_size := rl.MeasureTextEx(
-        game_window.title_font.raylib_font,
-        text,
-        f32(game_window.title_font.raylib_font.baseSize),
-        0.0,
-    )
-    position := rl.Vector2{}
-    center_horizontally(
-        &position,
-        text_size,
-        game_window.dim,
-    )
-    center_vertically(
-        &position,
-        text_size,
-        game_window.dim,
-    )
-    rl.DrawTextEx(
-        game_window.title_font.raylib_font,
-        text,
-        position,
-        f32(game_window.title_font.raylib_font.baseSize),
-        0.0,
-        WHITE,
-    )
+    // text := fmt.ctprintf("%s", lost)
+    // text_size := rl.MeasureTextEx(
+    //     game_window.title_font.raylib_font,
+    //     text,
+    //     f32(game_window.title_font.raylib_font.baseSize),
+    //     0.0,
+    // )
+    // position := rl.Vector2{}
+    // center_horizontally(
+    //     &position,
+    //     text_size,
+    //     game_window.dim,
+    // )
+    // center_vertically(
+    //     &position,
+    //     text_size,
+    //     game_window.dim,
+    // )
+    // rl.DrawTextEx(
+    //     game_window.title_font.raylib_font,
+    //     text,
+    //     position,
+    //     f32(game_window.title_font.raylib_font.baseSize),
+    //     0.0,
+    //     WHITE,
+    // )
 
-    rl.EndDrawing()
+    // rl.EndDrawing()
 }
 
 update_and_render :: proc() {
@@ -446,98 +431,98 @@ FIRST_GLYPH :: 32
 LAST_GLYPH  :: 127
 NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
-render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
-    using math
-    width   : f32 = 256.0
-    height  : f32 = 256.0
-    area_cx : f32 = width / 2.0
-    area_cy : f32 = height / 2.0
-    area_center := rl.Vector2{area_cx, area_cy}
-    texture^ = rl.LoadRenderTexture(i32(width), i32(height))
+// render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
+//     using math
+//     width   : f32 = 256.0
+//     height  : f32 = 256.0
+//     area_cx : f32 = width / 2.0
+//     area_cy : f32 = height / 2.0
+//     area_center := rl.Vector2{area_cx, area_cy}
+//     texture^ = rl.LoadRenderTexture(i32(width), i32(height))
 
-    rl.BeginTextureMode(texture^)
+//     rl.BeginTextureMode(texture^)
 
-    rl.DrawCircleLinesV(area_center, 127.0, GREEN)
-    inner_radius : f32 = 95.0
-    rl.DrawCircleLinesV(area_center, inner_radius, GREEN)
+//     rl.DrawCircleLinesV(area_center, 127.0, GREEN)
+//     inner_radius : f32 = 95.0
+//     rl.DrawCircleLinesV(area_center, inner_radius, GREEN)
 
-    single_char := [2]u8{}
-    first_char := unicode.to_upper(rune(word[0]))
-    single_char[0] = u8(first_char)
-    glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
-    pos := rl.Vector2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0}
-    rl.DrawTextEx(
-        game_window.demonic_font.raylib_font,
-        cstring(&single_char[0]),
-        pos,
-        f32(game_window.demonic_font.raylib_font.baseSize),
-        0.0,
-        GREEN
-    )
-	angle_deg := 360.0 / f32(len(word))
-	theta     := angle_deg * (PI / 180.0)
+//     single_char := [2]u8{}
+//     first_char := unicode.to_upper(rune(word[0]))
+//     single_char[0] = u8(first_char)
+//     glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
+//     pos := rl.Vector2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0}
+//     rl.DrawTextEx(
+//         game_window.demonic_font.raylib_font,
+//         cstring(&single_char[0]),
+//         pos,
+//         f32(game_window.demonic_font.raylib_font.baseSize),
+//         0.0,
+//         GREEN
+//     )
+// 	angle_deg := 360.0 / f32(len(word))
+// 	theta     := angle_deg * (PI / 180.0)
 
-    char_cx : f32 = pos.x + glyph_size.x/ 2.0 // center of the space in width
-    char_cy : f32 = pos.y + glyph_size.y / 2.0
-    input_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
-    input_points[0].x = char_cx
-    input_points[0].y = area_cy - inner_radius
+//     char_cx : f32 = pos.x + glyph_size.x/ 2.0 // center of the space in width
+//     char_cy : f32 = pos.y + glyph_size.y / 2.0
+//     input_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
+//     input_points[0].x = char_cx
+//     input_points[0].y = area_cy - inner_radius
 
-    for i in 1..<len(word) {
-        new_cx := cos(theta) * (char_cx - area_cx) - sin(theta) * (char_cy - area_cy) + area_cx
-        new_cy := sin(theta) * (char_cx - area_cx) + cos(theta) * (char_cy - area_cy) + area_cy
-        char_cx = new_cx
-        char_cy = new_cy
+//     for i in 1..<len(word) {
+//         new_cx := cos(theta) * (char_cx - area_cx) - sin(theta) * (char_cy - area_cy) + area_cx
+//         new_cy := sin(theta) * (char_cx - area_cx) + cos(theta) * (char_cy - area_cy) + area_cy
+//         char_cx = new_cx
+//         char_cy = new_cy
 
-        single_char[0] = word[i]
-        glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
-        pos.x = char_cx - (glyph_size.x / 2.0)
-        pos.y = char_cy - (glyph_size.y / 2.0)
-        rl.DrawTextEx(
-            game_window.demonic_font.raylib_font,
-            cstring(&single_char[0]),
-            pos,
-            f32(game_window.demonic_font.raylib_font.baseSize),
-            0.0,
-            GREEN
-        )
+//         single_char[0] = word[i]
+//         glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
+//         pos.x = char_cx - (glyph_size.x / 2.0)
+//         pos.y = char_cy - (glyph_size.y / 2.0)
+//         rl.DrawTextEx(
+//             game_window.demonic_font.raylib_font,
+//             cstring(&single_char[0]),
+//             pos,
+//             f32(game_window.demonic_font.raylib_font.baseSize),
+//             0.0,
+//             GREEN
+//         )
 
-        vx := char_cx - area_cx
-        vy := char_cy - area_cy
-        magnitude := sqrt(vx*vx + vy*vy)
-        vx /= magnitude
-        vy /= magnitude
-        input_points[i].x = area_cx + vx * inner_radius
-        input_points[i].y = area_cy + vy * inner_radius
-    }
-    input_points[len(word)] = input_points[0]
+//         vx := char_cx - area_cx
+//         vy := char_cy - area_cy
+//         magnitude := sqrt(vx*vx + vy*vy)
+//         vx /= magnitude
+//         vy /= magnitude
+//         input_points[i].x = area_cx + vx * inner_radius
+//         input_points[i].y = area_cy + vy * inner_radius
+//     }
+//     input_points[len(word)] = input_points[0]
 
-    output_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
-    input_i := 0
-    half_word := len(word) / 2
-    even_word_length := false
-    if len(word) % 2 == 0 {
-        half_word -= 1
-        even_word_length = true
-    }
-    for i in 0..<len(word) {
-        output_points[i] = input_points[input_i]
-        input_i = (input_i + half_word) % len(word)
-    }
-    output_points[len(word)] = input_points[0]
+//     output_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
+//     input_i := 0
+//     half_word := len(word) / 2
+//     even_word_length := false
+//     if len(word) % 2 == 0 {
+//         half_word -= 1
+//         even_word_length = true
+//     }
+//     for i in 0..<len(word) {
+//         output_points[i] = input_points[input_i]
+//         input_i = (input_i + half_word) % len(word)
+//     }
+//     output_points[len(word)] = input_points[0]
 
-    for i in 0..<len(word) {
-        p0 := output_points[i]
-        p1 := output_points[i+1]
-        if p0.x < p1.x {
-            rl.DrawLineV(p0, p1, GREEN)
-        } else {
-            rl.DrawLineV(p1, p0, GREEN)
-        }
-    }
+//     for i in 0..<len(word) {
+//         p0 := output_points[i]
+//         p1 := output_points[i+1]
+//         if p0.x < p1.x {
+//             rl.DrawLineV(p0, p1, GREEN)
+//         } else {
+//             rl.DrawLineV(p1, p0, GREEN)
+//         }
+//     }
 
-    rl.EndTextureMode()
-}
+//     rl.EndTextureMode()
+// }
 
 init_game :: proc() -> b32 {
     update_window_dim()
@@ -557,7 +542,7 @@ init_game :: proc() -> b32 {
         log.error("Failed to init the demonic font!")
         return false
     }
-    setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
+    setup_challenge(&game_window.title_challenge, title, game_window.im_fell_id, 120.0, TITLE_CHALLENGE_FADE_TIME)
     return true
 }
 
@@ -571,25 +556,68 @@ Window :: struct {
 global_window := Window{}
 
 main :: proc() {
+	lowest_level := log.Level.Info
+	when ODIN_DEBUG {
+		lowest_level = log.Level.Debug
+	}
+	context.logger = log.create_console_logger(lowest = lowest_level)
+
     global_window.width = DEFAULT_WINDOW_WIDTH
     global_window.height = DEFAULT_WINDOW_HEIGHT
     global_window.title = "Ludum Dare 55: Summoning"
 
-    // Platform-specific Window initialization
-    init_window()
+    {
+        // Platform-specific Window initialization
+        ok := init_window()
+        assert(ok)
+        if !ok {
+            log.errorf("init_window failed!")
+        }
+    }
+
+    {
+        ok : bool
+        vertex_shader_source : []u8
+        vertex_shader_source, ok = os.read_entire_file("assets/shaders/vertex_shader.glsl")
+        assert(ok)
+        if !ok {
+            log.errorf("failed to read vertex shader file")
+        }
+        fragment_shader_source : []u8
+        fragment_shader_source, ok = os.read_entire_file("assets/shaders/fragment_shader.glsl")
+        assert(ok)
+        if !ok {
+            log.errorf("failed to read fragment shader file")
+        }
+        shader_idx : int
+        shader_idx, ok = compile_shader_program(string(vertex_shader_source), string(fragment_shader_source))
+        assert(ok)
+        if !ok {
+            log.errorf("shaders failed to compile!")
+        }
+        ok = init_quad_shader(shader_idx)
+        assert(ok)
+        if !ok {
+            log.error("shaders failed to init!")
+        }
+    }
 
     // if !init_game() {
     //     os.exit(1)
     // }
 
+    log.infof("going to start the render loop")
     for !global_window.quit {
 		if err := free_all(context.temp_allocator); err != .None {
 			log.errorf("temp_allocator.free_all err == {}", err);
         }
+
+        process_input()
+        update_and_render()
+        swap_window()
     }
     // for !rl.WindowShouldClose() {
     //     game_window.dt = rl.GetFrameTime()
-    //     update_and_render()
     // }
 
     // rl.CloseWindow()

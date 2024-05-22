@@ -34,7 +34,6 @@ if "%build_debug%"=="yes" (
         -out:build/summoning_debug.exe ^
         -build-mode:exe ^
         -subsystem:console ^
-        -define:RAYLIB_SHARED=true ^
         -debug ^
         -resource:icon.rc ^
         -show-timings || goto :error
@@ -47,7 +46,6 @@ if "%build_release%"=="yes" (
         -out:build/summoning.exe ^
         -build-mode:exe ^
         -subsystem:windows ^
-        -define:RAYLIB_SHARED=false ^
         -o:speed ^
         -disable-assert ^
         -resource:resources.rc ^
