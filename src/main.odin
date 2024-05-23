@@ -604,9 +604,9 @@ main :: proc() {
         }
     }
 
-    // if !init_game() {
-    //     os.exit(1)
-    // }
+    if !init_game() {
+        os.exit(1)
+    }
 
     log.infof("going to start the render loop")
     for !global_window.quit {
