@@ -41,9 +41,16 @@ Render_Data :: union {
 	Quad_Shader_Call,
 }
 
+Render_Setting :: enum {
+	Alpha_Blended,
+}
+
+Render_Settings :: bit_set[Render_Setting]
+
 Render_Group :: struct {
 	command: Render_Command,
 	data: Render_Data,
+	settings: Render_Settings,
 }
 
 MAX_RENDER_STACK_SIZE :: 1024
@@ -60,6 +67,11 @@ begin_drawing :: proc() {
 
 end_drawing :: proc() {
 	for group in small_array.slice(&render_stack) {
+		if .Alpha_Blended in group.settings {
+			gl.Enable(gl.BLEND)
+			gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+		}
+
 		switch group.command {
 			case .Clear: {
 				c := group.data.(Color)
