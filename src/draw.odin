@@ -89,6 +89,17 @@ end_drawing :: proc() {
 						}
 						gl.UseProgram(shader.program_id)
 
+						for uniform in small_array.slice(&shader_call.uniforms) {
+							switch &v in uniform.data {
+								case f32: gl.Uniform1f(uniform.location, v)
+								case u32: gl.Uniform1ui(uniform.location, v)
+								case i32: gl.Uniform1i(uniform.location, v)
+								case v2:  gl.Uniform2fv(uniform.location, 1, &(cast([]f32)v[:])[0])
+								case v3:  gl.Uniform3fv(uniform.location, 1, &(cast([]f32)v[:])[0])
+								case v4:  gl.Uniform4fv(uniform.location, 1, &(cast([]f32)v[:])[0])
+							}
+						}
+
 						for texture in small_array.slice(&shader_call.textures) {
 							gl.ActiveTexture(gl.TEXTURE0 + texture.shader_index)
 							gl.BindTexture(gl.TEXTURE_2D, texture.id)

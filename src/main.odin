@@ -179,7 +179,8 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
         } else if challenge.position == u32(i) {
             glyph_size := measure_rune(c)
             cursor_rect := rect_min_dim(position, v2{glyph_size.x, challenge.font_size})
-            draw_rect_rounded_filled(cursor_rect, cursor_color, 0.5)
+            // draw_rect_rounded_filled(cursor_rect, cursor_color, 0.5)
+            draw_rect_filled(cursor_rect, cursor_color)
             text_color = under_cursor_color
         }
         character_size := draw_rune(position, c, text_color)

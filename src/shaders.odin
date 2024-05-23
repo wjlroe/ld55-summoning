@@ -429,8 +429,7 @@ Uniform_Data :: union {
 }
 
 Shader_Uniform :: struct {
-	location: u32,
-	type: Shader_Param_Type,
+	location: i32,
 	data: Uniform_Data,
 }
 
