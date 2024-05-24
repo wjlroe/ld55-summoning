@@ -203,11 +203,14 @@ rect_floats_to_ints :: proc(rect: rectangle2) -> rectangle2s {
 }
 
 ortho_matrix :: proc "contextless" (min, max: v3) -> matrix[4,4]f32 {
+	xdiff := max.x - min.x
+	ydiff := max.y - min.y
+	zdiff := max.z - min.z
 	ortho := matrix[4,4]f32{
-		2.0 / (max.x - min.x), 0.0, 0.0, 0.0,
-		0.0, 2.0 / (max.y - min.y), 0.0, 0.0,
-		0.0, 0.0, -2.0 / (max.z - min.z), 0.0,
-		-((max.x+min.x)/(max.x-min.x)), -((max.y+min.y)/(max.y-min.y)), -((max.z+min.z)/(max.z-min.z)), 1.0,
+		2.0 / xdiff, 0.0, 0.0, 0.0,
+		0.0, 2.0 / ydiff, 0.0, 0.0,
+		0.0, 0.0, -2.0 / zdiff, 0.0,
+		-((max.x+min.x)/xdiff), -((max.y+min.y)/ydiff), -((max.z+min.z)/zdiff), 1.0,
 	}
 	// FIXME: untranspose the above
 	return intrinsics.transpose(ortho)

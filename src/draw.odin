@@ -38,7 +38,7 @@ Render_Command :: enum {
 
 Render_Data :: union {
 	Color,
-	Quad_Shader_Call,
+	Textured_Single_Quad_Shader_Call,
 }
 
 Render_Setting :: enum {
@@ -80,14 +80,16 @@ end_drawing :: proc() {
 			}
 			case .Draw_With_Shader: {
 				#partial switch v in group.data {
-					case Quad_Shader_Call: {
-						shader_call := group.data.(Quad_Shader_Call)
+					case Textured_Single_Quad_Shader_Call: {
+						shader_call := group.data.(Textured_Single_Quad_Shader_Call)
 						shader, ok := small_array.get_safe(global_shaders, shader_call.shader_id)
 						assert(ok)
 						if !ok {
 							return
 						}
 						gl.UseProgram(shader.program_id)
+						assert(shader.vao > 0)
+						gl.BindVertexArray(shader.vao)
 
 						for uniform in small_array.slice(&shader_call.uniforms) {
 							switch &v in uniform.data {
@@ -97,12 +99,20 @@ end_drawing :: proc() {
 								case v2:  gl.Uniform2fv(uniform.location, 1, &(cast([]f32)v[:])[0])
 								case v3:  gl.Uniform3fv(uniform.location, 1, &(cast([]f32)v[:])[0])
 								case v4:  gl.Uniform4fv(uniform.location, 1, &(cast([]f32)v[:])[0])
+								case matrix[4,4]f32: gl.UniformMatrix4fv(uniform.location, 1, gl.FALSE, &v[0][0])
 							}
 						}
 
 						for texture in small_array.slice(&shader_call.textures) {
 							gl.ActiveTexture(gl.TEXTURE0 + texture.shader_index)
 							gl.BindTexture(gl.TEXTURE_2D, texture.id)
+						}
+
+						gl.BindBuffer(gl.ARRAY_BUFFER, shader.vbo)
+						for &vertex_group in small_array.slice(&shader_call.vertices) {
+							gl.BufferData(gl.ARRAY_BUFFER, size_of(vertex_group.vertices), &vertex_group.vertices, gl.STATIC_DRAW)
+							// FIXME: hardcoded 6 for length of element buffer and type of them
+							gl.DrawElements(gl.TRIANGLES, 6, gl.UNSIGNED_INT, nil)
 						}
 					}
 				}
@@ -135,10 +145,26 @@ measure_rune :: proc(c: rune) -> (size: v2) {
 	return
 }
 
+textured_quad :: proc(pos: rectangle2, z: f32, tex: rectangle2) -> Textured_Quad {
+	return Textured_Quad{
+		vertices = [?]Textured_Vertex{
+			{position = {pos.min.x, pos.min.y, z}, texture = {tex.min.x, tex.min.y}}, // top-left
+			{position = {pos.min.x, pos.max.y, z}, texture = {tex.min.x, tex.max.y}}, // bottom-left
+			{position = {pos.max.x, pos.max.y, z}, texture = {tex.max.x, tex.max.y}}, // bottom-right
+			{position = {pos.max.x, pos.min.y, z}, texture = {tex.max.x, tex.min.y}}, // top-right
+		}
+	}
+}
+
 draw_rect_filled :: proc(rect: rectangle2, color: Color) {
 	group := Render_Group{ command = .Draw_With_Shader }
-	shader_call := Quad_Shader_Call{}
+	shader_call := Textured_Single_Quad_Shader_Call{}
 	shader_call.shader_id = global_quad_shader.shader_id
+	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
+	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
+	tex_rect := rect_min_dim(v2{0.0, 0.0}, v2{1.0, 1.0})
+	vertex_group := textured_quad(rect, 0.5, tex_rect)
+	push_vertex_group(&shader_call, vertex_group)
 	group.data = shader_call
 	push_render_group(group)
 }

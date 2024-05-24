@@ -177,8 +177,9 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
                 text_color = wrong_color
             }
         } else if challenge.position == u32(i) {
-            glyph_size := measure_rune(c)
-            cursor_rect := rect_min_dim(position, v2{glyph_size.x, challenge.font_size})
+            // glyph_size := measure_rune(c)
+            // assert(glyph_size.x > 0.0)
+            cursor_rect := rect_min_dim(position, v2{10.0, challenge.font_size})
             // draw_rect_rounded_filled(cursor_rect, cursor_color, 0.5)
             draw_rect_filled(cursor_rect, cursor_color)
             text_color = under_cursor_color
@@ -264,14 +265,16 @@ Game_Window :: struct {
     dt: f32,
     frame_number: u64,
     dim: v2,
+    ortho_matrix: matrix[4,4]f32,
 }
 
 @(require)
 game_window := Game_Window{}
 
-update_window_dim :: proc() {
-    // game_window.dim.x = f32(rl.GetRenderWidth())
-    // game_window.dim.y = f32(rl.GetRenderHeight())
+update_ortho_matrix :: proc() {
+    min := v3{0.0, 0.0, -1.0}
+    max := v3{game_window.dim.x, game_window.dim.y, 1.0}
+    game_window.ortho_matrix = ortho_matrix(min, max)
 }
 
 center_horizontally :: proc(position: ^v2, dim: v2, within: v2) {
@@ -529,6 +532,7 @@ NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
 init_game :: proc() -> bool {
     update_window_dim()
+    update_ortho_matrix()
     if !init_font(&game_window.title_font, im_fell_font, 120.0) {
         log.error("Failed to init the title font!")
         return false

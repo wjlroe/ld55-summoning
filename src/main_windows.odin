@@ -369,6 +369,13 @@ init_window :: proc() -> (ok: bool) {
 	return
 }
 
+update_window_dim :: proc() {
+	client_rect : win32.RECT
+	win32.GetClientRect(win32_window, &client_rect)
+	game_window.dim.x = f32(client_rect.right)
+	game_window.dim.y = f32(client_rect.bottom)
+}
+
 swap_window :: proc() {
 	win32.SwapBuffers(win32_dc)
 }

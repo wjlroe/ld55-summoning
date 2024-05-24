@@ -1,5 +1,6 @@
 package main
 
+import "core:fmt"
 import "core:log"
 import gl "vendor:OpenGL"
 import "core:reflect"
@@ -66,7 +67,7 @@ push_shader_uniform :: proc(shader: ^Shader, uniform: Shader_Param) -> (ok: bool
 	return
 }
 
-shader_attribute_location :: proc(shader: Shader, attribute_name: string) -> (location: u32, ok: bool) {
+shader_attribute_location :: proc(shader: ^Shader, attribute_name: string) -> (location: u32, ok: bool) {
 	param : Shader_Param
 	for i in 0..<shader.attributes.len {
 		param, ok = small_array.get_safe(shader.attributes, i)
@@ -83,7 +84,7 @@ shader_attribute_location :: proc(shader: Shader, attribute_name: string) -> (lo
 	return
 }
 
-shader_uniform_location :: proc(shader: Shader, uniform_name: string) -> (location: u32, ok: bool) {
+shader_uniform_location :: proc(shader: ^Shader, uniform_name: string) -> (location: u32, ok: bool) {
 	param : Shader_Param
 	for i in 0..<shader.uniforms.len {
 		param, ok = small_array.get_safe(shader.uniforms, i)
@@ -145,6 +146,7 @@ init_shader_attributes :: proc(shader: ^Shader) -> (ok: bool) {
 
 // TODO: If we look up uniforms by name later, do we need to do this also?
 // NOTE: we use this to locate sampler indexes because this enumerates them!!
+// TODO: introduce a shader with multiple samplers so we can test out these ideas
 init_shader_uniforms :: proc(shader: ^Shader) -> (ok: bool) {
 	using shader
 	count := u32(get_program_iv(program_id, gl.ACTIVE_UNIFORMS))
@@ -287,19 +289,28 @@ compile_shader_program :: proc(vertex_shader_source: string, fragment_shader_sou
 	return
 }
 
-Quad_Vertex :: struct {
+Textured_Vertex :: struct {
 	position: v3,
-	texture: v2,
+	texture:  v2,
 }
 
-QUAD_NUM_VERTICES :: 4
-
-Quad :: struct {
-	vertices: [QUAD_NUM_VERTICES]Quad_Vertex,
+Colored_Vertex :: struct {
+	position: v3,
+	color:    v4,
 }
+
+Vertex_Group :: struct($N: int, $T: typeid) where N > 0 {
+	vertices: [N]T,
+}
+
+Textured_Quad :: Vertex_Group(4, Textured_Vertex)
+Colored_Quad  :: Vertex_Group(4, Colored_Vertex)
 
 // TODO: split this into specific shaders for text rendering and other things
-Quad_Shader :: struct {
+Textured_Quad_Shader :: struct($T: typeid) {
+	vertices_per_draw_call: i32,
+	vertices: T,
+	stride: int,
 	shader_id: int,
 
 	// attributes
@@ -307,24 +318,24 @@ Quad_Shader :: struct {
 	texture:  u32 `gl_attrib:"texture"`,
 
 	// uniforms
-	position_offset: u32 `gl_uniform:"position_offset"`,
-	ortho:           u32 `gl_uniform:"ortho"`,
-	settings:        u32 `gl_uniform:"settings"`,
-	font_texture:    u32 `gl_uniform:"fontTexture"`,
-	color:           u32 `gl_uniform:"color"`,
-	radius:          u32 `gl_uniform:"radius"`,
-	dimensions:      u32 `gl_uniform:"dimensions"`,
-	origin:          u32 `gl_uniform:"origin"`,
+	position_offset: i32 `gl_uniform:"position_offset"`,
+	ortho:           i32 `gl_uniform:"ortho"`,
+	settings:        i32 `gl_uniform:"settings"`,
+	font_texture:    i32 `gl_uniform:"fontTexture"`,
+	color:           i32 `gl_uniform:"color"`,
+	radius:          i32 `gl_uniform:"radius"`,
+	dimensions:      i32 `gl_uniform:"dimensions"`,
+	origin:          i32 `gl_uniform:"origin"`,
 
 	// texture samplers
-	font_texture_index: u32 `gl_sampler:"fontTexture"`
+	font_texture_index: i32 `gl_sampler:"fontTexture"`
 }
 
-global_quad_shader := Quad_Shader{}
+global_quad_shader := Textured_Quad_Shader(Textured_Quad){vertices_per_draw_call = 4}
 
 init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
-	shader : Shader
-	shader, ok = small_array.get_safe(global_shaders, shader_idx)
+	shader : ^Shader
+	shader, ok = small_array.get_ptr_safe(&global_shaders, shader_idx)
 	assert(ok)
 	if !ok {
 		return
@@ -337,7 +348,7 @@ init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
 	attribute_name : string
 	uniform_name   : string
 
-	ti := runtime.type_info_base(type_info_of(Quad_Shader))
+	ti := runtime.type_info_base(type_info_of(type_of(global_quad_shader)))
 	if s, ok := ti.variant.(runtime.Type_Info_Struct); ok {
 		num_fields := len(s.names)
 		for i in 1..<num_fields {
@@ -381,19 +392,25 @@ init_quad_shader :: proc(shader_idx: int) -> (ok: bool) {
 		gl.GenBuffers(1, &shader.vbo)
 		gl.GenBuffers(1, &shader.ebo)
 
-		stride := size_of(Quad_Vertex)
+		stride = size_of(vertices.vertices[0])
+		log.debugf("stride = %d", stride)
+		assert(stride == size_of(Textured_Vertex))
 
 		gl.BindBuffer(gl.ARRAY_BUFFER, shader.vbo)
-		gl.BufferData(gl.ARRAY_BUFFER, QUAD_NUM_VERTICES * stride, nil, gl.STATIC_DRAW)
+		// gl.BufferData(gl.ARRAY_BUFFER, stride, nil, gl.STATIC_DRAW)
 
 		zero : uintptr = 0
 
 		gl.EnableVertexAttribArray(position)
+		// FIXME: extract the literal 3 out here - that's the number of floats in a position attrib
 		gl.VertexAttribPointer(position, 3, gl.FLOAT, gl.FALSE, i32(stride), zero)
 		gl.EnableVertexAttribArray(texture)
 		// TODO: do we want to extract the size of these out and reflect on Quad_Vertex here?
+		// FIXME: extract the literal 2 out here - that's the number of floats in a texture attrib
 		gl.VertexAttribPointer(texture, 2, gl.FLOAT, gl.FALSE, i32(stride), uintptr(size_of(v3)))
 
+		// FIXME: this assumes one element in the buffer, so it can't draw muliple quads per draw call
+		// I assume we need to calculate this for batched draws and do this at draw time?
 		quad_indices := [?]u32{
 			0, 1, 2, 2, 3, 0,
 		}
@@ -426,6 +443,7 @@ Uniform_Data :: union {
 	v2,
 	v3,
 	v4,
+	matrix[4,4]f32,
 }
 
 Shader_Uniform :: struct {
@@ -445,16 +463,23 @@ Shader_Texture :: struct {
 
 MAX_SHADER_TEXTURES :: 8
 
-Vertex_Element :: struct($N: int, $T: typeid) where N >= 0 {
-	vertices: [N]T,
-}
-
-Shader_Call :: struct($N: int, $T: typeid) where N >= 0 {
+Shader_Call :: struct($N: int, $T: typeid) where N > 0 {
 	shader_id: int,
 	uniforms: small_array.Small_Array(MAX_SHADER_UNIFORMS, Shader_Uniform),
 	textures: small_array.Small_Array(MAX_SHADER_TEXTURES, Shader_Texture),
 	vertices: small_array.Small_Array(N,                   T),
 }
 
-Quad_Vertex_Element :: Vertex_Element(4, Quad_Vertex)
-Quad_Shader_Call    :: Shader_Call(1, Quad_Vertex_Element)
+push_uniform_binding :: proc(shader_call: ^Shader_Call($N, $T), location: i32, value: Uniform_Data) -> (ok: bool) {
+	ok = small_array.push_back(&shader_call.uniforms, Shader_Uniform{location, value})
+	assert(ok)
+	return
+}
+
+push_vertex_group :: proc(shader_call: ^Shader_Call($N, $T), value: T) -> (ok: bool) {
+	ok = small_array.push_back(&shader_call.vertices, value)
+	assert(ok)
+	return
+}
+
+Textured_Single_Quad_Shader_Call :: Shader_Call(1, Textured_Quad)
