@@ -1,12 +1,8 @@
 package main
 
-import "core:c"
-import "core:fmt"
-import "core:math"
 import "core:math/linalg"
 import "core:log"
 import "core:os"
-import "core:unicode"
 
 // TODO:
 // * Remove raylib (i.e. straight Odin port of the C code, without without SDL)

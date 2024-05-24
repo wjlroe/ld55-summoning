@@ -9,12 +9,9 @@ package main
 // to any dots per inch (dpi) change by reloading assets and changing layout.
 
 import "core:c"
-import "core:fmt"
 import gl "vendor:OpenGL"
 import "base:intrinsics"
 import "core:log"
-import "core:math"
-import "core:os"
 import win32 "core:sys/windows"
 
 win32_window : win32.HWND

@@ -1,6 +1,5 @@
 package main
 
-import "core:fmt"
 import "core:log"
 import gl "vendor:OpenGL"
 import "core:reflect"
@@ -161,7 +160,6 @@ init_shader_uniforms :: proc(shader: ^Shader) -> (ok: bool) {
 	sampler_index := 0
 
 	i : u32 = 0
-	texture_i := 0
 	for i < count {
 		gl.GetActiveUniform(program_id, i, i32(buf_size), &length, &size, &type, &name[0])
 		uniform_name := cstring(&name[0])

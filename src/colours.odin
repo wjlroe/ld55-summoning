@@ -1,13 +1,6 @@
 package main
 
-import "core:bytes"
-import "core:fmt"
-import "core:image"
-import "core:image/tga"
-import "core:log"
 import "core:math"
-import "core:mem"
-import "core:reflect"
 import "core:strconv"
 
 Color :: distinct v4
