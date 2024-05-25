@@ -1,3 +1,4 @@
+//+private file
 package main
 
 // TODO: moving a window between monitors with different content scales
@@ -28,6 +29,7 @@ get_current_counter :: proc() -> u64 {
 	return u64(counter)
 }
 
+@(private)
 get_time :: proc() -> f32 {
 	elapsed := get_current_counter() - start_time_in_cycles
 	freq : win32.LARGE_INTEGER
@@ -35,7 +37,7 @@ get_time :: proc() -> f32 {
 	return (f32(elapsed) / (1000.0 / f32(freq)))
 }
 
-win32_last_error :: proc() -> (error_message: string) {
+last_error :: proc() -> (error_message: string) {
 	error := win32.GetLastError()
 
 	win32.FormatMessageW(
@@ -59,7 +61,7 @@ win32_last_error :: proc() -> (error_message: string) {
 	return
 }
 
-win32_load_opengl :: proc() -> (ok: bool) {
+load_opengl :: proc() -> (ok: bool) {
 	window_class := win32.WNDCLASSW{
 		lpfnWndProc = win32.DefWindowProcW,
 		hInstance = cast(win32.HINSTANCE)win32.GetModuleHandleA(nil),
@@ -67,7 +69,7 @@ win32_load_opengl :: proc() -> (ok: bool) {
 		lpszClassName = win32.utf8_to_wstring("Dummy_WSL_rita"),
 	}
 	if (win32.RegisterClassW(&window_class) == 0) {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to register dummy window class for OpenGL: {}", error_msg)
 		return false
 	}
@@ -86,7 +88,7 @@ win32_load_opengl :: proc() -> (ok: bool) {
 		nil
 	)
 	if (transmute(u64)dummy_window == 0) {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to create dummy window for OpenGL: {}", error_msg)
 		return false
 	}
@@ -106,25 +108,25 @@ win32_load_opengl :: proc() -> (ok: bool) {
 
 	pixel_format := win32.ChoosePixelFormat(dummy_dc, &pixel_format_descriptor)
 	if pixel_format == 0 {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to find a suitable pixel format: {}", error_msg)
 		return false
 	}
 	if !win32.SetPixelFormat(dummy_dc, pixel_format, &pixel_format_descriptor) {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to set pixel format: {}", error_msg)
 		return false
 	}
 
 	dummy_context := win32.wglCreateContext(dummy_dc)
 	if dummy_context == nil {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to create a dummy OpenGL rendering context: {}", error_msg)
 		return false
 	}
 
 	if !win32.wglMakeCurrent(dummy_dc, dummy_context) {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to activate dummy OpenGL rendering context: {}", error_msg)
 		return false
 	}
@@ -249,7 +251,7 @@ process_input :: proc() {
 	}
 }
 
-win32_init_opengl :: proc(gl_major: i32, gl_minor: i32) -> (gl_context: win32.HGLRC, ok: bool) {
+init_opengl :: proc(gl_major: i32, gl_minor: i32) -> (gl_context: win32.HGLRC, ok: bool) {
 	GL_TRUE :: 1
 	GL_FALSE :: 0
 
@@ -305,9 +307,10 @@ win32_init_opengl :: proc(gl_major: i32, gl_minor: i32) -> (gl_context: win32.HG
 	return
 }
 
+@(private)
 init_window :: proc() -> (ok: bool) {
 	start_time_in_cycles = get_current_counter()
-	ok = win32_load_opengl()
+	ok = load_opengl()
 	assert(ok)
 	if !ok {
 		log.error("Failed to load OpenGL!")
@@ -326,7 +329,7 @@ init_window :: proc() -> (ok: bool) {
 		lpszMenuName = wide_title,
 	}
 	if win32.RegisterClassW(&window_class) == 0 {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to create win32 window_class: {}", error_msg)
 		return
 	}
@@ -354,18 +357,18 @@ init_window :: proc() -> (ok: bool) {
 		nil,
 	)
 	if transmute(u64)win32_window == 0 {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to create win32 window: {}", error_msg)
 		return
 	}
 
 	win32_dc = win32.GetDC(win32_window)
 	if win32_dc == nil {
-		error_msg := win32_last_error()
+		error_msg := last_error()
 		log.errorf("failed to get display context for win32 window: {}", error_msg)
 		return
 	}
-	win32_gl, ok = win32_init_opengl(3, 3)
+	win32_gl, ok = init_opengl(3, 3)
 	assert(ok)
 
 	gl.load_up_to(3, 3, win32.gl_set_proc_address)
@@ -376,6 +379,7 @@ init_window :: proc() -> (ok: bool) {
 	return
 }
 
+@(private)
 update_window_dim :: proc() {
 	client_rect : win32.RECT
 	win32.GetClientRect(win32_window, &client_rect)
@@ -383,6 +387,7 @@ update_window_dim :: proc() {
 	game_window.dim.y = f32(client_rect.bottom)
 }
 
+@(private)
 swap_window :: proc() {
 	win32.SwapBuffers(win32_dc)
 }
