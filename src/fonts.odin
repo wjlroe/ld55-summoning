@@ -2,7 +2,6 @@ package main
 
 import "core:c"
 import "core:log"
-import "core:container/lru"
 import "core:mem"
 import gl "vendor:OpenGL"
 import stbtt "vendor:stb/truetype"
