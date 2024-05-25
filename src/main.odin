@@ -147,8 +147,7 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
             cursor_height := challenge.font.ascent + abs(challenge.font.descent)
             cursor_rect := rect_min_dim(position, v2{glyph_size.x, cursor_height})
             rect_sub_floats(&cursor_rect, v2{0.0, abs(challenge.font.descent)})
-            // draw_rect_rounded_filled(cursor_rect, cursor_color, 0.5)
-            draw_rect_filled(cursor_rect, cursor_color)
+            draw_rect_rounded_filled(cursor_rect, cursor_color, glyph_size.x / 4.0)
             text_color = under_cursor_color
         }
         character_size := draw_rune(challenge.font, position, c, text_color)

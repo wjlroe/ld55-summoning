@@ -179,7 +179,21 @@ draw_rect_outline :: proc(rect: rectangle2, color: Color, thickness: int) {
 }
 
 draw_rect_rounded_filled :: proc(rect: rectangle2, color: Color, roundness: f32) {
-
+	group := Render_Group{ command = .Draw_With_Shader }
+	shader_call := Textured_Single_Quad_Shader_Call{}
+	shader_call.shader_id = global_quad_shader.shader_id
+	settings : Shader_Settings = {.Rounded_Rect}
+	push_uniform_binding(&shader_call, global_quad_shader.settings, i32(transmute(u8)settings))
+	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
+	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
+	push_uniform_binding(&shader_call, global_quad_shader.dimensions, rect_dim(rect))
+	push_uniform_binding(&shader_call, global_quad_shader.origin, rect_centre(rect))
+	push_uniform_binding(&shader_call, global_quad_shader.radius, roundness)
+	tex_rect := rect_min_dim(v2{0.0, 0.0}, v2{1.0, 1.0})
+	vertex_group := textured_quad(rect, 0.5, tex_rect)
+	push_vertex_group(&shader_call, vertex_group)
+	group.data = shader_call
+	push_render_group(group)
 }
 
 draw_rect_rounded_outline :: proc(rect: rectangle2, color: Color, roundness: f32, thickness: int) {
