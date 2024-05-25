@@ -10,6 +10,7 @@ import "core:os"
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
 
 // Google Fonts
+im_fell_font_name := "IM_Fell_English/IMFellEnglish-Regular.ttf"
 im_fell_font := #load("../assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf")
 // Dafont version
 im_fell_dafont_font := #load("../assets/fonts/im_fell_roman.ttf")
@@ -71,8 +72,7 @@ shorten_animation :: proc(animation: ^Animation, new_time: f32) {
 
 Type_Challenge :: struct {
     word: string,
-    font_id: int,
-    font_size: f32,
+    font: ^Font,
     dim: v2,
     origin: v2,
     typed_correctly: []bool,
@@ -82,16 +82,11 @@ Type_Challenge :: struct {
     // demonic_sign: rl.RenderTexture2D,
 }
 
-setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font_id: int, font_size: f32, fade_time: f32) {
+setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
     challenge.word = word
-    challenge.font_id = font_id
-    challenge.font_size = font_size
+    challenge.font = font
     challenge.typed_correctly = make([]bool, len(word))
-    // c_str := fmt.ctprintf("%s", challenge.word)
-    // spacing : f32 = 0.0
-    // challenge.dim = rl.MeasureTextEx(font.raylib_font, c_str, f32(font.raylib_font.baseSize), spacing)
-    scoped_font(challenge.font_id, challenge.font_size)
-    challenge.dim = measure_text(challenge.word)
+    challenge.dim = measure_text(challenge.font, challenge.word)
     challenge.alpha_animation = start_animation(fade_time)
     // render_demonic_sign(&challenge.demonic_sign, word)
 }
@@ -153,18 +148,10 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
     //     rl.DrawRectangleV(debug_origin, debug_dim, RED)
     // }
 
-    scoped_font(challenge.font_id, challenge.font_size)
+    // scoped_font_spec(challenge.font_name, challenge.font_size)
     position := challenge.origin
 
     for c, i in challenge.word {
-        // spacing : f32 = 0.0
-        // glyph_size := rl.MeasureTextEx(
-        //     challenge.font.raylib_font,
-        //     c_str,
-        //     f32(challenge.font.raylib_font.baseSize),
-        //     spacing,
-        // )
-
         text_color := neutral_color
         if challenge.position > u32(i) {
             if challenge.typed_correctly[i] {
@@ -173,18 +160,20 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
                 text_color = wrong_color
             }
         } else if challenge.position == u32(i) {
-            // glyph_size := measure_rune(c)
-            // assert(glyph_size.x > 0.0)
-            cursor_rect := rect_min_dim(position, v2{10.0, challenge.font_size})
+            glyph_size := measure_rune(challenge.font, c)
+            assert(glyph_size.x > 0.0)
+            cursor_height := challenge.font.ascent + abs(challenge.font.descent)
+            cursor_rect := rect_min_dim(position, v2{glyph_size.x, cursor_height})
+            rect_sub_floats(&cursor_rect, v2{0.0, abs(challenge.font.descent)})
             // draw_rect_rounded_filled(cursor_rect, cursor_color, 0.5)
             draw_rect_filled(cursor_rect, cursor_color)
             text_color = under_cursor_color
         }
-        character_size := draw_rune(position, c, text_color)
+        character_size := draw_rune(challenge.font, position, c, text_color)
         position.x += character_size.x
     }
 
-    // texture_color := rl.ColorAlpha(WHITE, challenge.alpha)
+    // texture_color := color_with_alpha(WHITE, challenge.alpha)
     // demonic_dim := rl.Vector2{256, 256}
     // demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256 - 10}
     // center_horizontally(
@@ -207,14 +196,13 @@ Level_Data :: struct {
     current_challenge: int,
     level_number: int,
     points: int,
-    font_id: int,
-    font_size: f32,
+    font: ^Font,
 }
 
 setup_level :: proc(level: ^Level_Data) {
     for _, i in words {
         if i >= MAX_NUM_CHALLENGES { break }
-        setup_challenge(&level.challenges[i], words[i], level.font_id, level.font_size, 1.5)
+        setup_challenge(&level.challenges[i], words[i], level.font, 1.5)
         level.num_challenges += 1
     }
     level.current_challenge = 0
@@ -279,11 +267,6 @@ center_horizontally :: proc(position: ^v2, dim: v2, within: v2) {
 
 center_vertically :: proc(position: ^v2, dim: v2, within: v2) {
     position.y = (within.y / 2.0) - (dim.y / 2.0)
-}
-
-get_char_pressed :: proc() -> (c: rune) {
-    // TODO: hunt through input events for text input
-    return 0
 }
 
 render_menu :: proc() {
@@ -429,9 +412,9 @@ update_and_render :: proc() {
     }
 }
 
-FIRST_GLYPH :: 32
-LAST_GLYPH  :: 127
-NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
+// FIRST_GLYPH :: 32
+// LAST_GLYPH  :: 127
+// NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
 // render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
 //     using math
@@ -529,6 +512,12 @@ NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 init_game :: proc() -> bool {
     update_window_dim()
     update_ortho_matrix()
+
+    // init_fonts()
+    // font_sizes := []f32{120.0, 48.0, 38.0}
+    // init_glyph_cache(len(font_sizes))
+    // prime_glyph_cache(im_fell_font_name, font_sizes)
+
     if !init_font(&game_window.title_font, im_fell_font, 120.0) {
         log.error("Failed to init the title font!")
         return false
@@ -545,7 +534,8 @@ init_game :: proc() -> bool {
         log.error("Failed to init the demonic font!")
         return false
     }
-    setup_challenge(&game_window.title_challenge, title, game_window.im_fell_id, 120.0, TITLE_CHALLENGE_FADE_TIME)
+    setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
+    game_window.level_data.font = &game_window.challenge_font
     return true
 }
 

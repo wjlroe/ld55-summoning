@@ -78,6 +78,13 @@ rect_min_dim_v2 :: proc "contextless" (min, dim: v2) -> rectangle2 {
 	return rect
 }
 
+rect_from_points_i32 :: proc "contextless" (x0, y0, x1, y1: i32) -> rectangle2s {
+	rect : rectangle2s = ---
+	rect.min = v2s{x0, y0}
+	rect.max = v2s{x1, y1}
+	return rect
+}
+
 rect_add :: proc{rect_add_floats}
 
 rect_add_floats :: proc "contextless" (rect: ^rectangle2, vec: v2) {

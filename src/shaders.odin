@@ -456,8 +456,14 @@ Texture_Type :: enum {
 Shader_Texture :: struct {
 	id:           u32,
 	type:         Texture_Type,
-	shader_index: u32,
+	shader_index: u32, // TODO: should this be the index in the array of textures?
 }
+
+Shader_Settings_Options :: enum u8{
+	Sample_Font_Texture,
+	Rounded_Rect,
+}
+Shader_Settings :: distinct bit_set[Shader_Settings_Options; u8]
 
 MAX_SHADER_TEXTURES :: 8
 
@@ -470,6 +476,12 @@ Shader_Call :: struct($N: int, $T: typeid) where N > 0 {
 
 push_uniform_binding :: proc(shader_call: ^Shader_Call($N, $T), location: i32, value: Uniform_Data) -> (ok: bool) {
 	ok = small_array.push_back(&shader_call.uniforms, Shader_Uniform{location, value})
+	assert(ok)
+	return
+}
+
+push_texture_binding :: proc(shader_call: ^Shader_Call($N, $T), texture_id: u32, index: u32) -> (ok: bool) {
+	ok = small_array.push_back(&shader_call.textures, Shader_Texture{texture_id, .Texture2D, index})
 	assert(ok)
 	return
 }

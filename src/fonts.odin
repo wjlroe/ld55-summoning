@@ -1,32 +1,55 @@
 package main
 
 import "core:c"
+import "core:log"
+import "core:container/lru"
+import "core:mem"
+import gl "vendor:OpenGL"
 import stbtt "vendor:stb/truetype"
 
-Font :: struct {
-    size: f32,
+Glyph :: struct {
+    bounding_box: rectangle2,
+	advance: f32,
+	lsb: f32,
+    tex_rect: rectangle2,
+}
 
-    info: stbtt.fontinfo,
+Font :: struct {
+    name: string,
+    memory: ^[]u8,
+    font_index: i32,
+    size: f32,
     scale: f32,
+    info: stbtt.fontinfo,
     ascent: f32,
     descent: f32,
     line_gap: f32,
     line_height: f32,
     row_height: f32,
+    space_width: f32,
+    first_character: rune,
+    last_character: rune,
+    num_of_characters: int,
+    glyphs: []Glyph,
+    texture_dim: v2s,
+    texture_id: u32,
 }
 
-init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> bool {
+init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
     font.size = font_size
-
+    font.font_index = 0
+    font.first_character = '!'
+    font.last_character = 'z'
+    font.num_of_characters = int((font.last_character - font.first_character) + 1)
     font_offset : i32 = 0
 	if (!stbtt.InitFont(&font.info, &font_mem[0], font_offset)) {
         return false
 	}
 
-	font.scale = stbtt.ScaleForPixelHeight(&font.info, font_size)
+    font.scale = stbtt.ScaleForPixelHeight(&font.info, font.size)
 
 	// Vertical metrics
-	ascent, descent, line_gap : i32
+    ascent, descent, line_gap : i32
 	stbtt.GetFontVMetrics(&font.info, &ascent, &descent, &line_gap)
 	font.ascent = font.scale * f32(ascent)
 	font.descent = font.scale * f32(descent)
@@ -34,5 +57,234 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> bool {
 	font.line_height = font.ascent - font.descent
 	font.row_height = font.line_height + font.line_gap
 
-    return true
+	memory, err := mem.alloc((font.num_of_characters) * size_of(stbtt.packedchar))
+    if err != nil {
+        log.errorf("couldn't allocate memory for packedchars array: {}", err)
+        return
+    }
+    packed_chars := cast([^]stbtt.packedchar)memory
+	defer mem.free(packed_chars)
+	pack_context : stbtt.pack_context
+	font.texture_dim = v2s{512, 512}
+	tex_buffer := make([^]u8, font.texture_dim.x * font.texture_dim.y)
+    defer free(tex_buffer)
+	for {
+		if (stbtt.PackBegin(&pack_context, tex_buffer, font.texture_dim.x, font.texture_dim.y, 0, 1, nil) == 0) {
+			log.error("Failed to PackBegin!")
+			return
+		}
+		if (stbtt.PackFontRange(&pack_context, &font_mem[0], font.font_index, font.size, i32(font.first_character), i32(font.num_of_characters), &packed_chars[0]) == 0) {
+			old_size := int(font.texture_dim.x * font.texture_dim.y)
+			font.texture_dim.x *= 2
+            font.texture_dim.y *= 2
+			new_size := int(font.texture_dim.x * font.texture_dim.y)
+            new_mem, resize_err := mem.resize(tex_buffer, old_size, new_size)
+            if resize_err != nil {
+                log.errorf("couldn't resize memory for font texture: {}", resize_err)
+                return
+            }
+			tex_buffer = cast([^]u8)new_mem
+		} else {
+			stbtt.PackEnd(&pack_context)
+			break
+		}
+	}
+
+	x0, y0, x1, y1, advance, lsb : i32
+	font.glyphs = make([]Glyph, font.num_of_characters)
+	for character in font.first_character..=font.last_character {
+        glyph_idx := stbtt.FindGlyphIndex(&font.info, character)
+		idx := u32(character) - u32(font.first_character)
+		packed_char := packed_chars[idx]
+		stbtt.GetGlyphHMetrics(&font.info, glyph_idx, &advance, &lsb)
+		stbtt.GetGlyphBitmapBox(&font.info, glyph_idx, font.scale, font.scale, &x0, &y0, &x1, &y1)
+        font.glyphs[idx].bounding_box = rect_ints_to_floats(rect_from_points_i32(x0, y0, x1, y1))
+		font.glyphs[idx].advance = f32(advance) * font.scale
+		font.glyphs[idx].lsb = f32(lsb) * font.scale
+		tex_x0 := f32(packed_char.x0) / f32(font.texture_dim.x)
+		tex_x1 := f32(packed_char.x1) / f32(font.texture_dim.x)
+		tex_y0 := f32(packed_char.y0) / f32(font.texture_dim.y)
+		tex_y1 := f32(packed_char.y1) / f32(font.texture_dim.y)
+        font.glyphs[idx].tex_rect = rectangle2{v2{tex_x0, tex_y1}, v2{tex_x1, tex_y0}}
+	}
+
+	space_glyph := stbtt.FindGlyphIndex(&font.info, ' ')
+	stbtt.GetGlyphHMetrics(&font.info, space_glyph, &advance, &lsb)
+	stbtt.GetGlyphBitmapBox(&font.info, space_glyph, font.scale, font.scale, &x0, &y0, &x1, &y1)
+	font.space_width = (f32(x1) - f32(x0)) //  * font.font_scale
+
+    gl.GenTextures(1, &font.texture_id)
+	gl.BindTexture(gl.TEXTURE_2D, font.texture_id)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RED, font.texture_dim.x, font.texture_dim.y, 0, gl.RED, gl.UNSIGNED_BYTE, tex_buffer)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.BindTexture(gl.TEXTURE_2D, 0)
+
+    ok = true
+    return
 }
+
+measure_rune :: proc(font: ^Font, c: rune) -> (size: v2) {
+    glyph_idx := i32(c) - i32(font.first_character)
+    return rect_dim(font.glyphs[glyph_idx].bounding_box)
+}
+
+measure_text :: proc(font: ^Font, text: string) -> (size: v2) {
+    for c in text {
+        c_size := measure_rune(font, c)
+        size.x += c_size.x
+        size.y = max(c_size.y, size.y)
+    }
+	return
+}
+
+
+// Font_Cache :: lru.Cache(string, Font)
+
+// on_remove_font_from_cache :: proc(key: string, value: ^Font, user_data: rawptr) {
+//     log.debugf("Font %s is being removed from the cache", value.name)
+//     free(value)
+// }
+
+// global_font_cache := Font_Cache{
+//     // on_remove = on_remove_font_from_cache
+// }
+
+// init_fonts :: proc() {
+//     lru.init(&global_font_cache, 10)
+// }
+
+// get_font :: proc(name: string) -> (font: Font, ok: bool) {
+//     font, ok = lru.get(&global_font_cache, name)
+//     if ok { return }
+//     // We need to know where to get the font data from
+//     new_font := Font{}
+//     font_mem : ^[]u8
+//     switch name {
+//         case im_fell_font_name: font_mem = &im_fell_font
+//         case: {
+//             log.error("Unknown font: %s", name)
+//             return
+//         }
+//     }
+//     init_font(&new_font, font_mem)
+//     err := lru.set(&global_font_cache, name, new_font)
+//     if err != nil {
+//         log.errorf("Error allocating space in font cache: %s", err)
+//         return
+//     }
+//     font = new_font
+//     ok = true
+//     return
+// }
+
+// Glyph :: struct {
+//     font_size: f32,
+//     c: rune,
+//     tex_rect: rectangle2,
+// }
+
+// generate_glyph :: proc(font_name: string, size: f32, c: rune) -> (glyph: Glyph) {
+//     font, ok := get_font(font_name)
+
+// 	scale := stbtt.ScaleForPixelHeight(&font.info, size)
+//     glyph.font_size = size
+//     glyph.c = c
+
+//     return glyph
+// }
+
+// glyph_cache_key :: proc(font_name: string, size: f32, glyph_index: i32) -> u64 {
+//     return 0
+// }
+
+// Glyph_Cache :: struct {
+//     glyphs:     lru.Cache(u64, Glyph),
+//     texture_id: u32,
+//     texture_dim: int
+// }
+
+// global_glyph_cache := Glyph_Cache{}
+
+// get_glyph :: proc(font_name: string, size: f32, c: rune, priming := false) -> (glyph: Glyph, ok: bool) {
+//     using global_glyph_cache
+//     font : Font
+//     font, ok = get_font(font_name)
+//     glyph_index := stbtt.FindGlyphIndex(&font.info, c)
+//     key := glyph_cache_key(font_name, size, glyph_index)
+//     glyph, ok = lru.get(&glyphs, key)
+//     if ok { return }
+//     if !priming {
+//         log.debugf("Glyph_Cache MISS: %s %f.1 %c", font_name, size, c)
+//     }
+//     glyph = generate_glyph(font_name, size, c)
+//     err := lru.set(&glyphs, key, glyph)
+//     if err != nil {
+//         log.errorf("error storing glyph: %s", err)
+//         return
+//     }
+//     ok = true
+//     return
+// }
+
+// generate_glyph_atlas_texture :: proc() {
+//     using global_glyph_cache
+
+//     num_glyphs := len(glyphs.entries)
+//     pack_ranges := make([]stbtt.pack_range, num_glyphs)
+//     defer delete(pack_ranges)
+//     packed_chars := make([]stbtt.packedchar, num_glyphs)
+//     defer delete(packed_chars)
+//     range_idx := 0
+//     for key, value in glyphs.entries {
+//         range := &pack_ranges[range_idx]
+//         range.font_size = value.value.font_size
+//         range.first_unicode_codepoint_in_range = i32(value.value.c)
+//         range.num_chars = 1
+//         range.chardata_for_range = &packed_chars[range_idx]
+//         range_idx += 1
+//     }
+
+// 	pack_context : stbtt.pack_context
+// 	texture_dim = 512
+//     tex_rect : rectangle2
+// 	tex_buffer := make([^]u8, texture_dim * texture_dim)
+//     defer free(tex_buffer)
+// 	for {
+// 		tex_rect = rect_min_dim(v2{0.0, 0.0}, v2{f32(texture_dim), f32(texture_dim)})
+// 		if (stbtt.PackBegin(&pack_context, &tex_buffer[0], i32(texture_dim), i32(texture_dim), 0, 1, nil) == 0) {
+// 			log.error("Failed to PackBegin!")
+// 			return
+// 		}
+// 		if (stbtt.PackFontRanges(&pack_context, contents, font.font_index, font_size, i32(font.first_character), i32(font.num_of_characters), &packed_chars[0]) == 0) {
+// 			old_size := font.texture_dim*font.texture_dim
+// 			font.texture_dim *= 2
+// 			new_size := font.texture_dim*font.texture_dim
+// 			tex_buffer = cast([^]u8)(mem.resize(tex_buffer, old_size, new_size) or_else panic("not enough memory"))
+// 		} else {
+// 			truetype.PackEnd(&pack_context)
+// 			break
+// 		}
+// 	}
+// }
+
+// init_glyph_cache :: proc(num_font_sizes: int) {
+//     using global_glyph_cache
+
+//     first_char := 32
+//     last_char := 126
+//     num_glyphs := ((last_char - first_char) + 1) * num_font_sizes
+//     lru.init(&glyphs, num_glyphs)
+//     gl.GenTextures(1, &texture_id)
+// }
+
+// prime_glyph_cache :: proc(font_name: string, font_sizes: []f32) {
+//     font, ok := get_font(font_name)
+//     first_char := 32
+//     last_char := 126
+//     for font_size in font_sizes {
+//         for c in rune(first_char)..=rune(last_char) {
+//             _, ok := get_glyph(font_name, font_size, c, true)
+//             assert(ok)
+//         }
+//     }
+// }

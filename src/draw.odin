@@ -3,33 +3,33 @@ package main
 import gl "vendor:OpenGL"
 import "core:container/small_array"
 
-Font_Spec :: struct {
-	font_id: int,
-	size: f32,
-}
+// Font_Spec :: struct {
+// 	font_name: string,
+// 	size: f32,
+// }
 
-// TODO: stack of Font_Spec (font_id, size - to key the glyph cache from)
-MAX_FONT_STACK_SIZE :: 16
-font_stack := small_array.Small_Array(MAX_FONT_STACK_SIZE, Font_Spec){}
+// TODO: stack of Font_Spec (font_name, size - to key the glyph cache from)
+// MAX_FONT_STACK_SIZE :: 16
+// font_stack := small_array.Small_Array(MAX_FONT_STACK_SIZE, Font_Spec){}
 
-push_font :: proc(font_id: int, size: f32) -> (ok: bool) {
-	ok = small_array.push_back(&font_stack, Font_Spec{font_id, size})
-	assert(ok)
-	return ok
-}
+// push_font_spec :: proc(font_name: string, size: f32) -> (ok: bool) {
+// 	ok = small_array.push_back(&font_stack, Font_Spec{font_name, size})
+// 	assert(ok)
+// 	return ok
+// }
 
-pop_font :: proc() {
-	small_array.pop_back(&font_stack)
-}
+// pop_font_spec :: proc() {
+// 	small_array.pop_back(&font_stack)
+// }
 
-@(deferred_none=pop_font)
-scoped_font :: proc(font_id: int, size: f32) {
-	push_font(font_id, size)
-}
+// @(deferred_none=pop_font_spec)
+// scoped_font_spec :: proc(font_name: string, size: f32) {
+// 	push_font_spec(font_name, size)
+// }
 
-get_font :: proc() -> Font_Spec {
-	return font_stack.data[font_stack.len - 1]
-}
+// get_font_spec :: proc() -> Font_Spec {
+// 	return font_stack.data[font_stack.len - 1]
+// }
 
 Render_Command :: enum {
 	Clear,
@@ -108,6 +108,10 @@ end_drawing :: proc() {
 							gl.BindTexture(gl.TEXTURE_2D, texture.id)
 						}
 
+						if small_array.len(shader_call.textures) == 0 {
+							gl.BindTexture(gl.TEXTURE_2D, 0)
+						}
+
 						gl.BindBuffer(gl.ARRAY_BUFFER, shader.vbo)
 						for &vertex_group in small_array.slice(&shader_call.vertices) {
 							gl.BufferData(gl.ARRAY_BUFFER, size_of(vertex_group.vertices), &vertex_group.vertices, gl.STATIC_DRAW)
@@ -125,23 +129,43 @@ clear_background :: proc(color: Color) {
 	push_render_group(Render_Group{ command = .Clear, data = color })
 }
 
-draw_text :: proc(position: v2, text: string, color: Color) -> (size: v2) {
-	font := get_font()
+draw_text :: proc(font: ^Font, position: v2, text: string, color: Color) -> (size: v2) {
+	group := Render_Group { command = .Draw_With_Shader }
+	shader_call := Textured_Single_Quad_Shader_Call{}
+	shader_call.shader_id = global_quad_shader.shader_id
+	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
+	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
+	push_texture_binding(&shader_call, font.texture_id, 0)
+	push_render_group(group)
+	assert(false)
 	return
 }
 
-draw_rune :: proc(position: v2, c: rune, color: Color) -> (size: v2) {
-	font := get_font()
-	return
-}
-
-measure_text :: proc(text: string) -> (size: v2) {
-	font := get_font()
-	return
-}
-
-measure_rune :: proc(c: rune) -> (size: v2) {
-	font := get_font()
+draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2) {
+	position := position
+	group := Render_Group { command = .Draw_With_Shader, settings = { .Alpha_Blended } }
+	shader_call := Textured_Single_Quad_Shader_Call{}
+	shader_call.shader_id = global_quad_shader.shader_id
+	settings : Shader_Settings = {.Sample_Font_Texture}
+	push_uniform_binding(&shader_call, global_quad_shader.settings, i32(transmute(u8)settings))
+	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
+	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
+	push_texture_binding(&shader_call, font.texture_id, 0)
+	glyph_idx := u32(c) - u32(font.first_character)
+	glyph := font.glyphs[glyph_idx]
+	// The y-position needs to be moved around the baseline
+	glyph_dim := rect_dim(glyph.bounding_box)
+	size = glyph_dim
+	position.y -= glyph.bounding_box.max.y
+	rect := rect_min_dim(position, glyph_dim)
+	// {
+	// 	// debug rect
+	// 	draw_rect_filled(rect, RED)
+	// }
+	vertex_group := textured_quad(rect, 0.0, glyph.tex_rect)
+	push_vertex_group(&shader_call, vertex_group)
+	group.data = shader_call
+	push_render_group(group)
 	return
 }
 
@@ -160,6 +184,7 @@ draw_rect_filled :: proc(rect: rectangle2, color: Color) {
 	group := Render_Group{ command = .Draw_With_Shader }
 	shader_call := Textured_Single_Quad_Shader_Call{}
 	shader_call.shader_id = global_quad_shader.shader_id
+	push_uniform_binding(&shader_call, global_quad_shader.settings, i32(0))
 	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
 	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
 	tex_rect := rect_min_dim(v2{0.0, 0.0}, v2{1.0, 1.0})
