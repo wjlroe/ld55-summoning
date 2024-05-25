@@ -143,6 +143,17 @@ win32_load_opengl :: proc() -> (ok: bool) {
 window_proc :: proc "std" (win32_window: win32.HWND, message: u32, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
 	result : win32.LRESULT = 0
 	switch (message) {
+		// case win32.WM_SETCURSOR: {
+		// 	// low-order word of lParam is hit test against client area etc.
+		// 	// 	point.x = i32(lParam & 0xffff)
+		// 	if (lParam & 0xffff) == win32.HTCLIENT {
+		// 		// win32.SetCursor(nil)
+		// 		win32.ShowCursor(false)
+		// 	} else {
+		// 		win32.ShowCursor(true)
+		// 		// win32.SetCursor()
+		// 	}
+		// }
 		// case win32.WM_CREATE:
 		// 	// FIXME: supported since Windows 11 Build 22000 (how to detect?)
 		// 	pref := dwm_winodw_corner_preference.round_small
@@ -309,7 +320,7 @@ init_window :: proc() -> (ok: bool) {
 		style = win32.CS_HREDRAW | win32.CS_VREDRAW | win32.CS_OWNDC,
 		lpfnWndProc = window_proc,
 		hInstance = instance,
-		hCursor = win32.LoadCursorA(nil, win32.IDC_NO),
+		// hCursor = nil,
 		hbrBackground = nil,
 		lpszClassName = wide_title,
 		lpszMenuName = wide_title,
@@ -326,7 +337,7 @@ init_window :: proc() -> (ok: bool) {
 		right = global_window.width,
 		bottom = global_window.height,
 	}
-	window_style := win32.WS_OVERLAPPEDWINDOW
+	window_style := win32.WS_OVERLAPPEDWINDOW ~ win32.WS_THICKFRAME
 	win32.AdjustWindowRect(&rect, window_style, false)
 	win32_window = win32.CreateWindowExW(
 		0,
@@ -359,7 +370,6 @@ init_window :: proc() -> (ok: bool) {
 
 	gl.load_up_to(3, 3, win32.gl_set_proc_address)
 
-	win32.ShowCursor(false)
 	win32.ShowWindow(win32_window, win32.SW_SHOWNORMAL)
 	win32.UpdateWindow(win32_window)
 	ok = true
