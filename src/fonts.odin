@@ -108,7 +108,7 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
         font.glyphs[idx].tex_rect = rectangle2{v2{tex_x0, tex_y1}, v2{tex_x1, tex_y0}}
 	}
 
-	space_glyph := stbtt.FindGlyphIndex(&font.info, ' ')
+	space_glyph := stbtt.FindGlyphIndex(&font.info, 'X')
 	stbtt.GetGlyphHMetrics(&font.info, space_glyph, &advance, &lsb)
 	stbtt.GetGlyphBitmapBox(&font.info, space_glyph, font.scale, font.scale, &x0, &y0, &x1, &y1)
 	font.space_width = (f32(x1) - f32(x0)) //  * font.font_scale
@@ -124,6 +124,9 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
 }
 
 measure_rune :: proc(font: ^Font, c: rune) -> (size: v2) {
+    if c == ' ' {
+        return v2{font.space_width, font.line_height}
+    }
     glyph_idx := i32(c) - i32(font.first_character)
     return rect_dim(font.glyphs[glyph_idx].bounding_box)
 }

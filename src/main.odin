@@ -131,23 +131,6 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
     under_cursor_color := color_with_alpha(VERY_DARK_BLUE, challenge.alpha)
     cursor_color       := color_with_alpha(AMBER, challenge.alpha)
 
-    // if false {
-    //     debug_origin : rl.Vector2
-    //     debug_dim := rl.Vector2{challenge.dim.x, f32(challenge.font.raylib_font.baseSize)}
-    //     center_horizontally(
-    //         &debug_origin,
-    //         debug_dim,
-    //         game_window.dim,
-    //     )
-    //     center_vertically(
-    //         &debug_origin,
-    //         debug_dim,
-    //         game_window.dim,
-    //     )
-    //     rl.DrawRectangleV(debug_origin, debug_dim, RED)
-    // }
-
-    // scoped_font_spec(challenge.font_name, challenge.font_size)
     position := challenge.origin
 
     for c, i in challenge.word {
@@ -301,105 +284,57 @@ render_menu :: proc() {
 }
 
 render_game :: proc() {
-    // challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
-    // char := rl.GetCharPressed()
-    // for char != 0 {
-    //     level_type_character(&game_window.level_data, char)
-    //     if is_level_done(&game_window.level_data) {
-    //         if game_window.level_data.points < game_window.level_data.num_challenges {
-    //             game_window.game_state = .STATE_LOSE
-    //         } else {
-    //             game_window.game_state = .STATE_WIN
-    //         }
-    //     }
-    //     char = rl.GetCharPressed()
-    // }
-    // update_challenge_alpha(challenge)
-    // center_horizontally(
-    //     &challenge.origin,
-    //     challenge.dim,
-    //     game_window.dim,
-    // )
-    // center_vertically(
-    //     &challenge.origin,
-    //     challenge.dim,
-    //     game_window.dim,
-    // )
+    char := get_char_pressed()
+    for char != 0 {
+        level_type_character(&game_window.level_data, char)
+        if is_level_done(&game_window.level_data) {
+            if game_window.level_data.points < game_window.level_data.num_challenges {
+                game_window.game_state = .STATE_LOSE
+            } else {
+                game_window.game_state = .STATE_WIN
+            }
+        }
+        char = get_char_pressed()
+    }
+    challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
+    update_challenge_alpha(challenge)
+    center_horizontally(
+        &challenge.origin,
+        challenge.dim,
+        game_window.dim,
+    )
+    center_vertically(
+        &challenge.origin,
+        challenge.dim,
+        game_window.dim,
+    )
 
-    // rl.BeginDrawing()
-    // rl.ClearBackground(VERY_DARK_BLUE)
+    begin_drawing()
+    clear_background(VERY_DARK_BLUE)
+    render_challenge(challenge)
+    end_drawing()
+}
 
-    // render_challenge(challenge)
+render_big_text :: proc(text: string) {
+    begin_drawing()
 
-    // rl.EndDrawing()
+    clear_background(VERY_DARK_BLUE)
+
+	text_size := measure_text(&game_window.title_font, text)
+    position := v2{}
+    center_horizontally(&position, text_size, game_window.dim)
+    center_vertically(&position, text_size, game_window.dim)
+    draw_text(&game_window.title_font, position, text, WHITE)
+
+    end_drawing()
 }
 
 render_win :: proc() {
-    // rl.BeginDrawing()
-    // rl.ClearBackground(VERY_DARK_BLUE)
-
-    // text := fmt.ctprintf("%s", win)
-    // text_size := rl.MeasureTextEx(
-    //     game_window.title_font.raylib_font,
-    //     text,
-    //     f32(game_window.title_font.raylib_font.baseSize),
-    //     0.0,
-    // )
-    // position := rl.Vector2{}
-    // center_horizontally(
-    //     &position,
-    //     text_size,
-    //     game_window.dim,
-    // )
-    // center_vertically(
-    //     &position,
-    //     text_size,
-    //     game_window.dim,
-    // )
-    // rl.DrawTextEx(
-    //     game_window.title_font.raylib_font,
-    //     text,
-    //     position,
-    //     f32(game_window.title_font.raylib_font.baseSize),
-    //     0.0,
-    //     WHITE,
-    // )
-
-    // rl.EndDrawing()
+    render_big_text(win)
 }
 
 render_lose :: proc() {
-    // rl.BeginDrawing()
-    // rl.ClearBackground(VERY_DARK_BLUE)
-
-    // text := fmt.ctprintf("%s", lost)
-    // text_size := rl.MeasureTextEx(
-    //     game_window.title_font.raylib_font,
-    //     text,
-    //     f32(game_window.title_font.raylib_font.baseSize),
-    //     0.0,
-    // )
-    // position := rl.Vector2{}
-    // center_horizontally(
-    //     &position,
-    //     text_size,
-    //     game_window.dim,
-    // )
-    // center_vertically(
-    //     &position,
-    //     text_size,
-    //     game_window.dim,
-    // )
-    // rl.DrawTextEx(
-    //     game_window.title_font.raylib_font,
-    //     text,
-    //     position,
-    //     f32(game_window.title_font.raylib_font.baseSize),
-    //     0.0,
-    //     WHITE,
-    // )
-
-    // rl.EndDrawing()
+    render_big_text(lost)
 }
 
 update_and_render :: proc() {

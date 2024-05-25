@@ -102,18 +102,31 @@ clear_background :: proc(color: Color) {
 }
 
 draw_text :: proc(font: ^Font, position: v2, text: string, color: Color) -> (size: v2) {
-	group := Render_Group { command = .Draw_With_Shader }
-	shader_call := Textured_Single_Quad_Shader_Call{}
-	shader_call.shader_id = global_quad_shader.shader_id
-	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
-	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
-	push_texture_binding(&shader_call, font.texture_id, 0)
-	push_render_group(group)
-	assert(false)
-	return
+	position := position
+	// FIXME: pack multiple characters into 1 draw call
+	// group := Render_Group { command = .Draw_With_Shader, settings = {.Alpha_Blended} }
+	// shader_call := Textured_Single_Quad_Shader_Call{}
+	// shader_call.shader_id = global_quad_shader.shader_id
+	// settings : Shader_Settings = {.Sample_Font_Texture}
+	// push_uniform_binding(&shader_call, global_quad_shader.settings, i32(transmute(u8)settings))
+	// push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
+	// push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
+	// push_texture_binding(&shader_call, font.texture_id, 0)
+	// push_render_group(group)
+	total_size := v2{}
+	for c in text {
+		size := draw_rune(font, position, c, color)
+		total_size.x += size.x
+		total_size.y = max(total_size.y, size.y)
+		position.x += size.x
+	}
+	return total_size
 }
 
 draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2) {
+	if c == ' ' {
+		return v2{font.space_width, font.line_height}
+	}
 	position := position
 	group := Render_Group { command = .Draw_With_Shader, settings = { .Alpha_Blended } }
 	shader_call := Textured_Single_Quad_Shader_Call{}
