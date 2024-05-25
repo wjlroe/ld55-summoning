@@ -558,6 +558,14 @@ Window :: struct {
 
 global_window := Window{}
 
+process_input :: proc() {
+    if is_key_down(control_key(.Q)) {
+        // TODO: we may want to prompt about quitting first
+        // TODO: we may want to save game state first
+        global_window.quit = true
+    }
+}
+
 main :: proc() {
 	lowest_level := log.Level.Info
 	when ODIN_DEBUG {
@@ -615,6 +623,8 @@ main :: proc() {
 			log.errorf("temp_allocator.free_all err == {}", err);
         }
 
+        reset_frame_inputs()
+        capture_input()
         process_input()
         update_and_render()
         swap_window()

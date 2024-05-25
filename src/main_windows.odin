@@ -207,7 +207,150 @@ window_proc :: proc "std" (win32_window: win32.HWND, message: u32, wParam: win32
 	return result
 }
 
-process_input :: proc() {
+new_key_press :: proc() -> bool {
+	using keyboard_input_state
+
+	if is_down.has_char && was_down.has_char {
+		return is_down.char != was_down.char
+	} else if is_down.has_char {
+		return true
+	}
+	if is_down.first_keys != was_down.first_keys {
+		return true
+	}
+	if is_down.second_keys != was_down.second_keys {
+		return true
+	}
+	return false
+}
+
+first_min :: 0x01
+first_max :: 0x80
+Win32_First_Keys :: bit_set[first_min..=first_max]
+second_min :: 0x81
+second_max :: 0xfe
+Win32_Second_Keys :: bit_set[second_min..=second_max]
+
+Win32_Key_State :: struct {
+	first_keys: Win32_First_Keys,
+	second_keys: Win32_Second_Keys,
+	char: rune,
+	has_char: bool,
+}
+
+Win32_Keyboard_Input_State :: struct {
+	is_down: Win32_Key_State,
+	was_down: Win32_Key_State,
+}
+
+keyboard_input_state := Win32_Keyboard_Input_State{}
+
+key_as_char :: proc(key: int) -> (char: rune, ok: bool) {
+	if key >= 'A' && key <= 'Z' {
+		char = rune(key + 32) // lower case the character
+		ok = true
+		return
+	}
+
+	return
+}
+
+make_key_down :: proc(key: int) {
+	using keyboard_input_state
+
+	if key >= first_min && key <= first_max {
+		is_down.first_keys += {key}
+	} else if key >= second_min && key <= second_max {
+		is_down.second_keys += {key}
+	} else {
+		log.infof("got key {0:d} (hex: {0:x}) don't know what to do with it", key)
+	}
+}
+
+make_char_down :: proc(char: rune) {
+	using keyboard_input_state
+	is_down.char = char
+	is_down.has_char = true
+}
+
+make_key_up :: proc(key: int) {
+	using keyboard_input_state
+
+	if key >= first_min && key <= first_max {
+		keyboard_input_state.is_down.first_keys -= {key}
+	} else if key >= second_min && key <= second_max {
+		keyboard_input_state.is_down.second_keys -= {key}
+	}
+}
+
+is_key_down :: proc(key: int) -> bool {
+	using keyboard_input_state
+	down := (key in is_down.first_keys) || (key in is_down.second_keys)
+	return down
+}
+
+translate_keyboard_input :: proc() -> (handled: bool) {
+	if !new_key_press() {
+		return
+	}
+
+	// FIXME: why do this like this?
+	// make a keyboard_input then wrap it in Input later!
+	input := Input{}
+	input.data = Keyboard_Input{}
+	keyboard_input := &input.data.(Keyboard_Input)
+
+	if is_key_down(win32.VK_CONTROL) {
+		keyboard_input.mods += {.Control}
+	}
+	if is_key_down(win32.VK_LMENU) {
+		keyboard_input.mods += {.Alt}
+	}
+	if is_key_down(win32.VK_SHIFT) {
+		keyboard_input.mods += {.Shift}
+	}
+
+	if keyboard_input_state.is_down.has_char {
+		keyboard_input.key = keyboard_input_state.is_down.char
+	} else if is_key_down(win32.VK_ESCAPE) {
+		keyboard_input.key = .Escape
+	} else if is_key_down(win32.VK_BACK) {
+		keyboard_input.key = .Backspace
+	} else if is_key_down(win32.VK_RETURN) {
+		keyboard_input.key = .Enter
+	} else if is_key_down(win32.VK_LEFT) {
+		keyboard_input.key = .LeftArrow
+	} else if is_key_down(win32.VK_RIGHT) {
+		keyboard_input.key = .RightArrow
+	} else if is_key_down(win32.VK_UP) {
+		keyboard_input.key = .UpArrow
+	} else if is_key_down(win32.VK_DOWN) {
+		keyboard_input.key = .DownArrow
+	} else if is_key_down(win32.VK_PRIOR) {
+		keyboard_input.key = .PageUp
+	} else if is_key_down(win32.VK_NEXT) {
+		keyboard_input.key = .PageDown
+	} else if is_key_down(win32.VK_HOME) {
+		keyboard_input.key = .Home
+	} else if is_key_down(win32.VK_END) {
+		keyboard_input.key = .End
+	} else if is_key_down(win32.VK_OEM_COMMA) {
+		keyboard_input.key = ','
+	} else if keyboard_input.mods != {} && is_key_down('Q') {
+		keyboard_input.key = .Q
+	} else {
+		return
+	}
+
+	keyboard_input.is_down = true
+
+	push_input(input)
+	handled = true
+	return
+}
+
+@(private)
+capture_input :: proc() {
 	message: win32.MSG
 
 	for (cast(u64)win32.PeekMessageA(&message, nil, 0, 0, win32.PM_REMOVE) != 0) {
@@ -215,20 +358,26 @@ process_input :: proc() {
 			case win32.WM_QUIT: {
 				global_window.quit = true
 			}
-			// case win32.WM_KEYDOWN: {
-			// 	make_key_down(int(message.wParam))
-			// 	win32_translate_keyboard_input()
-			// }
-			// case win32.WM_KEYUP: {
-			// 	make_key_up(int(message.wParam))
-			// }
-			// case win32.WM_CHAR: {
-			// 	// wParam is UTF-16 codepoint
-			// 	make_char_down(rune(message.wParam))
-			// 	win32_translate_keyboard_input()
-			// 	// FIXME: is this right?
-			// 	make_char_up(rune(message.wParam))
-			// }
+			case win32.WM_KEYDOWN: {
+				make_key_down(int(message.wParam))
+				handled := translate_keyboard_input()
+				if !handled {
+					win32.TranslateMessage(&message)
+					win32.DispatchMessageW(&message)
+				}
+			}
+			case win32.WM_KEYUP: {
+				make_key_up(int(message.wParam))
+				translate_keyboard_input()
+				// Dunno about this
+				// win32.TranslateMessage(&message)
+				// win32.DispatchMessageW(&message)
+			}
+			case win32.WM_CHAR: {
+				// wParam is UTF-16 codepoint
+				make_char_down(rune(message.wParam))
+				translate_keyboard_input()
+			}
 			// case win32.WM_LBUTTONDOWN: {
 			// 	point : win32.POINT
 			// 	point.x = i32(message.lParam & 0xffff)
@@ -390,4 +539,9 @@ update_window_dim :: proc() {
 @(private)
 swap_window :: proc() {
 	win32.SwapBuffers(win32_dc)
+
+	keyboard_input_state.was_down = keyboard_input_state.is_down
+	// keyboard_input_state.is_down.first_keys = {}
+	// keyboard_input_state.is_down.second_keys = {}
+	keyboard_input_state.is_down.has_char = false
 }
