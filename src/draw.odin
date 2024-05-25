@@ -3,34 +3,6 @@ package main
 import gl "vendor:OpenGL"
 import "core:container/small_array"
 
-// Font_Spec :: struct {
-// 	font_name: string,
-// 	size: f32,
-// }
-
-// TODO: stack of Font_Spec (font_name, size - to key the glyph cache from)
-// MAX_FONT_STACK_SIZE :: 16
-// font_stack := small_array.Small_Array(MAX_FONT_STACK_SIZE, Font_Spec){}
-
-// push_font_spec :: proc(font_name: string, size: f32) -> (ok: bool) {
-// 	ok = small_array.push_back(&font_stack, Font_Spec{font_name, size})
-// 	assert(ok)
-// 	return ok
-// }
-
-// pop_font_spec :: proc() {
-// 	small_array.pop_back(&font_stack)
-// }
-
-// @(deferred_none=pop_font_spec)
-// scoped_font_spec :: proc(font_name: string, size: f32) {
-// 	push_font_spec(font_name, size)
-// }
-
-// get_font_spec :: proc() -> Font_Spec {
-// 	return font_stack.data[font_stack.len - 1]
-// }
-
 Render_Command :: enum {
 	Clear,
 	Draw_With_Shader,
@@ -153,15 +125,10 @@ draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2
 	push_texture_binding(&shader_call, font.texture_id, 0)
 	glyph_idx := u32(c) - u32(font.first_character)
 	glyph := font.glyphs[glyph_idx]
-	// The y-position needs to be moved around the baseline
 	glyph_dim := rect_dim(glyph.bounding_box)
 	size = glyph_dim
 	position.y -= glyph.bounding_box.max.y
 	rect := rect_min_dim(position, glyph_dim)
-	// {
-	// 	// debug rect
-	// 	draw_rect_filled(rect, RED)
-	// }
 	vertex_group := textured_quad(rect, 0.0, glyph.tex_rect)
 	push_vertex_group(&shader_call, vertex_group)
 	group.data = shader_call

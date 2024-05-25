@@ -10,7 +10,6 @@ import "core:os"
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
 
 // Google Fonts
-im_fell_font_name := "IM_Fell_English/IMFellEnglish-Regular.ttf"
 im_fell_font := #load("../assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf")
 // Dafont version
 im_fell_dafont_font := #load("../assets/fonts/im_fell_roman.ttf")
@@ -512,11 +511,6 @@ update_and_render :: proc() {
 init_game :: proc() -> bool {
     update_window_dim()
     update_ortho_matrix()
-
-    // init_fonts()
-    // font_sizes := []f32{120.0, 48.0, 38.0}
-    // init_glyph_cache(len(font_sizes))
-    // prime_glyph_cache(im_fell_font_name, font_sizes)
 
     if !init_font(&game_window.title_font, im_fell_font, 120.0) {
         log.error("Failed to init the title font!")
