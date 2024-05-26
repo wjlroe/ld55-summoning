@@ -135,7 +135,7 @@ draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2
 	push_uniform_binding(&shader_call, global_quad_shader.settings, i32(transmute(u8)settings))
 	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
 	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
-	push_texture_binding(&shader_call, font.texture_id, 0)
+	push_texture_binding(&shader_call, font.texture.id, 0)
 	glyph_idx := u32(c) - u32(font.first_character)
 	glyph := font.glyphs[glyph_idx]
 	glyph_dim := rect_dim(glyph.bounding_box)

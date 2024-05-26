@@ -30,8 +30,7 @@ Font :: struct {
     last_character: rune,
     num_of_characters: int,
     glyphs: []Glyph,
-    texture_dim: v2s,
-    texture_id: u32,
+    texture: Texture,
 }
 
 init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
@@ -64,19 +63,19 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
     packed_chars := cast([^]stbtt.packedchar)memory
 	defer mem.free(packed_chars)
 	pack_context : stbtt.pack_context
-	font.texture_dim = v2s{512, 512}
-	tex_buffer := make([^]u8, font.texture_dim.x * font.texture_dim.y)
+	font.texture.dim = v2s{512, 512}
+	tex_buffer := make([^]u8, font.texture.dim.x * font.texture.dim.y)
     defer free(tex_buffer)
 	for {
-		if (stbtt.PackBegin(&pack_context, tex_buffer, font.texture_dim.x, font.texture_dim.y, 0, 1, nil) == 0) {
+		if (stbtt.PackBegin(&pack_context, tex_buffer, font.texture.dim.x, font.texture.dim.y, 0, 1, nil) == 0) {
 			log.error("Failed to PackBegin!")
 			return
 		}
 		if (stbtt.PackFontRange(&pack_context, &font_mem[0], font.font_index, font.size, i32(font.first_character), i32(font.num_of_characters), &packed_chars[0]) == 0) {
-			old_size := int(font.texture_dim.x * font.texture_dim.y)
-			font.texture_dim.x *= 2
-            font.texture_dim.y *= 2
-			new_size := int(font.texture_dim.x * font.texture_dim.y)
+			old_size := int(font.texture.dim.x * font.texture.dim.y)
+			font.texture.dim.x *= 2
+            font.texture.dim.y *= 2
+			new_size := int(font.texture.dim.x * font.texture.dim.y)
             new_mem, resize_err := mem.resize(tex_buffer, old_size, new_size)
             if resize_err != nil {
                 log.errorf("couldn't resize memory for font texture: {}", resize_err)
@@ -100,10 +99,10 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
         font.glyphs[idx].bounding_box = rect_ints_to_floats(rect_from_points_i32(x0, y0, x1, y1))
 		font.glyphs[idx].advance = f32(advance) * font.scale
 		font.glyphs[idx].lsb = f32(lsb) * font.scale
-		tex_x0 := f32(packed_char.x0) / f32(font.texture_dim.x)
-		tex_x1 := f32(packed_char.x1) / f32(font.texture_dim.x)
-		tex_y0 := f32(packed_char.y0) / f32(font.texture_dim.y)
-		tex_y1 := f32(packed_char.y1) / f32(font.texture_dim.y)
+		tex_x0 := f32(packed_char.x0) / f32(font.texture.dim.x)
+		tex_x1 := f32(packed_char.x1) / f32(font.texture.dim.x)
+		tex_y0 := f32(packed_char.y0) / f32(font.texture.dim.y)
+		tex_y1 := f32(packed_char.y1) / f32(font.texture.dim.y)
         font.glyphs[idx].tex_rect = rectangle2{v2{tex_x0, tex_y1}, v2{tex_x1, tex_y0}}
 	}
 
@@ -112,11 +111,7 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
 	stbtt.GetGlyphBitmapBox(&font.info, space_glyph, font.scale, font.scale, &x0, &y0, &x1, &y1)
 	font.space_width = (f32(x1) - f32(x0)) //  * font.font_scale
 
-    gl.GenTextures(1, &font.texture_id)
-	gl.BindTexture(gl.TEXTURE_2D, font.texture_id)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RED, font.texture_dim.x, font.texture_dim.y, 0, gl.RED, gl.UNSIGNED_BYTE, tex_buffer)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
-    gl.BindTexture(gl.TEXTURE_2D, 0)
+    init_texture(&font.texture, .Red, tex_buffer)
 
     ok = true
     return
