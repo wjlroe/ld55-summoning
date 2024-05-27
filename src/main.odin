@@ -135,8 +135,16 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
     under_cursor_color := color_with_alpha(VERY_DARK_BLUE, challenge.alpha)
     cursor_color       := color_with_alpha(AMBER, challenge.alpha)
 
+    {
+        debug_msg := "top of screen"
+        text_size := measure_text(&game_window.challenge_font, debug_msg)
+
+        position := v2{0.0, text_size.y}
+        center_horizontally(&position, text_size, game_window.dim)
+        draw_text(&game_window.challenge_font, position, debug_msg, RED)
+    }
+
     position := challenge.origin
-    position.y -= 200.0 // FIXME: for testing where y=0 is - top of screen or not?!?!
 
     for c, i in challenge.word {
         text_color := neutral_color
