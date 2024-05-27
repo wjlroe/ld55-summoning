@@ -12,14 +12,26 @@ VERY_DARK_BLUE := color_from_rgba(4, 8, 13, 255)
 GREEN          := color_from_rgba(10, 255, 10, 255)
 AMBER          := color_from_rgba(255, 191, 0, 255)
 
-// float_to_int_color :: proc(color: Color) -> v4s {
-// 	return v4s{
-// 		int(math.round(color.r * 255.0)),
-// 		int(math.round(color.g * 255.0)),
-// 		int(math.round(color.b * 255.0)),
-// 		int(math.round(color.a * 255.0)),
-// 	}
-// }
+float_to_int_color :: proc(color: Color) -> v4s {
+	return v4s{
+		i32(math.round(color.r * 255.0)),
+		i32(math.round(color.g * 255.0)),
+		i32(math.round(color.b * 255.0)),
+		i32(math.round(color.a * 255.0)),
+	}
+}
+
+Color_U32 :: bit_field u32 {
+	r: u8 | 8,
+	g: u8 | 8,
+	b: u8 | 8,
+	a: u8 | 8,
+}
+
+color_as_u32 :: proc(color: Color) -> u32 {
+	ints := float_to_int_color(color)
+	return u32(Color_U32{r=u8(ints.r), g=u8(ints.g), b=u8(ints.b), a=u8(ints.a)})
+}
 
 hex_to_float :: proc(hex: string) -> f32 {
 	n, ok := strconv.parse_u64_of_base(hex, 16)

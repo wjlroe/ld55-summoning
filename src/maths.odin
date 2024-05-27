@@ -147,12 +147,19 @@ rect_dim_ints :: proc "contextless" (rect: rectangle2s) -> v2s {
 	}
 }
 
-rect_centre :: proc{rect_centre_floats}
+rect_centre :: proc{rect_centre_floats, rect_centre_ints}
 
 rect_centre_floats :: proc "contextless" (rect: rectangle2) -> v2 {
 	return v2{
 		(rect.max.x + rect.min.x) / 2.0,
 		(rect.max.y + rect.min.y) / 2.0,
+	}
+}
+
+rect_centre_ints :: proc "contextless" (rect: rectangle2s) -> v2s {
+	return v2s{
+		(rect.min.x + rect.max.x) / 2,
+		(rect.min.y + rect.max.y) / 2,
 	}
 }
 

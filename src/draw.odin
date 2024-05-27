@@ -149,6 +149,25 @@ draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2
 	return
 }
 
+draw_texture :: proc(texture: ^Texture, rect: rectangle2, color: Color) {
+	group := Render_Group { command = .Draw_With_Shader, settings = { .Alpha_Blended } }
+
+	shader_call := Textured_Single_Quad_Shader_Call{}
+	shader_call.shader_id = global_quad_shader.shader_id
+	settings : Shader_Settings = {.Sample_Font_Texture}
+	push_uniform_binding(&shader_call, global_quad_shader.settings, i32(transmute(u8)settings))
+	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
+	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
+	push_texture_binding(&shader_call, texture.id, 0)
+
+	tex_rect := rect_min_dim(v2{0.0, 0.0}, v2{1.0, 1.0})
+	vertex_group := textured_quad(rect, 0.0, tex_rect)
+	push_vertex_group(&shader_call, vertex_group)
+	group.data = shader_call
+
+	push_render_group(group)
+}
+
 textured_quad :: proc(pos: rectangle2, z: f32, tex: rectangle2) -> Textured_Quad {
 	return Textured_Quad{
 		vertices = [?]Textured_Vertex{

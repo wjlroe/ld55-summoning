@@ -1,8 +1,12 @@
 package main
 
+import "core:fmt"
 import "core:math/linalg"
 import "core:log"
+import "core:math"
 import "core:os"
+import "core:unicode"
+import stbtt "vendor:stb/truetype"
 
 // TODO:
 // * Remove raylib (i.e. straight Odin port of the C code, without without SDL)
@@ -78,7 +82,7 @@ Type_Challenge :: struct {
     position: u32,
     alpha: f32,
     alpha_animation: Animation,
-    // demonic_sign: rl.RenderTexture2D,
+    demonic_sign: Texture,
 }
 
 setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
@@ -87,7 +91,7 @@ setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, f
     challenge.typed_correctly = make([]bool, len(word))
     challenge.dim = measure_text(challenge.font, challenge.word)
     challenge.alpha_animation = start_animation(fade_time)
-    // render_demonic_sign(&challenge.demonic_sign, word)
+    render_demonic_sign(&challenge.demonic_sign, word)
 }
 
 is_challenge_done :: proc(challenge: ^Type_Challenge) -> bool {
@@ -132,6 +136,7 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
     cursor_color       := color_with_alpha(AMBER, challenge.alpha)
 
     position := challenge.origin
+    position.y -= 200.0 // FIXME: for testing where y=0 is - top of screen or not?!?!
 
     for c, i in challenge.word {
         text_color := neutral_color
@@ -154,19 +159,12 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
         position.x += character_size.x
     }
 
-    // texture_color := color_with_alpha(WHITE, challenge.alpha)
-    // demonic_dim := rl.Vector2{256, 256}
-    // demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256 - 10}
-    // center_horizontally(
-    //     &demonic_pos,
-    //     demonic_dim,
-    //     game_window.dim,
-    // )
-    // source_rect := rl.Rectangle{0, 0, 256, -256}
-    // dest_rect   := rl.Rectangle{demonic_pos.x, demonic_pos.y, demonic_dim.x, demonic_dim.y}
-    // origin      := rl.Vector2{0, 0}
-    // rotation    : f32 = 0.0
-    // rl.DrawTexturePro(challenge.demonic_sign.texture, source_rect, dest_rect, origin, rotation, texture_color)
+    demonic_pos := v2{0.0, game_window.dim.y - 256.0 - 10.0}
+    demonic_dim := vec_ints_to_floats(challenge.demonic_sign.dim)
+    center_horizontally(&demonic_pos, demonic_dim, game_window.dim)
+    texture_color := color_with_alpha(GREEN, challenge.alpha)
+    rect := rect_min_dim(demonic_pos, demonic_dim)
+    draw_texture(&challenge.demonic_sign, rect, texture_color)
 }
 
 MAX_NUM_CHALLENGES :: 8
@@ -237,8 +235,8 @@ Game_Window :: struct {
 game_window := Game_Window{}
 
 update_ortho_matrix :: proc() {
-    min := v3{0.0, 0.0, -1.0}
-    max := v3{game_window.dim.x, game_window.dim.y, 1.0}
+    min := v3{0.0, game_window.dim.y, -1.0}
+    max := v3{game_window.dim.x, 0.0, 1.0}
     game_window.ortho_matrix = ortho_matrix(min, max)
 }
 
@@ -349,98 +347,237 @@ update_and_render :: proc() {
 // LAST_GLYPH  :: 127
 // NUM_GLYPHS  :: LAST_GLYPH - FIRST_GLYPH
 
-// render_demonic_sign :: proc(texture: ^rl.RenderTexture2D, word: string) {
-//     using math
-//     width   : f32 = 256.0
-//     height  : f32 = 256.0
-//     area_cx : f32 = width / 2.0
-//     area_cy : f32 = height / 2.0
-//     area_center := rl.Vector2{area_cx, area_cy}
-//     texture^ = rl.LoadRenderTexture(i32(width), i32(height))
+// #define SWAP(x, y, T) do { T SWAP = x; x = y; y = SWAP; } while (0)
+swap :: #force_inline proc($T: typeid, a, b: ^T) {
+    tmp := a
+    a^ = b^
+    b^ = tmp^
+}
 
-//     rl.BeginTextureMode(texture^)
+ipart :: #force_inline proc(x: f32) -> i32 {
+	return i32(math.floor(x))
+}
 
-//     rl.DrawCircleLinesV(area_center, 127.0, GREEN)
-//     inner_radius : f32 = 95.0
-//     rl.DrawCircleLinesV(area_center, inner_radius, GREEN)
+fpart :: #force_inline proc(x: f32) -> f32 {
+	return x - f32(ipart(x))
+}
 
-//     single_char := [2]u8{}
-//     first_char := unicode.to_upper(rune(word[0]))
-//     single_char[0] = u8(first_char)
-//     glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
-//     pos := rl.Vector2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0}
-//     rl.DrawTextEx(
-//         game_window.demonic_font.raylib_font,
-//         cstring(&single_char[0]),
-//         pos,
-//         f32(game_window.demonic_font.raylib_font.baseSize),
-//         0.0,
-//         GREEN
-//     )
-// 	angle_deg := 360.0 / f32(len(word))
-// 	theta     := angle_deg * (PI / 180.0)
+rfpart :: #force_inline proc(x: f32) -> f32 {
+	return 1.0 - fpart(x)
+}
 
-//     char_cx : f32 = pos.x + glyph_size.x/ 2.0 // center of the space in width
-//     char_cy : f32 = pos.y + glyph_size.y / 2.0
-//     input_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
-//     input_points[0].x = char_cx
-//     input_points[0].y = area_cy - inner_radius
+// This is from https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
+draw_line :: proc(pixels: []u8, row_size: i32, x0, y0, x1, y1: f32) {
+    x0 := x0
+    y0 := y0
+    x1 := x1
+    y1 := y1
+	steep := abs(y1 - y0) > abs(x1 - x0)
 
-//     for i in 1..<len(word) {
-//         new_cx := cos(theta) * (char_cx - area_cx) - sin(theta) * (char_cy - area_cy) + area_cx
-//         new_cy := sin(theta) * (char_cx - area_cx) + cos(theta) * (char_cy - area_cy) + area_cy
-//         char_cx = new_cx
-//         char_cy = new_cy
+	if (steep) {
+		swap(f32, &x0, &y0)
+		swap(f32, &x1, &y1)
+	}
+	if (x0 > x1) {
+		swap(f32, &x0, &x1)
+		swap(f32, &y0, &y1)
+	}
 
-//         single_char[0] = word[i]
-//         glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
-//         pos.x = char_cx - (glyph_size.x / 2.0)
-//         pos.y = char_cy - (glyph_size.y / 2.0)
-//         rl.DrawTextEx(
-//             game_window.demonic_font.raylib_font,
-//             cstring(&single_char[0]),
-//             pos,
-//             f32(game_window.demonic_font.raylib_font.baseSize),
-//             0.0,
-//             GREEN
-//         )
+	dx := x1 - x0
+	dy := y1 - y0
 
-//         vx := char_cx - area_cx
-//         vy := char_cy - area_cy
-//         magnitude := sqrt(vx*vx + vy*vy)
-//         vx /= magnitude
-//         vy /= magnitude
-//         input_points[i].x = area_cx + vx * inner_radius
-//         input_points[i].y = area_cy + vy * inner_radius
-//     }
-//     input_points[len(word)] = input_points[0]
+	gradient : f32
+	if dx == 0.0 {
+		gradient = 1.0
+	} else {
+		gradient = dy / dx
+	}
 
-//     output_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
-//     input_i := 0
-//     half_word := len(word) / 2
-//     even_word_length := false
-//     if len(word) % 2 == 0 {
-//         half_word -= 1
-//         even_word_length = true
-//     }
-//     for i in 0..<len(word) {
-//         output_points[i] = input_points[input_i]
-//         input_i = (input_i + half_word) % len(word)
-//     }
-//     output_points[len(word)] = input_points[0]
+	xend := math.round(x0)
+	yend := y0 + gradient * (xend - x0)
+	xgap := rfpart(x0 + 0.5)
+	xpxl1 : i32 = i32(xend)
+	ypxl1 : i32 = ipart(yend)
+	if steep {
+		pixels[row_size * xpxl1     + ypxl1]     = 255
+		pixels[row_size * xpxl1     + (ypxl1+1)] = 255
+	} else {
+		pixels[row_size * ypxl1     + xpxl1]     = 255
+		pixels[row_size * (ypxl1+1) + xpxl1]     = 255
+	}
+	intery := yend + gradient
 
-//     for i in 0..<len(word) {
-//         p0 := output_points[i]
-//         p1 := output_points[i+1]
-//         if p0.x < p1.x {
-//             rl.DrawLineV(p0, p1, GREEN)
-//         } else {
-//             rl.DrawLineV(p1, p0, GREEN)
-//         }
-//     }
+	xend = math.round(x1)
+	yend = y1 + gradient * (xend - x1)
+	xgap = fpart(x1 + 0.5)
+	xpxl2 : i32 = i32(xend)
+	ypxl2 : i32 = ipart(yend)
+	if steep {
+		pixels[row_size * xpxl2     + ypxl2]     = 255
+		pixels[row_size * xpxl2     + (ypxl2+1)] = 255
+	} else {
+		pixels[row_size * ypxl2     + xpxl2]     = 255
+		pixels[row_size * (ypxl2+1) + xpxl2]     = 255
+	}
 
-//     rl.EndTextureMode()
-// }
+	if steep {
+        for x in (xpxl1 + 1)..<(xpxl2 - 1) {
+			pixels[row_size * x + ipart(intery)]     = 255
+			pixels[row_size * x + (ipart(intery)+1)] = 255
+			intery += gradient
+		}
+	} else {
+        for x in (xpxl1 + 1)..<(xpxl2 - 1) {
+			pixels[row_size * ipart(intery)     + x] = 255
+			pixels[row_size * (ipart(intery)+1) + x] = 255
+			intery += gradient
+		}
+	}
+}
+
+// This is from https://www.computerenhance.com/p/efficient-dda-circle-outlines
+draw_circle :: proc(pixels: []u8, row_size: i32, radius: i32) {
+	Cx : i32 = 256 / 2
+	Cy : i32 = 256 / 2
+	R  : i32 = radius
+	{
+		R2 : i32 = R+R
+
+		X  := R
+		Y  : i32 = 0
+		dY : i32 = -2
+		dX : i32 = R2+R2 - 4
+		D  : i32 = R2 - 1
+
+		for (Y <= X) {
+			pixels[row_size * (Cy - Y) + (Cx - X)] = 255
+			pixels[row_size * (Cy - Y) + (Cx + X)] = 255
+			pixels[row_size * (Cy + Y) + (Cx - X)] = 255
+			pixels[row_size * (Cy + Y) + (Cx + X)] = 255
+			pixels[row_size * (Cy - X) + (Cx - Y)] = 255
+			pixels[row_size * (Cy - X) + (Cx + Y)] = 255
+			pixels[row_size * (Cy + X) + (Cx - Y)] = 255
+			pixels[row_size * (Cy + X) + (Cx + Y)] = 255
+
+			D += dY
+			dY -= 4
+			Y += 1
+
+			Mask := (D >> 31)
+			D += dX & Mask
+			dX -= 4 & Mask
+			X += Mask
+		}
+	}
+}
+
+render_demonic_sign :: proc(texture: ^Texture, word: string) {
+    using math
+
+	font := &game_window.demonic_font
+    info := &font.info
+
+    texture.dim = v2s{256, 256}
+    // Single channel memory since we're drawing just alpha channel values
+    memory := make([]u8, texture.dim.x * texture.dim.y)
+    defer delete(memory)
+
+    area_center := rect_centre(rect_min_dim(v2s{}, texture.dim))
+
+    draw_circle(memory, texture.dim.x, 127)
+    inner_radius : i32 = 95
+    draw_circle(memory, texture.dim.x, inner_radius)
+
+    codepoint := unicode.to_upper(rune(word[0]))
+    // glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
+    glyph_size := measure_rune(font, codepoint)
+    pos := vec_floats_to_ints(v2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0})
+    pos_idx := pos.y * texture.dim.x + pos.x
+
+    // STBTT_DEF void stbtt_MakeCodepointBitmap(const stbtt_fontinfo *info, unsigned char *output, int out_w, int out_h, int out_stride, float scale_x, float scale_y, int codepoint);
+    before := memory[pos_idx]
+    stbtt.MakeCodepointBitmap(info, &memory[pos_idx], i32(math.round(glyph_size.x)), i32(math.round(glyph_size.y)), texture.dim.x, font.scale, font.scale, codepoint)
+    after := memory[pos_idx]
+    fmt.printf("before: %d, after: %d\n", before, after)
+    // rl.DrawTextEx(
+    //     game_window.demonic_font.raylib_font,
+    //     cstring(&single_char[0]),
+    //     pos,
+    //     f32(game_window.demonic_font.raylib_font.baseSize),
+    //     0.0,
+    //     GREEN
+    // )
+	angle_deg := 360.0 / f32(len(word))
+	theta     := angle_deg * (PI / 180.0)
+
+    char_cx := f32(pos.x) + glyph_size.x / 2.0 // center of the space in width
+    char_cy := f32(pos.y) + glyph_size.y / 2.0
+    area_cx := f32(area_center.x)
+    area_cy := f32(area_center.y)
+    input_points := make([]v2, len(word)+1, context.temp_allocator)
+    input_points[0].x = char_cx
+    input_points[0].y = area_cy - f32(inner_radius)
+
+    for i in 1..<len(word) {
+        new_cx := cos(theta) * (char_cx - area_cx) - sin(theta) * (char_cy - area_cy) + area_cx
+        new_cy := sin(theta) * (char_cx - area_cx) + cos(theta) * (char_cy - area_cy) + area_cy
+        char_cx = new_cx
+        char_cy = new_cy
+
+        codepoint := rune(word[i])
+        // glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
+        glyph_size = measure_rune(font, codepoint)
+        pos = vec_floats_to_ints(v2{
+            char_cx - (glyph_size.x / 2.0),
+            char_cy - (glyph_size.y / 2.0),
+        })
+        pos_idx = pos.y * texture.dim.y + pos.x
+        stbtt.MakeCodepointBitmap(info, &memory[pos_idx], i32(math.round(glyph_size.x)), i32(math.round(glyph_size.y)), texture.dim.x, font.scale, font.scale, codepoint)
+        // rl.DrawTextEx(
+        //     game_window.demonic_font.raylib_font,
+        //     cstring(&single_char[0]),
+        //     pos,
+        //     f32(game_window.demonic_font.raylib_font.baseSize),
+        //     0.0,
+        //     GREEN
+        // )
+
+        vx := char_cx - area_cx
+        vy := char_cy - area_cy
+        magnitude := sqrt(vx*vx + vy*vy)
+        vx /= magnitude
+        vy /= magnitude
+        input_points[i].x = area_cx + vx * f32(inner_radius)
+        input_points[i].y = area_cy + vy * f32(inner_radius)
+    }
+    input_points[len(word)] = input_points[0]
+
+    output_points := make([]v2, len(word)+1, context.temp_allocator)
+    input_i := 0
+    half_word := len(word) / 2
+    even_word_length := false
+    if len(word) % 2 == 0 {
+        half_word -= 1
+        even_word_length = true
+    }
+    for i in 0..<len(word) {
+        output_points[i] = input_points[input_i]
+        input_i = (input_i + half_word) % len(word)
+    }
+    output_points[len(word)] = input_points[0]
+
+    for i in 0..<len(word) {
+        p0 := output_points[i]
+        p1 := output_points[i+1]
+        if p0.x < p1.x {
+            draw_line(memory, texture.dim.x, p0.x, p0.y, p1.x, p1.y)
+        } else {
+            draw_line(memory, texture.dim.x, p1.x, p1.y, p0.x, p0.y)
+        }
+    }
+
+    init_texture(texture, .Red, raw_data(memory))
+}
 
 init_game :: proc() -> bool {
     update_window_dim()
@@ -462,8 +599,10 @@ init_game :: proc() -> bool {
         log.error("Failed to init the demonic font!")
         return false
     }
+
     setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
     game_window.level_data.font = &game_window.challenge_font
+
     return true
 }
 

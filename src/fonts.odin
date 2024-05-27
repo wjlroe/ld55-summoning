@@ -103,7 +103,7 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
 		tex_x1 := f32(packed_char.x1) / f32(font.texture.dim.x)
 		tex_y0 := f32(packed_char.y0) / f32(font.texture.dim.y)
 		tex_y1 := f32(packed_char.y1) / f32(font.texture.dim.y)
-        font.glyphs[idx].tex_rect = rectangle2{v2{tex_x0, tex_y1}, v2{tex_x1, tex_y0}}
+        font.glyphs[idx].tex_rect = rectangle2{v2{tex_x0, tex_y0}, v2{tex_x1, tex_y1}}
 	}
 
 	space_glyph := stbtt.FindGlyphIndex(&font.info, 'X')
