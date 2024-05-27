@@ -25,6 +25,7 @@ Font :: struct {
     line_gap: f32,
     line_height: f32,
     row_height: f32,
+    bounding_box: rectangle2,
     space_width: f32,
     first_character: rune,
     last_character: rune,
@@ -54,6 +55,10 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
 	font.line_gap = font.scale * f32(line_gap)
 	font.line_height = font.ascent - font.descent
 	font.row_height = font.line_height + font.line_gap
+
+	x0, y0, x1, y1, advance, lsb : i32
+    stbtt.GetFontBoundingBox(&font.info, &x0, &y0, &x1, &y1)
+    font.bounding_box = rect_ints_to_floats(rect_from_points_i32(x0, y0, x1, y1))
 
 	memory, err := mem.alloc((font.num_of_characters) * size_of(stbtt.packedchar))
     if err != nil {
@@ -88,7 +93,6 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
 		}
 	}
 
-	x0, y0, x1, y1, advance, lsb : i32
 	font.glyphs = make([]Glyph, font.num_of_characters)
 	for character in font.first_character..=font.last_character {
         glyph_idx := stbtt.FindGlyphIndex(&font.info, character)

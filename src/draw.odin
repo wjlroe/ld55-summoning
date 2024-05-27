@@ -140,7 +140,8 @@ draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2
 	glyph := font.glyphs[glyph_idx]
 	glyph_dim := rect_dim(glyph.bounding_box)
 	size = glyph_dim
-	position.y -= glyph.bounding_box.max.y
+	size.x = glyph.advance
+	// position.y += glyph.bounding_box.max.y
 	rect := rect_min_dim(position, glyph_dim)
 	vertex_group := textured_quad(rect, 0.0, glyph.tex_rect)
 	push_vertex_group(&shader_call, vertex_group)
