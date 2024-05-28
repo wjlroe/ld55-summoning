@@ -275,16 +275,14 @@ Game_Window :: struct {
     title_challenge: Type_Challenge,
     level_data: Level_Data,
 
-    im_fell_id: int,
     title_font: Font,
-    dafont_title_font: Font,
     challenge_font: Font,
     demonic_font: Font,
 
     dt: f32,
-    frame_number: u64,
     dim: rl.Vector2,
-    ortho_matrix: matrix[4,4]f32,
+
+    quit: bool,
 }
 
 @(require)
@@ -490,21 +488,12 @@ init_game :: proc() -> bool {
     return true
 }
 
-Window :: struct {
-    width: i32,
-    height: i32,
-    title: string,
-    quit: bool,
-}
-
-global_window := Window{}
-
 process_input :: proc() {
     if rl.IsKeyDown(rl.KeyboardKey.LEFT_CONTROL) && rl.IsKeyDown(rl.KeyboardKey.Q) {
-        global_window.quit = true
+        game_window.quit = true
     }
     if rl.WindowShouldClose() {
-        global_window.quit = true
+        game_window.quit = true
     }
 }
 
@@ -520,12 +509,7 @@ main :: proc() {
 	}
 	context.logger = log.create_console_logger(lowest = lowest_level)
 
-    global_window.width = DEFAULT_WINDOW_WIDTH
-    global_window.height = DEFAULT_WINDOW_HEIGHT
-    global_window.title = "Ludum Dare 55: Summoning"
-
-    title_c := strings.clone_to_cstring(global_window.title, context.temp_allocator)
-    rl.InitWindow(global_window.width, global_window.height, title_c)
+    rl.InitWindow(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT,  "Ludum Dare 55: Summoning")
     rl.SetExitKey(rl.KeyboardKey.KEY_NULL)
 
     if !init_game() {
@@ -534,7 +518,7 @@ main :: proc() {
 
     log.infof("going to start the render loop")
 
-    for !global_window.quit {
+    for !game_window.quit {
 		if err := free_all(context.temp_allocator); err != .None {
 			log.errorf("temp_allocator.free_all err == {}", err);
         }
