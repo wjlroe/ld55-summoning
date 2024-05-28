@@ -38,9 +38,6 @@ fi
 
 odin="${odin_cmd:-/opt/odin/dev-master/odin}"
 
-odin_dir="$(dirname ${odin})"
-cp -r "${odin_dir}/vendor/raylib/linux" ./
-
 echo "Debug build"
 if [ "${build_debug}" = "yes" ]; then
 	"${odin}" build src \
@@ -60,12 +57,13 @@ if [ "${build_release}" = "yes" ]; then
 		-o:speed \
 		-disable-assert \
 		-show-timings
+
+    echo "What dlls does the release build link to:"
+    if [ "${host_os}" = "Darwin" ]; then
+    	otool -L ./build/summoning
+    else
+    	ldd ./build/summoning
+    fi
 fi
 
-# We're not building release mode as it doesn't work yet
-# if [ "${host_os}" = "Darwin" ]; then
-# 	otool -L ./build/summoning
-# else
-# 	ldd ./build/summoning
-# fi
 
