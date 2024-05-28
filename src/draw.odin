@@ -113,20 +113,20 @@ draw_text :: proc(font: ^Font, position: v2, text: string, color: Color) -> (siz
 	// push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
 	// push_texture_binding(&shader_call, font.texture_id, 0)
 	// push_render_group(group)
-	total_size := v2{}
+	total_size := v2{0.0, font.font_height}
 	for c in text {
-		size := draw_rune(font, position, c, color)
-		total_size.x += size.x
-		total_size.y = max(total_size.y, size.y)
-		position.x += size.x
+		size, glyph := draw_rune(font, position, c, color)
+		total_size.x += glyph.advance
+		// total_size.y = max(total_size.y, size.y)
+		position.x += glyph.advance
 	}
 	return total_size
 }
 
-draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2) {
-	if c == ' ' {
-		return v2{font.space_width, font.line_height}
-	}
+draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2, glyph: Glyph) {
+	// if c == ' ' {
+	// 	return v2{font.space_width, font.line_height}
+	// }
 	position := position
 	group := Render_Group { command = .Draw_With_Shader, settings = { .Alpha_Blended } }
 	shader_call := Textured_Single_Quad_Shader_Call{}
@@ -137,11 +137,11 @@ draw_rune :: proc(font: ^Font, position: v2, c: rune, color: Color) -> (size: v2
 	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))
 	push_texture_binding(&shader_call, font.texture.id, 0)
 	glyph_idx := u32(c) - u32(font.first_character)
-	glyph := font.glyphs[glyph_idx]
+	glyph = font.glyphs[glyph_idx]
 	glyph_dim := rect_dim(glyph.bounding_box)
 	size = glyph_dim
 	size.x = glyph.advance
-	// position.y += glyph.bounding_box.max.y
+	position.y += glyph.bounding_box.min.y
 	rect := rect_min_dim(position, glyph_dim)
 	vertex_group := textured_quad(rect, 0.0, glyph.tex_rect)
 	push_vertex_group(&shader_call, vertex_group)
@@ -202,7 +202,8 @@ draw_rect_rounded_filled :: proc(rect: rectangle2, color: Color, roundness: f32)
 	group := Render_Group{ command = .Draw_With_Shader }
 	shader_call := Textured_Single_Quad_Shader_Call{}
 	shader_call.shader_id = global_quad_shader.shader_id
-	settings : Shader_Settings = {.Rounded_Rect}
+	// settings : Shader_Settings = {.Rounded_Rect}
+	settings : Shader_Settings = {}
 	push_uniform_binding(&shader_call, global_quad_shader.settings, i32(transmute(u8)settings))
 	push_uniform_binding(&shader_call, global_quad_shader.ortho, game_window.ortho_matrix)
 	push_uniform_binding(&shader_call, global_quad_shader.color, v4(color))

@@ -155,16 +155,18 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
                 text_color = wrong_color
             }
         } else if challenge.position == u32(i) {
-            glyph_size := measure_rune(challenge.font, c)
+            glyph_size, glyph := measure_rune(challenge.font, c)
             assert(glyph_size.x > 0.0)
-            cursor_height := challenge.font.ascent + abs(challenge.font.descent)
-            cursor_rect := rect_min_dim(position, v2{glyph_size.x, cursor_height})
+            // cursor_height := challenge.font.ascent + abs(challenge.font.descent)
+            cursor_pos := position
+            cursor_pos.y += challenge.font.bounding_box.min.y
+            cursor_rect := rect_min_dim(cursor_pos, v2{glyph_size.x, challenge.font.font_height})
             rect_sub_floats(&cursor_rect, v2{0.0, abs(challenge.font.descent)})
             draw_rect_rounded_filled(cursor_rect, cursor_color, glyph_size.x / 4.0)
             text_color = under_cursor_color
         }
-        character_size := draw_rune(challenge.font, position, c, text_color)
-        position.x += character_size.x
+        character_size, glyph := draw_rune(challenge.font, position, c, text_color)
+        position.x += glyph.advance
     }
 
     demonic_pos := v2{0.0, game_window.dim.y - 256.0 - 10.0}
@@ -498,7 +500,7 @@ render_demonic_sign :: proc(texture: ^Texture, word: string) {
 
     codepoint := unicode.to_upper(rune(word[0]))
     // glyph_size := rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
-    glyph_size := measure_rune(font, codepoint)
+    glyph_size, glyph := measure_rune(font, codepoint)
     pos := vec_floats_to_ints(v2{256.0 / 2.0 - glyph_size.x / 2.0, 0.0})
     pos_idx := pos.y * texture.dim.x + pos.x
 
@@ -534,7 +536,7 @@ render_demonic_sign :: proc(texture: ^Texture, word: string) {
 
         codepoint := rune(word[i])
         // glyph_size = rl.MeasureTextEx(game_window.demonic_font.raylib_font, cstring(&single_char[0]), f32(game_window.demonic_font.raylib_font.baseSize), 0.0)
-        glyph_size = measure_rune(font, codepoint)
+        glyph_size, glyph = measure_rune(font, codepoint)
         pos = vec_floats_to_ints(v2{
             char_cx - (glyph_size.x / 2.0),
             char_cy - (glyph_size.y / 2.0),

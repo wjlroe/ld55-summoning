@@ -26,6 +26,7 @@ Font :: struct {
     line_height: f32,
     row_height: f32,
     bounding_box: rectangle2,
+    font_height: f32,
     space_width: f32,
     first_character: rune,
     last_character: rune,
@@ -37,7 +38,7 @@ Font :: struct {
 init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
     font.size = font_size
     font.font_index = 0
-    font.first_character = '!'
+    font.first_character = ' '
     font.last_character = 'z'
     font.num_of_characters = int((font.last_character - font.first_character) + 1)
     font_offset : i32 = 0
@@ -58,7 +59,8 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
 
 	x0, y0, x1, y1, advance, lsb : i32
     stbtt.GetFontBoundingBox(&font.info, &x0, &y0, &x1, &y1)
-    font.bounding_box = rect_ints_to_floats(rect_from_points_i32(x0, y0, x1, y1))
+    font.bounding_box = rectangle2{v2{font.scale * f32(x0), font.scale * f32(y0)}, v2{font.scale * f32(x1), font.scale * f32(y1)}}
+    font.font_height = rect_height(font.bounding_box)
 
 	memory, err := mem.alloc((font.num_of_characters) * size_of(stbtt.packedchar))
     if err != nil {
@@ -110,10 +112,11 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
         font.glyphs[idx].tex_rect = rectangle2{v2{tex_x0, tex_y0}, v2{tex_x1, tex_y1}}
 	}
 
-	space_glyph := stbtt.FindGlyphIndex(&font.info, 'X')
+    // FIXME: remove special handling for space and bake into range above
+	space_glyph := stbtt.FindGlyphIndex(&font.info, ' ')
 	stbtt.GetGlyphHMetrics(&font.info, space_glyph, &advance, &lsb)
-	stbtt.GetGlyphBitmapBox(&font.info, space_glyph, font.scale, font.scale, &x0, &y0, &x1, &y1)
-	font.space_width = (f32(x1) - f32(x0)) //  * font.font_scale
+	// stbtt.GetGlyphBitmapBox(&font.info, space_glyph, font.scale, font.scale, &x0, &y0, &x1, &y1)
+	font.space_width = f32(advance) * font.scale
 
     init_texture(&font.texture, .Red, tex_buffer)
 
@@ -121,19 +124,26 @@ init_font :: proc(font: ^Font, font_mem: []u8, font_size: f32) -> (ok: bool) {
     return
 }
 
-measure_rune :: proc(font: ^Font, c: rune) -> (size: v2) {
-    if c == ' ' {
-        return v2{font.space_width, font.line_height}
-    }
+measure_rune :: proc(font: ^Font, c: rune) -> (size: v2, glyph: Glyph) {
+    // if c == ' ' {
+    //     return v2{font.space_width, font.line_height}
+    // }
     glyph_idx := i32(c) - i32(font.first_character)
-    return rect_dim(font.glyphs[glyph_idx].bounding_box)
+    glyph = font.glyphs[glyph_idx]
+    return rect_dim(glyph.bounding_box), glyph
 }
 
+// TODO: left side bearing of first character - might shift it to the left!
 measure_text :: proc(font: ^Font, text: string) -> (size: v2) {
+    size.y = font.font_height
     for c in text {
-        c_size := measure_rune(font, c)
-        size.x += c_size.x
-        size.y = max(c_size.y, size.y)
+        // if c == ' ' {
+        //     size.x += font.space_width
+        //     continue
+        // }
+        glyph_idx := i32(c) - i32(font.first_character)
+        glyph := font.glyphs[glyph_idx]
+        size.x += glyph.advance
     }
 	return
 }
