@@ -7,7 +7,7 @@
 			"path": "./odin-source"
 		},
 		{
-			"path": "../../../../source/raylib"
+			"path": "./raylib-source"
 		}
 	],
 	"settings": {}

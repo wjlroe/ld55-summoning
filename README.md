@@ -2,10 +2,8 @@
 
 Started with base code from: https://git.sr.ht/~willroe/base-code-c-webasm
 
-* Tech: C + SDL2 + WebASM
-* IM Fell fonts from https://www.dafont.com/im-fell-types.font
-* Xiaolin Wu's line algorithm from https://en.wikipedia.org/wiki/Xiaolin_Wu%27s_line_algorithm
-* Circle drawing algorithm from: Efficient DDA Circle Outlines https://www.computerenhance.com/p/efficient-dda-circle-outlines
+* Tech: Odin + raylib
+* IM Fell fonts from https://fonts.google.com/specimen/IM+Fell+English
 
 ## Setup
 
@@ -15,6 +13,7 @@ Setup the symlink that VSCode will need to open the workspace file:
 
 ```
  cmd /c mklink /d odin-source C:\dev\odin\dev-master
+ cmd /c mklink /d raylib-source C:\Users\will\Code\source\raylib
 ```
 
 ## WebASM docs
@@ -23,12 +22,6 @@ Setup the symlink that VSCode will need to open the workspace file:
 * https://emscripten.org/docs/getting_started/downloads.html
 * https://emscripten.org/docs/compiling/Building-Projects.html?highlight=sdl2#emscripten-ports <- wasm ports of C libraries (e.g. SDL2)
 * https://github.com/emscripten-ports <- find ports for emscripten/wasm
-
-## SDL2 docs
-
-* https://blog.conan.io/2023/07/20/introduction-to-game-dev-with-sdl2.html
-* https://wiki.libsdl.org/SDL2/MigrationGuide SDL 1.2->2 guide
-* https://github.com/libsdl-org/SDL/blob/main/docs/README-dynapi.md <- about dynamic/static linking of SDL2
 
 ## TODO
 

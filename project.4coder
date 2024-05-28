@@ -12,6 +12,7 @@ patterns = {
 "*.4coder",
 "*.txt",
 "*.glsl",
+"*.odin",
 };
 blacklist_patterns = {
 "build",
@@ -25,7 +26,7 @@ load_paths = {
 };
 
 build_cmd = "build.bat";
-build_run_cmd = "build/summoning.exe";
+build_run_cmd = "build/summoning_debug.exe";
 
 command_list = {
  { .name = "build",
