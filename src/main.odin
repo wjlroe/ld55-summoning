@@ -453,27 +453,26 @@ render_demonic_sign :: proc(rect: rl.Rectangle, word: string, color: rl.Color) {
     }
     input_points[len(word)] = input_points[0]
 
-    output_points := make([]rl.Vector2, len(word)+1, context.temp_allocator)
-    input_i := 0
     half_word := len(word) / 2
     even_word_length := false
     if len(word) % 2 == 0 {
         half_word -= 1
         even_word_length = true
     }
+    i0 := 0
+    i1 := (i0 + half_word) % len(word)
     for i in 0..<len(word) {
-        output_points[i] = input_points[input_i]
-        input_i = (input_i + half_word) % len(word)
-    }
-    output_points[len(word)] = input_points[0]
+        p0 := input_points[i0]
+        p1 := input_points[i1]
+        rl.DrawLineV(p0, p1, color)
 
-    for i in 0..<len(word) {
-        p0 := output_points[i]
-        p1 := output_points[i+1]
-        if p0.x < p1.x {
-            rl.DrawLineV(p0, p1, color)
+        // Reset/rotate if we've gotten back to 0 before the end
+        if i1 == 0 {
+            i0 += 1
+            i1 += 1
         } else {
-            rl.DrawLineV(p1, p0, color)
+            i0 = (i0 + half_word) % len(word)
+            i1 = (i1 + half_word) % len(word)
         }
     }
 }
