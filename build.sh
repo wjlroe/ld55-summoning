@@ -4,8 +4,6 @@ set -eu
 
 host_os="$(uname -s)"
 
-echo "Building natively"
-
 is_mac_rosetta() {
 	if [ "${host_os}" = "Darwin" ]; then
 		my_pid=$$
@@ -43,16 +41,18 @@ odin="${odin_cmd:-/opt/odin/dev-master/odin}"
 odin_dir="$(dirname ${odin})"
 cp -r "${odin_dir}/vendor/raylib/linux" ./
 
+echo "Debug build"
 if [ "${build_debug}" = "yes" ]; then
 	"${odin}" build src \
 		-out:build/summoning_debug \
 		-build-mode:exe \
-		-define:RAYLIB_SHARED=true \
+		-define:RAYLIB_SHARED=false \
 		-debug \
 		-show-timings
 fi
 
 if [ "${build_release}" = "yes" ]; then
+	echo "Release build"
 	"${odin}" build src \
 		-out:build/summoning \
 		-build-mode:exe \

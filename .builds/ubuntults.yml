@@ -3,7 +3,6 @@ packages:
   - unzip
   - clang-14
   - llvm-14
-  - libsdl2-dev
 environment:
   odin_version: dev-2024-05
   odin_cmd: /opt/odin/dev-2024-05/odin
