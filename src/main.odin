@@ -5,6 +5,7 @@ import "core:math/linalg"
 import "core:log"
 import "core:math"
 import "core:os"
+import "core:container/small_array"
 import "core:strings"
 import "core:unicode"
 import rl "vendor:raylib"
@@ -39,7 +40,6 @@ when ODIN_DEBUG {
     }
 }
 
-
 WHITE          := rl.Color{255, 255, 255, 255}
 BLUE           := rl.Color{10, 10, 255, 255}
 RED            := rl.Color{255, 10, 10, 255}
@@ -63,11 +63,17 @@ words := [?]string{
 }
 
 Game_State :: enum {
+    STATE_TITLE,
     STATE_MENU,
     STATE_PLAY,
     STATE_PAUSE,
     STATE_WIN,
     STATE_LOSE,
+}
+
+Game_Action :: enum {
+    Start,
+    Quit,
 }
 
 TITLE_CHALLENGE_FADE_TIME :: 10.0 // seconds
@@ -225,6 +231,59 @@ render_challenge :: proc(challenge: ^Type_Challenge) {
 
 MAX_NUM_CHALLENGES :: 8
 
+// TODO: should this be Exclusive_Choice ?
+// you can't select more than one
+Multiple_Choice_Challenge :: struct {
+    challenges: small_array.Small_Array(MAX_NUM_CHALLENGES, Type_Challenge),
+    active_challenges: small_array.Small_Array(MAX_NUM_CHALLENGES, bool),
+    actions: small_array.Small_Array(MAX_NUM_CHALLENGES, Game_Action),
+    font: ^Font,
+}
+
+setup_multiple_choice :: proc(mcc: ^Multiple_Choice_Challenge, choices: []string, actions: []Game_Action) {
+    assert(len(choices) == len(actions))
+    for choice, i in choices {
+        challenge := Type_Challenge{}
+        setup_challenge(&challenge, choice, mcc.font, 1.2)
+        small_array.push_back(&mcc.challenges, challenge)
+        small_array.push_back(&mcc.actions, actions[i])
+        small_array.push_back(&mcc.active_challenges, true) // assume all active
+    }
+}
+
+multiple_choice_type_character :: proc(mcc: ^Multiple_Choice_Challenge, character: rune) {
+    any_active := false
+    for i in 0..<mcc.challenges.len {
+        challenge := small_array.get_ptr(&mcc.challenges, i)
+        active    := small_array.get_ptr(&mcc.active_challenges, i)
+        if !active^ { continue }
+        enter_challenge_character(challenge, character)
+        if challenge_has_mistakes(challenge) {
+            active^ = false
+        }
+        any_active |= active^
+    }
+    if !any_active {
+        reset_multiple_choice(mcc)
+    }
+}
+
+reset_multiple_choice :: proc(mcc: ^Multiple_Choice_Challenge) {
+    for i in 0..<mcc.challenges.len {
+        challenge := small_array.get_ptr(&mcc.challenges, i)
+        reset_challenge(challenge)
+        active    := small_array.get_ptr(&mcc.active_challenges, i)
+        active^ = true
+    }
+}
+
+update_multiple_choice_alpha :: proc(mcc: ^Multiple_Choice_Challenge) {
+    for i in 0..<mcc.challenges.len {
+        challenge := small_array.get_ptr(&mcc.challenges, i)
+        update_challenge_alpha(challenge)
+    }
+}
+
 Level_Data :: struct {
     challenges: [MAX_NUM_CHALLENGES]Type_Challenge,
     num_challenges: int,
@@ -273,9 +332,11 @@ level_type_character :: proc(level: ^Level_Data, character: rune) {
 Game_Window :: struct {
     game_state: Game_State,
     title_challenge: Type_Challenge,
+    title_menu_challenges: Multiple_Choice_Challenge,
     level_data: Level_Data,
 
     title_font: Font,
+    menu_font: Font,
     challenge_font: Font,
     demonic_font: Font,
 
@@ -296,7 +357,7 @@ center_vertically :: proc(position: ^rl.Vector2, dim: rl.Vector2, within: rl.Vec
     position.y = (within.y / 2.0) - (dim.y / 2.0)
 }
 
-render_menu :: proc() {
+render_title :: proc() {
     char := rl.GetCharPressed()
     for char != 0 {
         enter_challenge_character(&game_window.title_challenge, char)
@@ -304,7 +365,7 @@ render_menu :: proc() {
             if challenge_has_mistakes(&game_window.title_challenge) {
                 reset_challenge(&game_window.title_challenge)
             } else {
-                game_window.game_state = .STATE_PLAY
+                game_window.game_state = .STATE_MENU
                 setup_level(&game_window.level_data)
             }
         }
@@ -322,6 +383,34 @@ render_menu :: proc() {
         game_window.dim,
     )
 
+    rl.BeginDrawing()
+    rl.ClearBackground(VERY_DARK_BLUE)
+    render_challenge(&game_window.title_challenge)
+    rl.EndDrawing()
+}
+
+render_menu :: proc() {
+    char := rl.GetCharPressed()
+    for char != 0 {
+        multiple_choice_type_character(&game_window.title_menu_challenges, char)
+
+        // if is_challenge_done(&game_window.title_challenge) {
+        //     if challenge_has_mistakes(&game_window.title_challenge) {
+        //         reset_challenge(&game_window.title_challenge)
+        //     } else {
+        //         game_window.game_state = .STATE_MENU
+        //         setup_level(&game_window.level_data)
+        //     }
+        // }
+        char = rl.GetCharPressed()
+    }
+    update_multiple_choice_alpha(&game_window.title_menu_challenges)
+    center_horizontally(
+        &game_window.title_challenge.origin,
+        game_window.title_challenge.dim,
+        game_window.dim,
+    )
+    vertical_position := rl.Vector2{}
     rl.BeginDrawing()
     rl.ClearBackground(VERY_DARK_BLUE)
     render_challenge(&game_window.title_challenge)
@@ -386,10 +475,11 @@ render_lose :: proc() {
 
 update_and_render :: proc() {
     #partial switch game_window.game_state {
-        case .STATE_MENU: render_menu()
-        case .STATE_PLAY: render_game()
-        case .STATE_WIN:  render_win()
-        case .STATE_LOSE: render_lose()
+        case .STATE_TITLE: render_title()
+        case .STATE_MENU:  render_menu()
+        case .STATE_PLAY:  render_game()
+        case .STATE_WIN:   render_win()
+        case .STATE_LOSE:  render_lose()
     }
 }
 
@@ -478,12 +568,17 @@ render_demonic_sign :: proc(rect: rl.Rectangle, word: string, color: rl.Color) {
 init_game :: proc() -> bool {
     update_window_dim()
 
-    game_window.title_font = load_im_fell(120.0)
+    game_window.title_font     = load_im_fell(120.0)
+    game_window.menu_font      = load_im_fell(52.0)
     game_window.challenge_font = load_im_fell(48.0)
-    game_window.demonic_font = load_im_fell(38.0)
+    game_window.demonic_font   = load_im_fell(38.0)
 
     setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
     game_window.level_data.font = &game_window.challenge_font
+    game_window.title_menu_challenges.font = &game_window.menu_font
+    menu_entries := []string{"Start game", "Quit"}
+    menu_actions := []Game_Action{.Start, .Quit}
+    setup_multiple_choice(&game_window.title_menu_challenges, menu_entries, menu_actions)
 
     return true
 }
