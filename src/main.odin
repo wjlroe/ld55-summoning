@@ -72,6 +72,7 @@ Game_State :: enum {
 }
 
 Game_Action :: enum {
+    None,
     Start,
     Quit,
 }
@@ -112,16 +113,21 @@ shorten_animation :: proc(animation: ^Animation, new_time: f32) {
     end = start + new_time
 }
 
+Type_State :: enum {
+    Active,
+    Inactive,
+}
+
 Type_Challenge :: struct {
     word: string,
     word_c: cstring,
     font: ^Font,
     dim: rl.Vector2,
-    origin: rl.Vector2,
     typed_correctly: []bool,
     position: u32,
     alpha: f32,
     alpha_animation: Animation,
+    state: Type_State,
 }
 
 setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
@@ -151,11 +157,11 @@ enter_challenge_character :: proc(challenge: ^Type_Challenge, character: rune) {
     }
 }
 
-challenge_has_mistakes :: proc(challenge: ^Type_Challenge) -> bool {
-    for correct in challenge.typed_correctly {
+challenge_has_mistakes :: proc(challenge: ^Type_Challenge) -> (mistakes: bool) {
+    for correct in challenge.typed_correctly[0:challenge.position] {
         if !correct { return true }
     }
-    return  false
+    return
 }
 
 update_challenge_alpha :: proc(challenge: ^Type_Challenge) {
@@ -167,66 +173,72 @@ reset_challenge :: proc(challenge: ^Type_Challenge) {
     challenge.alpha = 0.0
 }
 
-render_challenge :: proc(challenge: ^Type_Challenge) {
+render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic := false) {
     neutral_color      := rl.ColorAlpha(WHITE, challenge.alpha)
     correct_color      := rl.ColorAlpha(GREEN, challenge.alpha)
     wrong_color        := rl.ColorAlpha(RED, challenge.alpha)
     under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
     cursor_color       := rl.ColorAlpha(AMBER, challenge.alpha)
 
-    position := challenge.origin
+    position := origin
 
-    for c, i in challenge.word {
-        c_str := fmt.ctprintf("%c", c)
-        spacing : f32 = 0.0
-        glyph_size := rl.MeasureTextEx(
-            challenge.font.font,
-            c_str,
-            challenge.font.size,
-            spacing,
-        )
-        text_color := neutral_color
-        if challenge.position > u32(i) {
-            if challenge.typed_correctly[i] {
-                text_color = correct_color
-            } else {
-                text_color = wrong_color
-            }
-        } else if challenge.position == u32(i) {
-            cursor_rect := rl.Rectangle{
-                x = position.x,
-                y = position.y,
-                width = glyph_size.x,
-                height = challenge.font.size,
-            }
-            rl.DrawRectangleRounded(
-                cursor_rect,
-                0.5, // roundness
-                0, // segments
-                cursor_color,
+    if challenge.state == .Active {
+        for c, i in challenge.word {
+            c_str := fmt.ctprintf("%c", c)
+            spacing : f32 = 0.0
+            glyph_size := rl.MeasureTextEx(
+                challenge.font.font,
+                c_str,
+                challenge.font.size,
+                spacing,
             )
+            text_color := neutral_color
+            if challenge.position > u32(i) {
+                if challenge.typed_correctly[i] {
+                    text_color = correct_color
+                } else {
+                    text_color = wrong_color
+                }
+            } else if challenge.position == u32(i) {
+                cursor_rect := rl.Rectangle{
+                    x = position.x,
+                    y = position.y,
+                    width = glyph_size.x,
+                    height = challenge.font.size,
+                }
+                rl.DrawRectangleRounded(
+                    cursor_rect,
+                    0.5, // roundness
+                    0, // segments
+                    cursor_color,
+                )
 
-            text_color = under_cursor_color
+                text_color = under_cursor_color
+            }
+            rl.DrawTextCodepoint(
+                challenge.font.font,
+                c,
+                position,
+                challenge.font.size,
+                text_color,
+            )
+            position.x += glyph_size.x
         }
-        rl.DrawTextCodepoint(
-            challenge.font.font,
-            c,
-            position,
-            challenge.font.size,
-            text_color,
-        )
-        position.x += glyph_size.x
+    } else {
+        rl.DrawTextEx(challenge.font.font, challenge.word_c, position, challenge.font.size, 0.0, neutral_color)
     }
 
-    demonic_dim := rl.Vector2{256.0, 256.0}
-    demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256.0 - 10.0}
-    center_horizontally(&demonic_pos, demonic_dim, game_window.dim)
-    texture_color := rl.ColorAlpha(GREEN, challenge.alpha)
-    demonic_rect := rl.Rectangle{
-        demonic_pos.x, demonic_pos.y,
-        demonic_dim.x, demonic_dim.y,
+    if demonic {
+        demonic_dim := rl.Vector2{256.0, 256.0}
+        demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256.0 - 10.0}
+        center_horizontally(&demonic_pos, demonic_dim, game_window.dim)
+        texture_color := rl.ColorAlpha(GREEN, challenge.alpha)
+        demonic_rect := rl.Rectangle{
+            demonic_pos.x, demonic_pos.y,
+            demonic_dim.x, demonic_dim.y,
+        }
+        render_demonic_sign(demonic_rect, challenge.word, texture_color)
     }
-    render_demonic_sign(demonic_rect, challenge.word, texture_color)
 }
 
 MAX_NUM_CHALLENGES :: 8
@@ -251,7 +263,7 @@ setup_multiple_choice :: proc(mcc: ^Multiple_Choice_Challenge, choices: []string
     }
 }
 
-multiple_choice_type_character :: proc(mcc: ^Multiple_Choice_Challenge, character: rune) {
+multiple_choice_type_character :: proc(mcc: ^Multiple_Choice_Challenge, character: rune) -> (action: Game_Action) {
     any_active := false
     for i in 0..<mcc.challenges.len {
         challenge := small_array.get_ptr(&mcc.challenges, i)
@@ -260,12 +272,15 @@ multiple_choice_type_character :: proc(mcc: ^Multiple_Choice_Challenge, characte
         enter_challenge_character(challenge, character)
         if challenge_has_mistakes(challenge) {
             active^ = false
+        } else if is_challenge_done(challenge) {
+            action = small_array.get(mcc.actions, i)
         }
         any_active |= active^
     }
     if !any_active {
         reset_multiple_choice(mcc)
     }
+    return
 }
 
 reset_multiple_choice :: proc(mcc: ^Multiple_Choice_Challenge) {
@@ -366,54 +381,74 @@ render_title :: proc() {
                 reset_challenge(&game_window.title_challenge)
             } else {
                 game_window.game_state = .STATE_MENU
+                reset_challenge(&game_window.title_challenge)
+                game_window.title_challenge.state = .Inactive
                 setup_level(&game_window.level_data)
             }
         }
         char = rl.GetCharPressed()
     }
     update_challenge_alpha(&game_window.title_challenge)
+    title_origin := rl.Vector2{}
     center_horizontally(
-        &game_window.title_challenge.origin,
+        &title_origin,
         game_window.title_challenge.dim,
         game_window.dim,
     )
     center_vertically(
-        &game_window.title_challenge.origin,
+        &title_origin,
         game_window.title_challenge.dim,
         game_window.dim,
     )
 
     rl.BeginDrawing()
     rl.ClearBackground(VERY_DARK_BLUE)
-    render_challenge(&game_window.title_challenge)
+    render_challenge(&game_window.title_challenge, title_origin, true)
     rl.EndDrawing()
 }
 
 render_menu :: proc() {
     char := rl.GetCharPressed()
     for char != 0 {
-        multiple_choice_type_character(&game_window.title_menu_challenges, char)
-
-        // if is_challenge_done(&game_window.title_challenge) {
-        //     if challenge_has_mistakes(&game_window.title_challenge) {
-        //         reset_challenge(&game_window.title_challenge)
-        //     } else {
-        //         game_window.game_state = .STATE_MENU
-        //         setup_level(&game_window.level_data)
-        //     }
-        // }
+        action := multiple_choice_type_character(&game_window.title_menu_challenges, char)
+        #partial switch action {
+            case .Quit: game_window.quit = true
+            case .Start: game_window.game_state = .STATE_PLAY
+        }
         char = rl.GetCharPressed()
     }
     update_multiple_choice_alpha(&game_window.title_menu_challenges)
+    title_origin := rl.Vector2{}
     center_horizontally(
-        &game_window.title_challenge.origin,
+        &title_origin,
         game_window.title_challenge.dim,
         game_window.dim,
     )
     vertical_position := rl.Vector2{}
+    total_dim := rl.Vector2{}
+    total_dim.y = game_window.title_challenge.dim.y
+    for &challenge in small_array.slice(&game_window.title_menu_challenges.challenges) {
+        total_dim.y += challenge.dim.y
+    }
+    center_vertically(&vertical_position, total_dim, game_window.dim)
+    y := vertical_position.y
+    title_origin.y = y
+    y += game_window.title_challenge.dim.y
+
     rl.BeginDrawing()
     rl.ClearBackground(VERY_DARK_BLUE)
-    render_challenge(&game_window.title_challenge)
+    render_challenge(&game_window.title_challenge, title_origin)
+    challenge_origin := rl.Vector2{}
+    for &challenge in small_array.slice(&game_window.title_menu_challenges.challenges) {
+        center_horizontally(
+            &challenge_origin,
+            challenge.dim,
+            game_window.dim,
+        )
+        challenge_origin.y = y
+        y += challenge.dim.y
+        render_challenge(&challenge, challenge_origin)
+    }
     rl.EndDrawing()
 }
 
@@ -433,20 +468,21 @@ render_game :: proc() {
     }
     challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
     update_challenge_alpha(challenge)
+    origin := rl.Vector2{}
     center_horizontally(
-        &challenge.origin,
+        &origin,
         challenge.dim,
         game_window.dim,
     )
     center_vertically(
-        &challenge.origin,
+        &origin,
         challenge.dim,
         game_window.dim,
     )
 
     rl.BeginDrawing()
     rl.ClearBackground(VERY_DARK_BLUE)
-    render_challenge(challenge)
+    render_challenge(challenge, origin, true)
     rl.EndDrawing()
 }
 
