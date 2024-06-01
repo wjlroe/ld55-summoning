@@ -648,6 +648,9 @@ main :: proc() {
     }
 
     log.infof("going to start the render loop")
+    log.infof("DPI: {}", rl.GetWindowScaleDPI())
+    log.infof("Screen: {}x{}", rl.GetScreenWidth(), rl.GetScreenHeight())
+    log.infof("Render: {}x{}", rl.GetRenderWidth(), rl.GetRenderHeight())
 
     for !game_window.quit {
 		if err := free_all(context.temp_allocator); err != .None {
