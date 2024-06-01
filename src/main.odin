@@ -1,5 +1,7 @@
 package main
 
+// Mission statement: The "Devil Daggers" of typing games
+
 import "core:fmt"
 import "core:math/linalg"
 import "core:log"
