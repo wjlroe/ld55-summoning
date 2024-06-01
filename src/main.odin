@@ -629,8 +629,9 @@ process_input :: proc() {
 }
 
 update_window_dim :: proc() {
-    game_window.dim.x = f32(rl.GetRenderWidth())
-    game_window.dim.y = f32(rl.GetRenderHeight())
+    // We use screen functions here because GetRenderWidth is broken on macos (deliberately!)
+    game_window.dim.x = f32(rl.GetScreenWidth())
+    game_window.dim.y = f32(rl.GetScreenHeight())
 }
 
 main :: proc() {
