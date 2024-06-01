@@ -11,7 +11,6 @@ import "core:unicode"
 import rl "vendor:raylib"
 
 // TODO:
-// * (macOS) Title is positioned at the bottom right corner rather than center!!
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
 
