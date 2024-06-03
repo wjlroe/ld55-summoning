@@ -117,7 +117,8 @@ shorten_animation :: proc(animation: ^Animation, new_time: f32) {
 Type_State :: enum {
     Active,
     Inactive,
-    Done,
+    Correct,
+    Incorrect,
     Ahead,
 }
 
@@ -202,6 +203,12 @@ render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic
     wrong_color        := rl.ColorAlpha(RED, challenge.alpha)
     under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
 
+    word_color := neutral_color
+    #partial switch challenge.state {
+        case .Correct: word_color = correct_color
+        case .Incorrect: word_color = wrong_color
+    }
+
     position := origin
 
     if challenge.state == .Active {
@@ -235,7 +242,7 @@ render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic
             position.x += glyph_size.x
         }
     } else {
-        rl.DrawTextEx(challenge.font.font, challenge.word_c, position, challenge.font.size, 0.0, neutral_color)
+        rl.DrawTextEx(challenge.font.font, challenge.word_c, position, challenge.font.size, 0.0, word_color)
     }
 
     if demonic {
@@ -362,8 +369,10 @@ level_type_character :: proc(level: ^Level_Data, character: rune) {
     if is_challenge_done(challenge) {
         level.on_space = true
         level.current_challenge += 1
-        challenge.state = .Done
-        if !challenge_has_mistakes(challenge) {
+        if challenge_has_mistakes(challenge) {
+            challenge.state = .Incorrect
+        } else {
+            challenge.state = .Correct
             level.points += 1
         }
     }
