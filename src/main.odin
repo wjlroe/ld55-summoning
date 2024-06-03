@@ -12,6 +12,8 @@ import "core:strings"
 import "core:unicode"
 import rl "vendor:raylib"
 
+top_200 := #load("../assets/top-200.txt")
+
 // TODO:
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
 // * Older (i.e. from dafont) IM font renders ok but raylib miscalculates the height of it by about half
