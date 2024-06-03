@@ -117,6 +117,8 @@ shorten_animation :: proc(animation: ^Animation, new_time: f32) {
 Type_State :: enum {
     Active,
     Inactive,
+    Done,
+    Ahead,
 }
 
 Type_Challenge :: struct {
@@ -150,11 +152,15 @@ has_typing_started :: proc(challenge: ^Type_Challenge) -> bool {
 
 enter_challenge_character :: proc(challenge: ^Type_Challenge, character: rune) {
     if challenge.position == 0 {
+        challenge.state = .Active
         shorten_animation(&challenge.alpha_animation, challenge.alpha_animation.duration / 3.0)
     }
     if !is_challenge_done(challenge) {
         challenge.typed_correctly[challenge.position] = character == rune(challenge.word[challenge.position])
         challenge.position += 1
+        if is_challenge_done(challenge) {
+            challenge.state = .Inactive
+        }
     }
 }
 
@@ -174,12 +180,27 @@ reset_challenge :: proc(challenge: ^Type_Challenge) {
     challenge.alpha = 0.0
 }
 
+render_cursor :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, size: rl.Vector2) {
+    cursor_color := rl.ColorAlpha(AMBER, challenge.alpha)
+    cursor_rect := rl.Rectangle{
+        x = origin.x,
+        y = origin.y,
+        width = size.x,
+        height = challenge.font.size,
+    }
+    rl.DrawRectangleRounded(
+        cursor_rect,
+        0.5, // roundness
+        0, // segments
+        cursor_color,
+    )
+}
+
 render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic := false) {
     neutral_color      := rl.ColorAlpha(WHITE, challenge.alpha)
     correct_color      := rl.ColorAlpha(GREEN, challenge.alpha)
     wrong_color        := rl.ColorAlpha(RED, challenge.alpha)
     under_cursor_color := rl.ColorAlpha(VERY_DARK_BLUE, challenge.alpha)
-    cursor_color       := rl.ColorAlpha(AMBER, challenge.alpha)
 
     position := origin
 
@@ -201,19 +222,7 @@ render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic
                     text_color = wrong_color
                 }
             } else if challenge.position == u32(i) {
-                cursor_rect := rl.Rectangle{
-                    x = position.x,
-                    y = position.y,
-                    width = glyph_size.x,
-                    height = challenge.font.size,
-                }
-                rl.DrawRectangleRounded(
-                    cursor_rect,
-                    0.5, // roundness
-                    0, // segments
-                    cursor_color,
-                )
-
+                render_cursor(challenge, position, glyph_size)
                 text_color = under_cursor_color
             }
             rl.DrawTextCodepoint(
@@ -300,9 +309,12 @@ update_multiple_choice_alpha :: proc(mcc: ^Multiple_Choice_Challenge) {
     }
 }
 
+MAX_NUM_LEVEL_CHALLENGES :: 128
+
 Level_Data :: struct {
-    challenges: small_array.Small_Array(MAX_NUM_CHALLENGES, Type_Challenge),
+    challenges: small_array.Small_Array(MAX_NUM_LEVEL_CHALLENGES, Type_Challenge),
     current_challenge: int,
+    on_space: bool,
     level_number: int,
     points: int,
     font: ^Font,
@@ -312,9 +324,12 @@ setup_level :: proc(level: ^Level_Data) {
     for _, i in words {
         challenge := Type_Challenge{}
         setup_challenge(&challenge, words[i], level.font, 1.5)
+        challenge.state = .Ahead
         ok := small_array.push_back(&level.challenges, challenge)
         assert(ok)
     }
+    first_challenge := small_array.get_ptr(&level.challenges, 0)
+    first_challenge.state = .Active
     level.current_challenge = 0
 }
 
@@ -336,9 +351,18 @@ is_level_done :: proc(level: ^Level_Data) -> bool {
 level_type_character :: proc(level: ^Level_Data, character: rune) {
     if is_level_done(level) { return }
     challenge := small_array.get_ptr(&level.challenges, level.current_challenge)
+    if level.on_space {
+        if character == ' ' {
+            level.on_space = false
+            challenge.state = .Active
+        }
+        return
+    }
     enter_challenge_character(challenge, character)
     if is_challenge_done(challenge) {
+        level.on_space = true
         level.current_challenge += 1
+        challenge.state = .Done
         if !challenge_has_mistakes(challenge) {
             level.points += 1
         }
@@ -454,11 +478,13 @@ render_menu :: proc() {
 }
 
 render_game :: proc() {
+    using game_window.level_data
+
     char := rl.GetCharPressed()
     for char != 0 {
         level_type_character(&game_window.level_data, char)
         if is_level_done(&game_window.level_data) {
-            if game_window.level_data.points < small_array.len(game_window.level_data.challenges) {
+            if points < small_array.len(challenges) {
                 game_window.game_state = .STATE_LOSE
             } else {
                 game_window.game_state = .STATE_WIN
@@ -467,23 +493,56 @@ render_game :: proc() {
         }
         char = rl.GetCharPressed()
     }
-    challenge := small_array.get_ptr(&game_window.level_data.challenges, game_window.level_data.current_challenge)
-    update_challenge_alpha(challenge)
+
+    rl.BeginDrawing()
+    rl.ClearBackground(VERY_DARK_BLUE)
+
+    space_dim := rl.MeasureTextEx(font.font, " ", font.size, 0.0)
+
+    // render some words over a series of lines
+    // version 1: just put 5 words on screen on one line, switch the lines out when moving from line to line
+    // version 2: put 2 lines of 5 words on screen
+    // TODO: more words in the level than displayed on screen
+    // TODO: show a moving window that's centered around the cursor (and the pseudo-line the cursor is on)
+    // TODO: random generate new words in the level to backfill infront of the rendered lines/words
+    // TODO: show onscreen a running counter of correct/incorrect words
+    num_words_to_render := 5
+    min_word := 0
+    max_word := min_word + num_words_to_render
+    if current_challenge > max_word {
+        diff := current_challenge - max_word
+        min_word += diff
+        max_word += diff
+    }
+
+    total_dim := rl.Vector2{-space_dim.x, 0.0}
+    onscreen_challenges := small_array.slice(&challenges)[min_word:max_word]
+    for challenge in onscreen_challenges {
+        total_dim.x += challenge.dim.x + space_dim.x
+        total_dim.y = max(total_dim.y, challenge.dim.y)
+    }
     origin := rl.Vector2{}
     center_horizontally(
         &origin,
-        challenge.dim,
+        total_dim,
         game_window.dim,
     )
     center_vertically(
         &origin,
-        challenge.dim,
+        total_dim,
         game_window.dim,
     )
+    for &challenge, i in onscreen_challenges {
+        update_challenge_alpha(&challenge)
+        render_demonic_signs := false
+        render_challenge(&challenge, origin, render_demonic_signs)
+        origin.x += challenge.dim.x
+        if on_space && (current_challenge - 1) == i {
+            render_cursor(&challenge, origin, space_dim)
+        }
+        origin.x += space_dim.x
+    }
 
-    rl.BeginDrawing()
-    rl.ClearBackground(VERY_DARK_BLUE)
-    render_challenge(challenge, origin, true)
     rl.EndDrawing()
 }
 
