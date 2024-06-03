@@ -199,7 +199,7 @@ render_cursor :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, size: rl.V
     )
 }
 
-render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic := false) {
+render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, render_demonic_sign := false) {
     neutral_color      := rl.ColorAlpha(WHITE, challenge.alpha)
     correct_color      := rl.ColorAlpha(GREEN, challenge.alpha)
     wrong_color        := rl.ColorAlpha(RED, challenge.alpha)
@@ -247,7 +247,7 @@ render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic
         rl.DrawTextEx(challenge.font.font, challenge.word_c, position, challenge.font.size, 0.0, word_color)
     }
 
-    if demonic {
+    if render_demonic_sign {
         demonic_dim := rl.Vector2{256.0, 256.0}
         demonic_pos := rl.Vector2{0.0, game_window.dim.y - 256.0 - 10.0}
         center_horizontally(&demonic_pos, demonic_dim, game_window.dim)
@@ -256,7 +256,7 @@ render_challenge :: proc(challenge: ^Type_Challenge, origin: rl.Vector2, demonic
             demonic_pos.x, demonic_pos.y,
             demonic_dim.x, demonic_dim.y,
         }
-        render_demonic_sign(demonic_rect, challenge.word, texture_color)
+        render_word_as_demonic_sign(demonic_rect, challenge.word, texture_color)
     }
 }
 
@@ -439,7 +439,7 @@ render_title :: proc() {
 
     rl.BeginDrawing()
     rl.ClearBackground(VERY_DARK_BLUE)
-    render_challenge(&game_window.title_challenge, title_origin, true)
+    render_challenge(&game_window.title_challenge, title_origin, render_demonic_sign = true)
     rl.EndDrawing()
 }
 
@@ -545,8 +545,7 @@ render_game :: proc() {
     )
     for &challenge, i in onscreen_challenges {
         update_challenge_alpha(&challenge)
-        render_demonic_signs := false
-        render_challenge(&challenge, origin, render_demonic_signs)
+        render_challenge(&challenge, origin, render_demonic_sign = false)
         origin.x += challenge.dim.x
         if on_space && (current_challenge - 1) == i {
             render_cursor(&challenge, origin, space_dim)
@@ -590,7 +589,7 @@ update_and_render :: proc() {
     }
 }
 
-render_demonic_sign :: proc(rect: rl.Rectangle, word: string, color: rl.Color) {
+render_word_as_demonic_sign :: proc(rect: rl.Rectangle, word: string, color: rl.Color) {
     using math
 
 	font := &game_window.demonic_font
