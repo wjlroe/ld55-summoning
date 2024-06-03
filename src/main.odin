@@ -301,8 +301,7 @@ update_multiple_choice_alpha :: proc(mcc: ^Multiple_Choice_Challenge) {
 }
 
 Level_Data :: struct {
-    challenges: [MAX_NUM_CHALLENGES]Type_Challenge,
-    num_challenges: int,
+    challenges: small_array.Small_Array(MAX_NUM_CHALLENGES, Type_Challenge),
     current_challenge: int,
     level_number: int,
     points: int,
@@ -311,23 +310,24 @@ Level_Data :: struct {
 
 setup_level :: proc(level: ^Level_Data) {
     for _, i in words {
-        if i >= MAX_NUM_CHALLENGES { break }
-        setup_challenge(&level.challenges[i], words[i], level.font, 1.5)
-        level.num_challenges += 1
+        challenge := Type_Challenge{}
+        setup_challenge(&challenge, words[i], level.font, 1.5)
+        ok := small_array.push_back(&level.challenges, challenge)
+        assert(ok)
     }
     level.current_challenge = 0
 }
 
 reset_level :: proc(level: ^Level_Data) {
-    for _,i in level.challenges {
-        reset_challenge(&level.challenges[i])
+    for &challenge in small_array.slice(&level.challenges) {
+        reset_challenge(&challenge)
     }
     level.current_challenge = 0
     level.points = 0
 }
 
 is_level_done :: proc(level: ^Level_Data) -> bool {
-    if level.current_challenge < level.num_challenges {
+    if level.current_challenge < small_array.len(level.challenges) {
         return false
     }
     return true
@@ -335,7 +335,7 @@ is_level_done :: proc(level: ^Level_Data) -> bool {
 
 level_type_character :: proc(level: ^Level_Data, character: rune) {
     if is_level_done(level) { return }
-    challenge := &level.challenges[level.current_challenge]
+    challenge := small_array.get_ptr(&level.challenges, level.current_challenge)
     enter_challenge_character(challenge, character)
     if is_challenge_done(challenge) {
         level.current_challenge += 1
@@ -458,7 +458,7 @@ render_game :: proc() {
     for char != 0 {
         level_type_character(&game_window.level_data, char)
         if is_level_done(&game_window.level_data) {
-            if game_window.level_data.points < game_window.level_data.num_challenges {
+            if game_window.level_data.points < small_array.len(game_window.level_data.challenges) {
                 game_window.game_state = .STATE_LOSE
             } else {
                 game_window.game_state = .STATE_WIN
@@ -467,7 +467,7 @@ render_game :: proc() {
         }
         char = rl.GetCharPressed()
     }
-    challenge := &game_window.level_data.challenges[game_window.level_data.current_challenge]
+    challenge := small_array.get_ptr(&game_window.level_data.challenges, game_window.level_data.current_challenge)
     update_challenge_alpha(challenge)
     origin := rl.Vector2{}
     center_horizontally(
