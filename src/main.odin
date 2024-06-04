@@ -117,11 +117,10 @@ shorten_animation :: proc(animation: ^Animation, new_time: f32) {
 }
 
 Type_State :: enum {
-    Active,
     Inactive,
+    Active,
     Correct,
     Incorrect,
-    Ahead,
 }
 
 Type_Challenge :: struct {
@@ -276,6 +275,7 @@ setup_multiple_choice :: proc(mcc: ^Multiple_Choice_Challenge, choices: []string
     for choice, i in choices {
         challenge := Type_Challenge{}
         setup_challenge(&challenge, choice, mcc.font, 1.2)
+        challenge.state = .Active
         small_array.push_back(&mcc.challenges, challenge)
         small_array.push_back(&mcc.actions, actions[i])
         small_array.push_back(&mcc.active_challenges, true) // assume all active
@@ -321,19 +321,23 @@ update_multiple_choice_alpha :: proc(mcc: ^Multiple_Choice_Challenge) {
 MAX_NUM_LEVEL_CHALLENGES :: 128
 
 Level_Data :: struct {
+    font: ^Font,
+
     challenges: small_array.Small_Array(MAX_NUM_LEVEL_CHALLENGES, Type_Challenge),
     current_challenge: int,
     on_space: bool,
-    level_number: int,
-    points: int,
-    font: ^Font,
+
+    number_word_challenges: int,
+    num_correct_words_typed: int,
+    num_incorrect_words_typed: int,
 }
 
-setup_level :: proc(level: ^Level_Data) {
+setup_level :: proc(level: ^Level_Data, num_word_challenges: int) {
+    level.number_word_challenges = num_word_challenges
     for _, i in words {
         challenge := Type_Challenge{}
         setup_challenge(&challenge, words[i], level.font, 1.5)
-        challenge.state = .Ahead
+        challenge.state = .Inactive
         ok := small_array.push_back(&level.challenges, challenge)
         assert(ok)
     }
@@ -345,9 +349,11 @@ setup_level :: proc(level: ^Level_Data) {
 reset_level :: proc(level: ^Level_Data) {
     for &challenge in small_array.slice(&level.challenges) {
         reset_challenge(&challenge)
+        challenge.state = .Inactive
     }
     level.current_challenge = 0
-    level.points = 0
+    level.num_correct_words_typed = 0
+    level.num_incorrect_words_typed = 0
 }
 
 is_level_done :: proc(level: ^Level_Data) -> bool {
@@ -373,9 +379,10 @@ level_type_character :: proc(level: ^Level_Data, character: rune) {
         level.current_challenge += 1
         if challenge_has_mistakes(challenge) {
             challenge.state = .Incorrect
+            level.num_incorrect_words_typed += 1
         } else {
             challenge.state = .Correct
-            level.points += 1
+            level.num_correct_words_typed += 1
         }
     }
 }
@@ -419,7 +426,7 @@ render_title :: proc() {
                 game_window.game_state = .STATE_MENU
                 reset_challenge(&game_window.title_challenge)
                 game_window.title_challenge.state = .Inactive
-                setup_level(&game_window.level_data)
+                setup_level(&game_window.level_data, num_word_challenges = 30)
             }
         }
         char = rl.GetCharPressed()
@@ -495,7 +502,7 @@ render_game :: proc() {
     for char != 0 {
         level_type_character(&game_window.level_data, char)
         if is_level_done(&game_window.level_data) {
-            if points < small_array.len(challenges) {
+            if num_incorrect_words_typed > 0 {
                 game_window.game_state = .STATE_LOSE
             } else {
                 game_window.game_state = .STATE_WIN
@@ -680,6 +687,7 @@ init_game :: proc() -> bool {
     game_window.demonic_font   = load_im_fell(38.0)
 
     setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
+    game_window.title_challenge.state = .Active
     game_window.level_data.font = &game_window.challenge_font
     game_window.title_menu_challenges.font = &game_window.menu_font
     menu_entries := []string{"Start game", "Quit"}
