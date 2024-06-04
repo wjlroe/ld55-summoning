@@ -7,12 +7,14 @@ import "core:math/linalg"
 import "core:log"
 import "core:math"
 import "core:os"
+import "core:math/rand"
 import "core:container/small_array"
 import "core:strings"
 import "core:unicode"
 import rl "vendor:raylib"
 
 top_200 := #load("../assets/top-200.txt")
+top_200_words := small_array.Small_Array(200, string)
 
 // TODO:
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
@@ -318,13 +320,15 @@ update_multiple_choice_alpha :: proc(mcc: ^Multiple_Choice_Challenge) {
     }
 }
 
-MAX_NUM_LEVEL_CHALLENGES :: 128
+MAX_NUM_LEVEL_CHALLENGES :: 16
 
 Level_Data :: struct {
     font: ^Font,
 
     challenges: small_array.Small_Array(MAX_NUM_LEVEL_CHALLENGES, Type_Challenge),
     current_challenge: int,
+    num_words_in_line: int,
+    num_lines_onscreen: int,
     on_space: bool,
 
     number_word_challenges: int,
@@ -332,11 +336,19 @@ Level_Data :: struct {
     num_incorrect_words_typed: int,
 }
 
+random_word :: proc() -> string {
+    return rand.choice(top_200)
+}
+
 setup_level :: proc(level: ^Level_Data, num_word_challenges: int) {
     level.number_word_challenges = num_word_challenges
-    for _, i in words {
+    level.num_words_in_line = 5 // TODO: make this configurable somehow
+    level.num_lines_onscreen = 2 // TODO: make this configurable somehow
+    num_words_onscreen := level.num_lines_onscreen * level.num_words_in_line
+    assert(MAX_NUM_LEVEL_CHALLENGES >= 2 * num_words_onscreen)
+    for i in 0..<MAX_NUM_LEVEL_CHALLENGES {
         challenge := Type_Challenge{}
-        setup_challenge(&challenge, words[i], level.font, 1.5)
+        setup_challenge(&challenge, random_word(), level.font, 1.5)
         challenge.state = .Inactive
         ok := small_array.push_back(&level.challenges, challenge)
         assert(ok)
@@ -377,12 +389,21 @@ level_type_character :: proc(level: ^Level_Data, character: rune) {
     if is_challenge_done(challenge) {
         level.on_space = true
         level.current_challenge += 1
+        level.current_challenge %= small_array.len(level.challenges)
         if challenge_has_mistakes(challenge) {
             challenge.state = .Incorrect
             level.num_incorrect_words_typed += 1
         } else {
             challenge.state = .Correct
             level.num_correct_words_typed += 1
+        }
+        if (level.num_correct_words_typed + level.num_incorrect_words_typed) < level.number_word_challenges {
+            // TODO: maybe this should be a display concern as it's highly based on how things look
+            // generate new word challenges to backfill
+            // this needs to know how many are on screen, how many before current and how many after
+            num_words_onscreen := level.num_lines_onscreen * level.num_words_in_line
+            // need to determine if we need to generate new challenges
+
         }
     }
 }
@@ -679,6 +700,7 @@ render_word_as_demonic_sign :: proc(rect: rl.Rectangle, word: string, color: rl.
 }
 
 init_game :: proc() -> bool {
+    // for line in top_200 - push into top_200_words array
     update_window_dim()
 
     game_window.title_font     = load_im_fell(120.0)
