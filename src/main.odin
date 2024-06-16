@@ -2,6 +2,7 @@ package main
 
 // Mission statement: The "Devil Daggers" of typing games
 
+import "core:bufio"
 import "core:fmt"
 import "core:math/linalg"
 import "core:log"
@@ -14,7 +15,7 @@ import "core:unicode"
 import rl "vendor:raylib"
 
 top_200 := #load("../assets/top-200.txt")
-top_200_words := small_array.Small_Array(200, string)
+top_200_words := small_array.Small_Array(200, string){}
 
 // TODO:
 // * Newer (i.e. from Google Fonts) IM Font doesn't render at the correct scale
@@ -138,6 +139,8 @@ Type_Challenge :: struct {
 }
 
 setup_challenge :: proc(challenge: ^Type_Challenge, word: string, font: ^Font, fade_time: f32) {
+    challenge.position = 0
+    challenge.alpha = 0.0
     challenge.word = word
     challenge.word_c = strings.clone_to_cstring(word)
     challenge.font = font
@@ -320,35 +323,35 @@ update_multiple_choice_alpha :: proc(mcc: ^Multiple_Choice_Challenge) {
     }
 }
 
-MAX_NUM_LEVEL_CHALLENGES :: 16
+MAX_NUM_LEVEL_CHALLENGES :: 24
 
 Level_Data :: struct {
     font: ^Font,
 
     challenges: small_array.Small_Array(MAX_NUM_LEVEL_CHALLENGES, Type_Challenge),
     current_challenge: int,
-    num_words_in_line: int,
+    first_challenge_idx_onscreen: int,
     num_lines_onscreen: int,
     on_space: bool,
 
-    number_word_challenges: int,
+    num_word_challenges: int,
     num_correct_words_typed: int,
     num_incorrect_words_typed: int,
+
+    max_vertical_space: f32,
 }
 
 random_word :: proc() -> string {
-    return rand.choice(top_200)
+    return rand.choice(small_array.slice(&top_200_words))
 }
 
 setup_level :: proc(level: ^Level_Data, num_word_challenges: int) {
-    level.number_word_challenges = num_word_challenges
-    level.num_words_in_line = 5 // TODO: make this configurable somehow
+    level.num_word_challenges = num_word_challenges
     level.num_lines_onscreen = 2 // TODO: make this configurable somehow
-    num_words_onscreen := level.num_lines_onscreen * level.num_words_in_line
-    assert(MAX_NUM_LEVEL_CHALLENGES >= 2 * num_words_onscreen)
     for i in 0..<MAX_NUM_LEVEL_CHALLENGES {
         challenge := Type_Challenge{}
         setup_challenge(&challenge, random_word(), level.font, 1.5)
+        level.max_vertical_space = max(level.max_vertical_space, challenge.dim.y)
         challenge.state = .Inactive
         ok := small_array.push_back(&level.challenges, challenge)
         assert(ok)
@@ -369,10 +372,13 @@ reset_level :: proc(level: ^Level_Data) {
 }
 
 is_level_done :: proc(level: ^Level_Data) -> bool {
-    if level.current_challenge < small_array.len(level.challenges) {
-        return false
+    using level
+
+    num_done := num_correct_words_typed + num_incorrect_words_typed
+    if num_done >= num_word_challenges {
+        return true
     }
-    return true
+    return false
 }
 
 level_type_character :: proc(level: ^Level_Data, character: rune) {
@@ -396,14 +402,6 @@ level_type_character :: proc(level: ^Level_Data, character: rune) {
         } else {
             challenge.state = .Correct
             level.num_correct_words_typed += 1
-        }
-        if (level.num_correct_words_typed + level.num_incorrect_words_typed) < level.number_word_challenges {
-            // TODO: maybe this should be a display concern as it's highly based on how things look
-            // generate new word challenges to backfill
-            // this needs to know how many are on screen, how many before current and how many after
-            num_words_onscreen := level.num_lines_onscreen * level.num_words_in_line
-            // need to determine if we need to generate new challenges
-
         }
     }
 }
@@ -516,7 +514,7 @@ render_menu :: proc() {
     rl.EndDrawing()
 }
 
-render_game :: proc() {
+render_level :: proc() {
     using game_window.level_data
 
     char := rl.GetCharPressed()
@@ -538,47 +536,86 @@ render_game :: proc() {
 
     space_dim := rl.MeasureTextEx(font.font, " ", font.size, 0.0)
 
-    // render some words over a series of lines
-    // version 1: just put 5 words on screen on one line, switch the lines out when moving from line to line
-    // version 2: put 2 lines of 5 words on screen
-    // TODO: more words in the level than displayed on screen
-    // TODO: show a moving window that's centered around the cursor (and the pseudo-line the cursor is on)
-    // TODO: random generate new words in the level to backfill infront of the rendered lines/words
     // TODO: show onscreen a running counter of correct/incorrect words
-    num_words_to_render := 5
-    min_word := 0
-    max_word := min_word + num_words_to_render
-    if current_challenge > max_word {
-        diff := current_challenge - max_word
-        min_word += diff
-        max_word += diff
-    }
 
-    total_dim := rl.Vector2{-space_dim.x, 0.0}
-    onscreen_challenges := small_array.slice(&challenges)[min_word:max_word]
-    for challenge in onscreen_challenges {
-        total_dim.x += challenge.dim.x + space_dim.x
-        total_dim.y = max(total_dim.y, challenge.dim.y)
+    small_word_size := rl.MeasureTextEx(font.font, "the ", font.size, 0.0)
+    line_padding := 0.2 * max_vertical_space
+    edge_padding := 0.2 * font.size
+    line_height := max_vertical_space + line_padding
+    lines_dim := rl.Vector2{small_word_size.x * 12.0, line_height * f32(num_lines_onscreen)}
+    overflow_x := (game_window.dim.x - (2.0 * edge_padding)) - lines_dim.x
+    if overflow_x < 0.0 {
+        lines_dim.x += overflow_x
     }
-    origin := rl.Vector2{}
+    lines_origin := rl.Vector2{}
     center_horizontally(
-        &origin,
-        total_dim,
+        &lines_origin,
+        lines_dim,
         game_window.dim,
     )
     center_vertically(
-        &origin,
-        total_dim,
+        &lines_origin,
+        lines_dim,
         game_window.dim,
     )
-    for &challenge, i in onscreen_challenges {
-        update_challenge_alpha(&challenge)
-        render_challenge(&challenge, origin, render_demonic_sign = false)
+    when ODIN_DEBUG {
+        lines_outline_rect := rl.Rectangle{lines_origin.x, lines_origin.y, lines_dim.x, lines_dim.y}
+        rl.DrawRectangleLinesEx(lines_outline_rect, 2.0, RED)
+    }
+
+    total_num_challenges := num_correct_words_typed + num_incorrect_words_typed
+    num_prior := total_num_challenges - current_challenge // number that have flowed out of the ring buffer
+    score := fmt.ctprintf("{} / {}", total_num_challenges, num_word_challenges)
+    rl.DrawTextEx(game_window.title_font.font, score, rl.Vector2{10.0, 10.0}, game_window.title_font.size, 0.0, WHITE)
+
+    origin := lines_origin
+
+    right_edge := lines_origin.x + lines_dim.x
+    line_number := 0
+    i := first_challenge_idx_onscreen
+    first_word_on_the_line := first_challenge_idx_onscreen
+    number_of_words_rendered := 0
+    for {
+        if (i + num_prior) > num_word_challenges {
+            break
+        }
+        challenge := small_array.get_ptr(&challenges, i)
+        if (origin.x + challenge.dim.x) > right_edge {
+            // wrap!
+            first_word_on_the_line = i
+            line_number += 1
+            origin.x = lines_origin.x
+            origin.y += line_height
+            if line_number == num_lines_onscreen {
+                break // we've finished
+            }
+        }
+        if !on_space && current_challenge == i && line_number == 1 {
+            first_challenge_idx_onscreen = first_word_on_the_line
+        }
+        update_challenge_alpha(challenge)
+        render_challenge(challenge, origin, render_demonic_sign = false)
+        number_of_words_rendered += 1
         origin.x += challenge.dim.x
         if on_space && (current_challenge - 1) == i {
-            render_cursor(&challenge, origin, space_dim)
+            render_cursor(challenge, origin, space_dim)
         }
         origin.x += space_dim.x
+        i = (i+1) % small_array.len(challenges)
+    }
+
+    // Look ahead and reset / create new words as necessary
+    i = (first_challenge_idx_onscreen + number_of_words_rendered) % small_array.len(challenges)
+    for {
+        if i == first_challenge_idx_onscreen { break }
+
+        challenge := small_array.get_ptr(&challenges, i)
+        if challenge.state != .Inactive {
+            setup_challenge(challenge, random_word(), font, 1.5)
+            challenge.state = .Inactive
+        }
+
+        i = (i+1) % small_array.len(challenges)
     }
 
     rl.EndDrawing()
@@ -611,7 +648,7 @@ update_and_render :: proc() {
     #partial switch game_window.game_state {
         case .STATE_TITLE: render_title()
         case .STATE_MENU:  render_menu()
-        case .STATE_PLAY:  render_game()
+        case .STATE_PLAY:  render_level()
         case .STATE_WIN:   render_win()
         case .STATE_LOSE:  render_lose()
     }
@@ -699,8 +736,27 @@ render_word_as_demonic_sign :: proc(rect: rl.Rectangle, word: string, color: rl.
     }
 }
 
+init_words :: proc() {
+    words := top_200
+    for {
+        advance, token, err, _ := bufio.scan_words(words, true)
+        if err != nil {
+            log.errorf("error scanning words: {}", err)
+        }
+        if advance == 0 {
+            break
+        }
+        if len(token) > 0 {
+            fmt.printf("word: '%s'\n", string(token))
+            ok := small_array.push_back(&top_200_words, string(token)) // transmute?
+            assert(ok)
+        }
+        words = words[advance:]
+    }
+}
+
 init_game :: proc() -> bool {
-    // for line in top_200 - push into top_200_words array
+    init_words()
     update_window_dim()
 
     game_window.title_font     = load_im_fell(120.0)
