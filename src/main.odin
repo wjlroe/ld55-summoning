@@ -26,6 +26,14 @@ Font :: struct {
     size: f32,
 }
 
+iosevka_regular_data := #load("../assets/fonts/iosevka-regular.ttf")
+load_iosevka :: proc(size: f32) -> (font: Font) {
+    font.font = rl.LoadFontFromMemory(".ttf", raw_data(iosevka_regular_data), i32(len(iosevka_regular_data)), i32(size), nil, -1)
+    assert(rl.IsFontReady(font.font))
+    font.size = size
+    return
+}
+
 when ODIN_DEBUG {
     im_fell_filename : cstring = "assets/fonts/IM_Fell_English/IMFellEnglish-Regular.ttf"
 
@@ -417,6 +425,8 @@ Game_Window :: struct {
     challenge_font: Font,
     demonic_font: Font,
 
+    debug_font: Font,
+
     dt: f32,
     dim: rl.Vector2,
 
@@ -577,6 +587,7 @@ render_level :: proc() {
     number_of_words_rendered := 0
     for {
         if (i + num_prior) > num_word_challenges {
+            log.infof("stop rendering. i = {}, num_prior: {}, num_word_challenges: {}", i, num_prior, num_word_challenges)
             break
         }
         challenge := small_array.get_ptr(&challenges, i)
@@ -595,6 +606,9 @@ render_level :: proc() {
         }
         update_challenge_alpha(challenge)
         render_challenge(challenge, origin, render_demonic_sign = false)
+        if i == current_challenge {
+            rl.DrawRectangleLinesEx(rl.Rectangle{origin.x, origin.y, 10.0, 10.0}, 1.0, rl.YELLOW)
+        }
         number_of_words_rendered += 1
         origin.x += challenge.dim.x
         if on_space && (current_challenge - 1) == i {
@@ -602,6 +616,62 @@ render_level :: proc() {
         }
         origin.x += space_dim.x
         i = (i+1) % small_array.len(challenges)
+    }
+
+    last_challenge_idx_onscreen := ((number_of_words_rendered - 1) + first_challenge_idx_onscreen) % small_array.len(challenges)
+
+    // debug render all the words in the level
+    line_height = game_window.debug_font.size
+    origin.x = 0.0
+    origin.y += line_height
+    Debug_Thing :: struct {
+        label: string,
+        value: int,
+        is_index: bool,
+        origin: rl.Vector2,
+    }
+    debug_things := []Debug_Thing{
+        {label = "current_challenge", value = current_challenge, is_index = true},
+        {label = "first_challenge_idx_onscreen", value = first_challenge_idx_onscreen, is_index = true},
+        {label = "last_challenge_idx_onscreen", value = last_challenge_idx_onscreen, is_index = true},
+        {label = "num_word_challenges", value = num_word_challenges, is_index = false},
+    }
+    for &challenge, idx in small_array.slice(&challenges) {
+        if (origin.x + challenge.dim.x) > game_window.dim.x {
+            origin.x = 0.0
+            origin.y += line_height
+        }
+
+        challenge_color := rl.PINK
+        switch challenge.state {
+            case .Correct: challenge_color = rl.GREEN
+            case .Incorrect: challenge_color = rl.RED
+            case .Inactive: challenge_color = rl.GRAY
+            case .Active: challenge_color = rl.DARKBLUE
+        }
+        for &debug_thing in debug_things {
+            if debug_thing.is_index && idx == debug_thing.value {
+                debug_thing.origin = origin
+            }
+        }
+        debug_dim := rl.MeasureTextEx(game_window.debug_font.font, challenge.word_c, game_window.debug_font.size, 0.0)
+        rl.DrawRectangleV(origin, debug_dim, challenge_color)
+        rl.DrawTextEx(game_window.debug_font.font, challenge.word_c, origin, game_window.debug_font.size, 0.0, rl.WHITE)
+        origin.x += debug_dim.x + line_height
+    }
+    margin : f32 = 10.0
+    origin.x = margin
+    origin.y += 2.0*line_height
+    for &debug_thing in debug_things {
+        debug_msg := fmt.ctprintf("{} = {}", debug_thing.label, debug_thing.value)
+        debug_dim := rl.MeasureTextEx(game_window.debug_font.font, debug_msg, game_window.debug_font.size, 0.0)
+        rl.DrawTextEx(game_window.debug_font.font, debug_msg, origin, game_window.debug_font.size, 0.0, rl.WHITE)
+        origin.x += debug_dim.x
+        if debug_thing.is_index {
+            rl.DrawLineV(origin, debug_thing.origin, rl.RED)
+        }
+        origin.x = margin
+        origin.y += line_height
     }
 
     // Look ahead and reset / create new words as necessary
@@ -763,6 +833,7 @@ init_game :: proc() -> bool {
     game_window.menu_font      = load_im_fell(52.0)
     game_window.challenge_font = load_im_fell(48.0)
     game_window.demonic_font   = load_im_fell(38.0)
+    game_window.debug_font     = load_iosevka(24.0)
 
     setup_challenge(&game_window.title_challenge, title, &game_window.title_font, TITLE_CHALLENGE_FADE_TIME)
     game_window.title_challenge.state = .Active
@@ -771,6 +842,11 @@ init_game :: proc() -> bool {
     menu_entries := []string{"Start game", "Quit"}
     menu_actions := []Game_Action{.Start, .Quit}
     setup_multiple_choice(&game_window.title_menu_challenges, menu_entries, menu_actions)
+
+
+    game_window.game_state = .STATE_PLAY
+    game_window.title_challenge.state = .Inactive
+    setup_level(&game_window.level_data, num_word_challenges = 30)
 
     return true
 }
