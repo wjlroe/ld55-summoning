@@ -574,7 +574,15 @@ render_level :: proc() {
     }
 
     total_num_challenges := num_correct_words_typed + num_incorrect_words_typed
-    num_prior := total_num_challenges - current_challenge // number that have flowed out of the ring buffer
+    num_prior := total_num_challenges // number that have flowed out of the ring buffer
+    p := first_challenge_idx_onscreen
+    for {
+        if p == current_challenge {
+            break
+        }
+        num_prior -= 1
+        p = (p+1) % small_array.len(challenges)
+    }
     score := fmt.ctprintf("{} / {}", total_num_challenges, num_word_challenges)
     rl.DrawTextEx(game_window.title_font.font, score, rl.Vector2{10.0, 10.0}, game_window.title_font.size, 0.0, WHITE)
 
@@ -586,9 +594,11 @@ render_level :: proc() {
     first_word_on_the_line := first_challenge_idx_onscreen
     number_of_words_rendered := 0
     for {
-        if (i + num_prior) > num_word_challenges {
-            log.infof("stop rendering. i = {}, num_prior: {}, num_word_challenges: {}", i, num_prior, num_word_challenges)
+        if (number_of_words_rendered + num_prior) > num_word_challenges {
+            debug_printf_once("stop rendering. i = {}, num_prior: {}, num_word_challenges: {}", i, num_prior, num_word_challenges)
             break
+        } else {
+            debug_printf_once("i = {}, num_prior = {}", i, num_prior)
         }
         challenge := small_array.get_ptr(&challenges, i)
         if (origin.x + challenge.dim.x) > right_edge {
@@ -601,7 +611,7 @@ render_level :: proc() {
                 break // we've finished
             }
         }
-        if !on_space && current_challenge == i && line_number == 1 {
+        if !on_space && current_challenge == i && line_number == 1 && (i + num_prior < num_word_challenges) {
             first_challenge_idx_onscreen = first_word_on_the_line
         }
         update_challenge_alpha(challenge)
@@ -623,7 +633,7 @@ render_level :: proc() {
     // debug render all the words in the level
     line_height = game_window.debug_font.size
     origin.x = 0.0
-    origin.y += line_height
+    origin.y += line_height*3.0
     Debug_Thing :: struct {
         label: string,
         value: int,
@@ -635,6 +645,7 @@ render_level :: proc() {
         {label = "first_challenge_idx_onscreen", value = first_challenge_idx_onscreen, is_index = true},
         {label = "last_challenge_idx_onscreen", value = last_challenge_idx_onscreen, is_index = true},
         {label = "num_word_challenges", value = num_word_challenges, is_index = false},
+        {label = "num_prior", value = num_prior, is_index = false},
     }
     for &challenge, idx in small_array.slice(&challenges) {
         if (origin.x + challenge.dim.x) > game_window.dim.x {
