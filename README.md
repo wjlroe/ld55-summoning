@@ -1,7 +1,5 @@
 # Ludum Dare 55: Summoning
 
-Started with base code from: https://git.sr.ht/~willroe/base-code-c-webasm
-
 * Tech: Odin + raylib
 * IM Fell fonts from https://fonts.google.com/specimen/IM+Fell+English
 
